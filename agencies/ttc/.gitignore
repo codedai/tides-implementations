@@ -1,0 +1,19 @@
+# Local source data: retained in place, never committed from this prototype.
+database_offline/**/*.csv
+database_offline/**/*.zip
+
+# Generated pipeline artifacts.
+artifacts/*
+!artifacts/README.md
+
+# Future Python development state.
+.venv/
+__pycache__/
+*.py[cod]
+.python-version.*
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Local editor and operating-system files.
+.DS_Store

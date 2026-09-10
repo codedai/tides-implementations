@@ -1,0 +1,195 @@
+{
+  "primaryKey": "passenger_event_id",
+  "missingValues": [
+    "NA",
+    "NaN",
+    ""
+  ],
+  "fields": [
+    {
+      "name": "passenger_event_id",
+      "type": "string",
+      "description": "Identifies the recorded passenger event.",
+      "constraints": {
+        "required": true,
+        "unique": true
+      }
+    },
+    {
+      "name": "service_date",
+      "type": "date",
+      "description": "Service date. References GTFS",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "event_timestamp",
+      "type": "datetime",
+      "description": "Recorded event timestamp.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "location_ping_id",
+      "type": "string",
+      "title": "ID referencing vehicle_locations.location_ping_id",
+      "description": "Identifies the vehicle location where the passenger event occurred"
+    },
+    {
+      "name": "trip_id_performed",
+      "type": "string",
+      "title": "ID referencing trips_performed.trip_id_performed",
+      "description": "Identifies the trip performed. If trips_performed table is used, this must be populated in order to link to it."
+    },
+    {
+      "name": "trip_id_scheduled",
+      "type": "string",
+      "title": "ID referencing trips_performed.trip_id_scheduled",
+      "description": "Identifies the scheduled trip."
+    },
+    {
+      "name": "trip_stop_sequence",
+      "type": "integer",
+      "title": "Positive integer referencing stop_visits.trip_stop_sequence",
+      "description": "The actual order of stops visited within a performed trip. The values must start at 1 and must be consecutive along the trip.<br/> Example: A bus departs the first stop and detours around the second and third scheduled stops, visiting one unscheduled stop and resuming regular service at the 4th scheduled stop. The `scheduled_stop_sequence` is [1, null, 4], and the `trip_stop_sequence` is [1, 2, 3].",
+      "constraints": {
+        "required": true,
+        "minimum": 1
+      }
+    },
+    {
+      "name": "scheduled_stop_sequence",
+      "type": "integer",
+      "title": "positive integer referencing GTFS stop_times.stop_sequence",
+      "description": "Scheduled order of stops for a particular trip. The values must increase along the trip but do not need to be consecutive. References GTFS",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "description": "Indicates the type of event recorded.",
+      "constraints": {
+        "required": true,
+        "enum":
+        [
+          "Vehicle arrived at stop",
+          "Vehicle departed stop",
+          "Door opened",
+          "Door closed",
+          "Passenger boarded",
+          "Passenger alighted",
+          "Kneel was engaged",
+          "Kneel was disengaged",
+          "Ramp was deployed",
+          "Ramp was raised",
+          "Ramp deployment failed",
+          "Lift was deployed",
+          "Lift was raised",
+          "Individual bike boarded",
+          "Individual bike alighted",
+          "Bike rack deployed"
+        ]
+      }
+    },
+    {
+      "name": "vehicle_id",
+      "type": "string",
+      "title": "ID referencing vehicles.vehicle_id",
+      "description": "Identifies a vehicle.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "device_id",
+      "type": "string",
+      "title": "ID referencing devices.device_id",
+      "description": "Identifies the device that recorded the event. May be null if only a single device is reporting passenger events on a vehicle/ train car and the device_id is not distinct from vehicle_id/train_car_id."
+    },
+    {
+      "name": "train_car_id",
+      "type": "string",
+      "title": "ID referencing train_cars.train_car_id",
+      "description": "Identifies the train car."
+    },
+    {
+      "name": "stop_id",
+      "type": "string",
+      "title": "ID referencing GTFS stops.stop_id",
+      "description": "Identifies the stop the vehicle is serving. References GTFS"
+    },
+    {
+      "name": "pattern_id",
+      "type": "string",
+      "title": "unique identifier for the route-pattern",
+      "description": "Identifies the unique stop-path for a trip, may be distinct from GTFS shapes.shape_id"
+    },
+    {
+      "name": "event_count",
+      "type": "integer",
+      "title": "Event count",
+      "description": "Count for this event, e.g., 3 for a Passenger Boarding event with 3 boardings, default is  `1`",
+      "constraints": {
+        "minimum": 0
+      }
+    }
+  ],
+  "foreignReferences": [
+    {
+      "fields": ["service_date", "trip_id_performed"],
+      "reference": {
+        "resource": "trips_performed",
+        "fields": ["service_date", "trip_id_performed"]
+      }
+    },
+    {
+      "fields": "location_ping_id",
+      "reference": {
+        "resource": "vehicle_locations",
+        "fields": "location_ping_id"
+      }
+    },
+    {
+      "fields": ["service_date", "trip_id_performed", "trip_stop_sequence"],
+      "reference": {
+        "resource": "stop_visits",
+        "fields": ["service_date", "trip_id_performed", "trip_stop_sequence"]
+      }
+    },
+    {
+      "fields": "vehicle_id",
+      "reference": {
+        "resource": "vehicles",
+        "fields": "vehicle_id"
+      }
+    },
+    {
+      "fields": "device_id",
+      "reference": {
+        "resource": "devices",
+        "fields": "device_id"
+      }
+    },
+    {
+      "fields": "train_car_id",
+      "reference": {
+        "resource": "train_cars",
+        "fields": "train_car_id"
+      }
+    },
+    {
+      "fields": "stop_id",
+      "reference": {
+        "resource": "stops",
+        "fields": "stop_id"
+      }
+    }
+  ],
+  "name": "passenger_events.schema.json",
+  "description": "Timestamped passenger-related events, including boardings and alightings.",
+  "_table_type": "Event"
+}

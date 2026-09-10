@@ -1,0 +1,29 @@
+{
+  "schema": "experiment05-tides-vendor-v1",
+  "upstream": "https://github.com/TIDES-transit/TIDES",
+  "tag": "v1.0",
+  "commit": "b2cb23178e00cb58dbdb1b9a5a8626818278ecbb",
+  "license": "CC-BY-4.0",
+  "files": {
+    "devices.schema.json": "spec/devices.schema.json",
+    "vehicles.schema.json": "spec/vehicles.schema.json",
+    "vehicle_locations.schema.json": "spec/vehicle_locations.schema.json",
+    "trips_performed.schema.json": "spec/trips_performed.schema.json",
+    "stop_visits.schema.json": "spec/stop_visits.schema.json",
+    "passenger_events.schema.json": "spec/passenger_events.schema.json",
+    "tides-datapackage-profile.json": "spec/tides-datapackage-profile.json",
+    "table-schema.json": "spec/table-schema.json",
+    "LICENSE-CC-BY-4.0": "LICENSE-CC-BY-4.0"
+  },
+  "sha256": {
+    "devices.schema.json": "38aa0057d48c670d3ccca250ba2d430eee01a15fb76775247e648f243648e037",
+    "vehicles.schema.json": "ab1edd274b5ccf0b33550523878333a10454a96f308854e416ecf7050d605380",
+    "vehicle_locations.schema.json": "b408bc61c0409db89ecdb9545a2323c02a098796056b4908fd95309eea28f5fa",
+    "trips_performed.schema.json": "a81193e7c7f021c1c0b9b28211143be281cea35d5bcaede13e84fead692cfa57",
+    "stop_visits.schema.json": "74d8a4e44c6ce82e92a8ee458d46d575ed1b928a986b89ebfb37ffffdc9a64f6",
+    "passenger_events.schema.json": "90485bd3ed5b7727ad56f9890e51b54c0364eb0e4100afae0f9fac1a3c2a37e6",
+    "tides-datapackage-profile.json": "c8d6928cf8de9bf42c0f9f790ee50afc6910c88804490a58be842f1ae8c80356",
+    "table-schema.json": "35e4e058a6579aaad84603d8072a79cc9c82d7773a35034ddda5417094d2db46",
+    "LICENSE-CC-BY-4.0": "67066ed5f4b8f3237d5e344e74ebfef1a561fecf89157e84ab5fdae95460ab2d"
+  }
+}
