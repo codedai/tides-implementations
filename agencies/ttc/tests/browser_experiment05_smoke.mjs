@@ -91,6 +91,12 @@ try {
   }
   const invalid = await fetch(origin + '/api/runs', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ service_date:'not-a-date', route_id:'29', match_mode:'all', force:false }) });
   assert(invalid.status === 400 && (await invalid.json()).error === 'INVALID_DATE', 'malformed date rejected before pipeline initialization');
+  assert(!availability.dates.some(day => day.service_date === '2023-12-01' && day.available), 'missing-input test date has no available raw day');
+  const beforeMissingInput = (await json('/api/runs')).runs.map(run => run.run_id).sort();
+  const missingInput = await fetch(origin + '/api/runs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({service_date:'2023-12-01',route_id:'29',match_mode:'all',force:false}) });
+  const missingError = await missingInput.json();
+  assert(missingInput.status === 422 && missingError.error === 'INPUT_UNAVAILABLE' && typeof missingError.message === 'string', 'real missing-input date rejected before pipeline initialization', missingError);
+  assert(JSON.stringify((await json('/api/runs')).runs.map(run => run.run_id).sort()) === JSON.stringify(beforeMissingInput), 'missing-input request creates no run directory');
   for (const id of runIds) {
     const detail = await json(`/api/runs/${encodeURIComponent(id)}/summary`), date = detail.summary?.service_date;
     assert(detail.status === 'complete' && detail.summary?.validation_ok === true && detail.run_manifest.validation_ok === true, 'requested run is validated complete ' + id);

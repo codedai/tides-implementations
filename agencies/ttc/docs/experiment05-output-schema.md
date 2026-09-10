@@ -64,8 +64,10 @@ alternative-reference checks, terminal/APC/recovery evidence, counterfactual
 candidate support and censor vetoes. `stop_visits_evidence.parquet` links inferred
 visits to source APC row IDs. `apc_attachment_audit.parquet` preserves attachment
 choices/rejections. `local_window_evidence.parquet` contains per-mode local
-candidate evidence; overlapping windows do not become independent assignment
-votes. `mode_results.parquet` retains the matcher's status separately from the
+candidate evidence: its row count (also reported as `local_windows`) counts
+candidate/window evidence pairs, not unique time windows. Overlapping windows
+do not become independent assignment votes. `mode_results.parquet` retains the
+matcher's status separately from the
 project-specific three-round assignment outcome.
 
 `scheduled_lookup.parquet` is the authoritative active-feed scheduled occurrence
