@@ -1,0 +1,1312 @@
+{
+  "schema": "pre-experiment-05-snapshot-v1",
+  "created_at": "2026-09-10T16:23:14.764236+00:00",
+  "repository_parent_commit": "0826af04ffefc189cbb0c246f67e7d1ea367c638",
+  "frozen_release": {
+    "release": "releases/workbench-04c-20260910T153527-0cb5d1dc",
+    "sha256": "462a6a9257db11fd924ddb96ea8b34f98fecde4093766a3baf8269c4a4b9c0a4"
+  },
+  "final_config_sha256": "32326702ab671d408aa3c1969e53e5ef3123ada6bf9f17f483a239fb8ef37613",
+  "environment": {
+    "python": "3.12.2",
+    "implementation": "CPython",
+    "packages": {
+      "six": "1.17.0",
+      "simpleeval": "1.0.7",
+      "pytest": "8.4.2",
+      "marko": "2.2.3",
+      "requests": "2.34.2",
+      "rfc3986": "2.0.0",
+      "jsonschema-specifications": "2025.9.1",
+      "validators": "0.35.0",
+      "text-unidecode": "1.3",
+      "isodate": "0.7.2",
+      "urllib3": "2.7.0",
+      "annotated-types": "0.8.0",
+      "polars": "1.43.2",
+      "frictionless": "5.19.0",
+      "referencing": "0.37.0",
+      "polars-runtime-32": "1.43.2",
+      "iniconfig": "2.3.0",
+      "ttc-tides": "0.1.0",
+      "typing-extensions": "4.16.0",
+      "pygments": "2.20.0",
+      "petl": "1.7.23",
+      "pluggy": "1.6.0",
+      "python-dateutil": "2.9.0.post0",
+      "pyyaml": "6.0.3",
+      "attrs": "26.1.0",
+      "tabulate": "0.10.0",
+      "pydantic": "2.13.4",
+      "typer": "0.27.1",
+      "jinja2": "3.1.6",
+      "pydantic-core": "2.46.4",
+      "markupsafe": "3.0.3",
+      "idna": "3.18",
+      "jsonschema": "4.26.0",
+      "chardet": "7.4.3",
+      "packaging": "26.3",
+      "shellingham": "1.5.4",
+      "rpds-py": "2026.6.3",
+      "pyarrow": "25.0.0",
+      "ruff": "0.16.1",
+      "mdurl": "0.1.2",
+      "typing-inspection": "0.4.2",
+      "python-slugify": "8.0.4",
+      "markdown-it-py": "4.2.0",
+      "humanize": "4.16.0",
+      "certifi": "2026.7.22",
+      "charset-normalizer": "3.4.9",
+      "annotated-doc": "0.0.5",
+      "rich": "15.0.0"
+    }
+  },
+  "raw_inputs_preserved_in_place": {
+    "artifacts/feed_manifest.draft.csv": "c9b69f19d3f580afb1ff6b743dec256aa7ee36c71db1d8a38a2e0e5021cd4465",
+    "database_offline/apc/ttc_apc_data.csv": "6ffadf82dacf106a1388da7d30df04466b89bcd4956e25b346f4cad0e74d60d3",
+    "database_offline/avl/20240401_Vehicle GPS Rt29 RT 929 Nov 2023.csv": "0024d3ebc0cdef0579a633d7fedefe779eb1abb4ac14fd5e0a006cac722aa96e",
+    "database_offline/gtfs/f-dpz8-ttc-ad8cfc0bbeeaa28c94db105b47068e35791df8cd.zip": "abed35c95d0922fd0f6ce641f1e2fa4a85cef98a17157a963971cedad7ab15ff",
+    "database_offline/gtfs/f-dpz8-ttc-cdab5829171fede2be5c139bb1139fcde8f81897.zip": "0a0cc10e62656699c60ab12562ff270c4b0edec64ccb3ac7a16b41eed595c684"
+  },
+  "files": {
+    "code/.python-version": {
+      "sha256": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/.python-version",
+      "bytes": 5
+    },
+    "code/README.md": {
+      "sha256": "13fa793a26e6db2b29019d1d8042b55dfb7223b8294102a0faa85f2cd7470dbe",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/README.md",
+      "bytes": 20385
+    },
+    "code/docs/experiment04c-occurrence-plausibility.md": {
+      "sha256": "58efb8ff12d9c8fcc8c7e8040c2f11472efff3e64f635a0cbbeada5d018029a4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/docs/experiment04c-occurrence-plausibility.md",
+      "bytes": 7221
+    },
+    "code/docs/frozen-workbench.md": {
+      "sha256": "ad9d14e1e6a061849dadb62e07bda39105e9b5cf210dfaefb8d7da67e6a2d1c3",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/docs/frozen-workbench.md",
+      "bytes": 6867
+    },
+    "code/experiments/apc_avl_coverage_study/README.md": {
+      "sha256": "5759e223d1127d8daa93ef2938bc3c3f11e86cf0cb2f17f61c594e48aa9179c8",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/README.md",
+      "bytes": 9128
+    },
+    "code/experiments/apc_avl_coverage_study/__init__.py": {
+      "sha256": "ec24570e3bcde313a4d558b599104618fadb369b851f0ee7ef5dc39918088dab",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/__init__.py",
+      "bytes": 69
+    },
+    "code/experiments/apc_avl_coverage_study/analyze_results.py": {
+      "sha256": "e7655e2f951b26a4f9f29848dee20e800f417504b4c6178042364cf8981afa87",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/analyze_results.py",
+      "bytes": 56555
+    },
+    "code/experiments/apc_avl_coverage_study/merge.py": {
+      "sha256": "58911203d758890c593698710db7e5e15858ad45b884deefdc48486aa986c160",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/merge.py",
+      "bytes": 16729
+    },
+    "code/experiments/apc_avl_coverage_study/probes.py": {
+      "sha256": "8c44c25eea7f4c24dcef750a36a4a68fbaed1b3226a53af32ec0a9eac9f0e8b2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/probes.py",
+      "bytes": 33719
+    },
+    "code/experiments/apc_avl_coverage_study/raw_audit.py": {
+      "sha256": "a2f59701b1cb85d0a53c414fb6ebd34eef19d00e0033002f17867c6503d6b935",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/raw_audit.py",
+      "bytes": 40654
+    },
+    "code/experiments/apc_avl_coverage_study/run_study.py": {
+      "sha256": "a58172fe977a413ca454056fc96e3bb286f2ad69c872283ee892ad4f4ee4144a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/run_study.py",
+      "bytes": 16882
+    },
+    "code/experiments/apc_avl_coverage_study/segmentation.py": {
+      "sha256": "1c2899261226b4b11e56b94cbf21f22cd4a9737fd0ebe072933146a6b66f398d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/segmentation.py",
+      "bytes": 20561
+    },
+    "code/experiments/apc_avl_coverage_study/segmentation_counterexamples.py": {
+      "sha256": "e40ae159a4badce89cb6a27cc08d2319d6daa2e98c24bb25075805b535b79d9c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/segmentation_counterexamples.py",
+      "bytes": 8111
+    },
+    "code/experiments/apc_avl_coverage_study/study_config.json": {
+      "sha256": "8d28e8b5cae0a6e369d9a36b45750d7af1cb5f6c9a691d8bc2d386d3697ee083",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/study_config.json",
+      "bytes": 1911
+    },
+    "code/experiments/apc_avl_coverage_study/tests/test_merge.py": {
+      "sha256": "6baa4c8070508310a6e0441a0fa4e111a7b78bfff01e7716cda674f12c65ef03",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/tests/test_merge.py",
+      "bytes": 14325
+    },
+    "code/experiments/apc_avl_coverage_study/tests/test_probes.py": {
+      "sha256": "069e1f9ebb12a3ad289b583aa1826f99f2e153d6b8cd190719f2b52930345347",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/tests/test_probes.py",
+      "bytes": 9869
+    },
+    "code/experiments/apc_avl_coverage_study/tests/test_results_analysis.py": {
+      "sha256": "655e19c0bedaf3bb451f1e086e777959425736741e0c9f7ddfebc2eefa09537c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/tests/test_results_analysis.py",
+      "bytes": 3333
+    },
+    "code/experiments/apc_avl_coverage_study/tests/test_segmentation.py": {
+      "sha256": "5f59658229cc953311316fe118e886c8422741c043c49242b6775e196cb6fdb3",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/tests/test_segmentation.py",
+      "bytes": 10212
+    },
+    "code/experiments/apc_avl_coverage_study/tides_rubric.json": {
+      "sha256": "52eaeec2d73b9564155a478a9815e347d7713fcd9d03dc75d8d733c5002e86ce",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_coverage_study/tides_rubric.json",
+      "bytes": 18440
+    },
+    "code/experiments/apc_avl_direct_evidence/README.md": {
+      "sha256": "58c504acd36065c15bcaf528cae6b95867ff936c2ad82da3498c18623dffad18",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/README.md",
+      "bytes": 11428
+    },
+    "code/experiments/apc_avl_direct_evidence/__init__.py": {
+      "sha256": "050deca08c4ea713b0b6203afc376f51c1c655560e6a5a7b0cd40aa49753e1d7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/__init__.py",
+      "bytes": 85
+    },
+    "code/experiments/apc_avl_direct_evidence/evaluate.py": {
+      "sha256": "1b28012a31c7d5f203acc2fedcf5c1c890a3d9dbc44755c3b5666d6c70d58a74",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/evaluate.py",
+      "bytes": 34439
+    },
+    "code/experiments/apc_avl_direct_evidence/matcher.py": {
+      "sha256": "61dd9ebc60cec435e4d0419bba234e4d596d43a889e3c7662fe83e537f1bc4ac",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/matcher.py",
+      "bytes": 26886
+    },
+    "code/experiments/apc_avl_direct_evidence/probes.py": {
+      "sha256": "c55703e2a08d7ee96d0d6b43d21b78ef29114ed8b9c0e5ad548b63f9c0922181",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/probes.py",
+      "bytes": 28264
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/__init__.py": {
+      "sha256": "d3ac1e9391a902f9cfcbdf6936b19ddc33e9dae5fad128ab90cada1f4f5273e7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/__init__.py",
+      "bytes": 78
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_alias_context.py": {
+      "sha256": "ac50ac00aaaf516ec8f700db34e197528e4b518615c22c2ce689fa527ecc3d4e",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_alias_context.py",
+      "bytes": 3547
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_counter_motion.py": {
+      "sha256": "c828678dbed6a5883cf4e6146a0b3486d49097528e009c918540ab1358f638b5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_counter_motion.py",
+      "bytes": 1115
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_duplicate_contexts.py": {
+      "sha256": "1483b2e92caf30a76ce575bda537599bb0c51eae76b6ac248a2b3e764b578631",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_duplicate_contexts.py",
+      "bytes": 2654
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_evaluate.py": {
+      "sha256": "36f3d954732bc951d178f99104ba9f75037396a8afd91097bd42fe56670a6d5b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_evaluate.py",
+      "bytes": 6058
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_matcher.py": {
+      "sha256": "4aeaedfda4be5f299a54ef78ab52979027c8a3a34b9a94809859f9183c70aeab",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_matcher.py",
+      "bytes": 16760
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_negative_replay.py": {
+      "sha256": "ecf8b5f815e289ac55375b761ab8c6762b9d5c974ecc9c429c90f34dcad406ad",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_negative_replay.py",
+      "bytes": 8327
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_probes.py": {
+      "sha256": "3ed54e95c96812c7c6475b452243bffbbb0bb21c6b432cc937d750414589d4ac",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_probes.py",
+      "bytes": 8549
+    },
+    "code/experiments/apc_avl_direct_evidence/tests/test_replay_alias_fix.py": {
+      "sha256": "f2a2abc46644a72a891bef0347dbdedba42d588c394aeab05cc1ab656ea7dc07",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/tests/test_replay_alias_fix.py",
+      "bytes": 2851
+    },
+    "code/experiments/apc_avl_direct_evidence/validation/duplicate_contexts.py": {
+      "sha256": "f8b5be1a2fd1766d278f0c729a9e75e6908caa58fc87a4518800f932dacb75f7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/validation/duplicate_contexts.py",
+      "bytes": 11812
+    },
+    "code/experiments/apc_avl_direct_evidence/validation/replay_alias_fix.py": {
+      "sha256": "8d71cd5cbc21401e12ac2dd072bfc79e93a42bfa20ec89506bf8c9ab6a5ded06",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/validation/replay_alias_fix.py",
+      "bytes": 16729
+    },
+    "code/experiments/apc_avl_direct_evidence/validation/replay_negative.py": {
+      "sha256": "7828e05a87033126733eae2dfd1ad59aefc72f0b60475c89d5fce94b55d97ff2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/experiments/apc_avl_direct_evidence/validation/replay_negative.py",
+      "bytes": 20290
+    },
+    "code/pyproject.toml": {
+      "sha256": "c50ded854d0b56da6b4a7f1b93fb4c55369c55e12674741cd73c4e8174017b06",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/pyproject.toml",
+      "bytes": 693
+    },
+    "code/src/README.md": {
+      "sha256": "503e633cd1f0ed87743068ab1dc1ee10eb90860a4d358539f83f9e8e1635ec64",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/README.md",
+      "bytes": 1463
+    },
+    "code/src/ttc_tides/__init__.py": {
+      "sha256": "f19d4712239b7a3e20d05eb3826c4fa2481afe3c45d2fd396c0486b8694ab720",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/__init__.py",
+      "bytes": 84
+    },
+    "code/src/ttc_tides/cli.py": {
+      "sha256": "7540203d9076724501444c35a652489dd83c015d8d03e55a7f890159334b9e34",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/cli.py",
+      "bytes": 18493
+    },
+    "code/src/ttc_tides/ingest/__init__.py": {
+      "sha256": "993ea9d57447e1cf9bdd97526d16b158b073944be299a6736f73c7e9cf0f53e0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/ingest/__init__.py",
+      "bytes": 59
+    },
+    "code/src/ttc_tides/ingest/apc.py": {
+      "sha256": "8703659ef7e5a533f05a4487f324aafb994e73681c60c053064ba3eee35b9b36",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/ingest/apc.py",
+      "bytes": 1349
+    },
+    "code/src/ttc_tides/ingest/avl.py": {
+      "sha256": "5f6952063d1e29e20e3e6b07da0f95b787870a64ad271fe0a79312382ea3143d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/ingest/avl.py",
+      "bytes": 947
+    },
+    "code/src/ttc_tides/ingest/gtfs.py": {
+      "sha256": "60ef7dfa48abef4c1d6dc412feaa13b6337fd642e14be4c7b1e413ec26efd38f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/ingest/gtfs.py",
+      "bytes": 10399
+    },
+    "code/src/ttc_tides/ingest/sources.py": {
+      "sha256": "d5daf03a6cedfa732e6886f83c9d5cabc3997e9de5a04ead1a0a403fe9ead49a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/ingest/sources.py",
+      "bytes": 4773
+    },
+    "code/src/ttc_tides/normalize/__init__.py": {
+      "sha256": "18998adeae11090a9af7bf60e4aaa88270ee432d63a5ad35e616777e34e408c2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/normalize/__init__.py",
+      "bytes": 78
+    },
+    "code/src/ttc_tides/normalize/apc.py": {
+      "sha256": "279883be7ad5a79fbb61cdd439db221c3833409bc4b0f5b15662b10bcde89921",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/normalize/apc.py",
+      "bytes": 8358
+    },
+    "code/src/ttc_tides/normalize/avl.py": {
+      "sha256": "34cc9ab104da574cf7f77190f20632722241c4acbfe9f11ee46a6044efcc1808",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/normalize/avl.py",
+      "bytes": 7080
+    },
+    "code/src/ttc_tides/normalize/common.py": {
+      "sha256": "e9b5ab409c48556db0ab5cc97f3c3203c68ed91da854ec2079ca0dc554bd05fb",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/normalize/common.py",
+      "bytes": 5768
+    },
+    "code/src/ttc_tides/normalize/gtfs.py": {
+      "sha256": "ee9ac549165935c54434a852fcb40650feef87152465a9fa659c8c74fd6ad42c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/normalize/gtfs.py",
+      "bytes": 17928
+    },
+    "code/src/ttc_tides/pipeline.py": {
+      "sha256": "be7f82388b0ec0dcd73e706e6bd7fd07a0290645ca50e3b0586577701b203f90",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/pipeline.py",
+      "bytes": 5654
+    },
+    "code/src/ttc_tides/quality/__init__.py": {
+      "sha256": "6915e663201ed0e64033ff826c876249b6d6819cd8032e04093711d33f4f6bd9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/quality/__init__.py",
+      "bytes": 70
+    },
+    "code/src/ttc_tides/quality/gtfs.py": {
+      "sha256": "03ff18860542269af2f472ca31231fba0cc7752c3109ecb1753b0d85b79b956c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/quality/gtfs.py",
+      "bytes": 13886
+    },
+    "code/src/ttc_tides/reconcile/__init__.py": {
+      "sha256": "af12e53019ad5915f223ffc1bab54a0f47e2072de13eb4524e6d5b8f3230f6bb",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/reconcile/__init__.py",
+      "bytes": 84
+    },
+    "code/src/ttc_tides/reconcile/feeds.py": {
+      "sha256": "35c91818408cef854a134d59cc43168a90ce1471dc3d16b66b8b4f44f4ca8237",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/reconcile/feeds.py",
+      "bytes": 12116
+    },
+    "code/src/ttc_tides/reconcile/schedule.py": {
+      "sha256": "bcb20bb2355dfffbebc4755fab35896a6dbefe29f11ea847352a8101eabdc510",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/src/ttc_tides/reconcile/schedule.py",
+      "bytes": 12478
+    },
+    "code/tools/merge_review/README.md": {
+      "sha256": "a821c6e5348935ce9693a60365e22ff8ff64d1d90165b8f71cc8e220a5ed6b08",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/README.md",
+      "bytes": 28451
+    },
+    "code/tools/merge_review/__init__.py": {
+      "sha256": "615f82d543ce29f4aa07cb5b0bb1b6d60dcc50a6f0799f7019fc4b215d30bebf",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/__init__.py",
+      "bytes": 100
+    },
+    "code/tools/merge_review/avl_dedup.py": {
+      "sha256": "f918a2748228d71041b9576bf01c3c52ff493fd1fd955553a2bbe02aa3d818ae",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/avl_dedup.py",
+      "bytes": 10246
+    },
+    "code/tools/merge_review/cleanup.py": {
+      "sha256": "e57826a5d0068656a70c4c44df401feb35c1c2c52c3a77745f6d479e920f5672",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/cleanup.py",
+      "bytes": 13958
+    },
+    "code/tools/merge_review/data.py": {
+      "sha256": "2ce0f41930d831ae0f19c7204ec09c81b72b99dc7f301b5e97630c1e38261537",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/data.py",
+      "bytes": 89319
+    },
+    "code/tools/merge_review/debug.py": {
+      "sha256": "ffe93d56a08d67d49249b71033136a18ad2c984713e61b17ab1b89cbc1ee8b04",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/debug.py",
+      "bytes": 58230
+    },
+    "code/tools/merge_review/direction_runner.py": {
+      "sha256": "401d17a948e44cd640b7ce91ffac3a349367a164d21c92836308adff8514dc59",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/direction_runner.py",
+      "bytes": 19978
+    },
+    "code/tools/merge_review/direction_trips.py": {
+      "sha256": "ae2afe7969086299733e83a89749527c30e06aab0a71aa7b66175f1619162c29",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/direction_trips.py",
+      "bytes": 36313
+    },
+    "code/tools/merge_review/gtfs_matching/README.md": {
+      "sha256": "556a773e1d6b3f2a8ccbaf75071e2845b970b639b1e77682564431e25c6e841b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/README.md",
+      "bytes": 17364
+    },
+    "code/tools/merge_review/gtfs_matching/RESULTS.md": {
+      "sha256": "da024981cfc34c398e08868d8d7b51c21e03523cbd77b1d70bb9758ec534e0a9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/RESULTS.md",
+      "bytes": 17409
+    },
+    "code/tools/merge_review/gtfs_matching/__init__.py": {
+      "sha256": "d32ba9fb776a6c410eaff75654728c8cc594a0624e9c8e2f464524153cbb90d2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/__init__.py",
+      "bytes": 156
+    },
+    "code/tools/merge_review/gtfs_matching/__main__.py": {
+      "sha256": "3511fff6287659134c6a8dd046b5e3013a609ac6b49994dd4f142218bdbaebd0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/__main__.py",
+      "bytes": 1247
+    },
+    "code/tools/merge_review/gtfs_matching/adapter.py": {
+      "sha256": "15def41ce05cbb0cea51e9e446426ac738ce08921dbce32a32a08e26a6a845d4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/adapter.py",
+      "bytes": 29498
+    },
+    "code/tools/merge_review/gtfs_matching/audit.py": {
+      "sha256": "a924bd8afe09bb279041af4bd130663acd138eb1d4589ca8f8f73879849baf90",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/audit.py",
+      "bytes": 56147
+    },
+    "code/tools/merge_review/gtfs_matching/calibration.py": {
+      "sha256": "91c123238588c97ecb88f39f8c5c52209aef3b9c786ab70a7600b04293643883",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/calibration.py",
+      "bytes": 6285
+    },
+    "code/tools/merge_review/gtfs_matching/canonical.py": {
+      "sha256": "3a729bc4c24bbbd0cefa45cd72570ee7f1e8bf8740c35ee3e7ebc147df811a1a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/canonical.py",
+      "bytes": 16734
+    },
+    "code/tools/merge_review/gtfs_matching/case_storage.py": {
+      "sha256": "6a816d5f7f5329e661007e5eb41f5444b5493e6027d51f78c6abb2b1bbfa0c9c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/case_storage.py",
+      "bytes": 3412
+    },
+    "code/tools/merge_review/gtfs_matching/config.py": {
+      "sha256": "21e1ee23f89992e9b4b023861e123740d3031aa2aec2a29cf0a1eed8b84b5bb6",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/config.py",
+      "bytes": 5155
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/__init__.py": {
+      "sha256": "c370ba38f8f969d0342c8d66d85908505e3ad28051fba31c4abeaef0d9f89cfa",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/__init__.py",
+      "bytes": 116
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/apc.py": {
+      "sha256": "969ffdb7034c325b48a787b0042a6a92c550338a125e4aa663ccda4ff6180894",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/apc.py",
+      "bytes": 3147
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/calibration.py": {
+      "sha256": "d0aeceb56260aad70987a20ce1100afd5dc4f0918399afafdcc52b0f11a83e99",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/calibration.py",
+      "bytes": 26033
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/clock.py": {
+      "sha256": "ebe02d708a4c35e0298ac80b599def1640196fa1a12cfc92a096562ccf632dee",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/clock.py",
+      "bytes": 2030
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/config.py": {
+      "sha256": "4048247852a2e1c1fab17d8d7d3de148d79c1896d3757ee1c1a61111b90ff08f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/config.py",
+      "bytes": 5359
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/delay.py": {
+      "sha256": "95ad45806816c0b56cba1a583c955b9c42448a596d1477bc7c22c8a8f24effdd",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/delay.py",
+      "bytes": 39154
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/evaluation.py": {
+      "sha256": "2429cab48e851e15ffcb944b533b10d3956b5fd1ebf2c948f2ef8fe0c5cd7adb",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/evaluation.py",
+      "bytes": 25238
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/evidence.py": {
+      "sha256": "1c0e22053db3006e6224b76b3079f86950ecc7c9c4f55832027b5aa6ecd91707",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/evidence.py",
+      "bytes": 8141
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/integration.py": {
+      "sha256": "bb0f27afc372cf6157f615d8c0d60deec9385ff83d1a1ab33854f6c0f26358b5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/integration.py",
+      "bytes": 39237
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/occurrence.py": {
+      "sha256": "065d9d6c4838045b3dfb3ed59386e92947711f9c1e88cefdc63c769e3919e77d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/occurrence.py",
+      "bytes": 24055
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/operational_prior.py": {
+      "sha256": "e7f6a52ac66761261dbedd52dc934ab725e02672bb70dd470cd342aeed8e7b67",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/operational_prior.py",
+      "bytes": 12292
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/references.py": {
+      "sha256": "e1e0076a47b37efc00c131a7b59c48a7ec6e785a90b7fb4fca76901d32b498a5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/references.py",
+      "bytes": 1179
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/retrieval.py": {
+      "sha256": "218593afddbcbb144508c3a966844360e1fbea974cad12bec7233e35b44eb63a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/retrieval.py",
+      "bytes": 19905
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/schedule.py": {
+      "sha256": "b2933c4e24ec4d8b7e9c0c6eb1b8b7e6ec47e1f5f0b809f5793924d374050383",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/schedule.py",
+      "bytes": 9030
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/sequence.py": {
+      "sha256": "6dfa9e0d887c3fc526853aa8f6fe514ec49bfc4cef62957fc6a2b08641fea164",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/sequence.py",
+      "bytes": 16175
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/serialization.py": {
+      "sha256": "aca35e958f93d1217c315326c3b5e45c9e7974fc8fe3f1dba9ec9bb8cb213cd8",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/serialization.py",
+      "bytes": 7456
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/shadow.py": {
+      "sha256": "ac5811ba75b6b84a03b2c23010af046ef2ed981872e016fea483155dc4e80b75",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/shadow.py",
+      "bytes": 1097
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_continuous_pipeline.py": {
+      "sha256": "ee5f475c58c6d6082afdceaa20578981a0897336b2307e867991619324e62790",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_continuous_pipeline.py",
+      "bytes": 18112
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_continuous_validation.py": {
+      "sha256": "a1e2d04ae666eecaa5d769421e863f5418258fe9b4dff199bd17ff7950489780",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_continuous_validation.py",
+      "bytes": 19451
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence.py": {
+      "sha256": "8901eaefc8f622601201c8fc3e73615bb8a8b267b3eb7c009d28dbfefc8d31a6",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence.py",
+      "bytes": 15866
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_calibration.py": {
+      "sha256": "30f44b452afebd9e0c3a1a1bd8141bdc8583b8719f89bd77d8c797b6955cc911",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_calibration.py",
+      "bytes": 15229
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_integration.py": {
+      "sha256": "e01847b31fe247e9660708633eb7139830b627e5ba2d6244a352004535eb065c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_integration.py",
+      "bytes": 4483
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_review_regressions.py": {
+      "sha256": "714da4824dc1a1c23d1795afdc6a1601b8f5b6f140881dedf41c9d35b7378460",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_occurrence_review_regressions.py",
+      "bytes": 6270
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_operational_delay.py": {
+      "sha256": "c7b0972df915c7ef397c27b718f806076d5cfb50cbd1f34c29964140d72e1811",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_operational_delay.py",
+      "bytes": 17623
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/tests/test_score_threshold_scale.py": {
+      "sha256": "4a31aa496c5be901f1f55508fd68f3a6655f8fed9cbb7da85b9ecb8c16efc103",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/tests/test_score_threshold_scale.py",
+      "bytes": 7971
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/train_calibration.py": {
+      "sha256": "966e90875cdbe3f013602e77e57ed91900d1cc6689a7de3d11a2e3f3ce0a84fd",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/train_calibration.py",
+      "bytes": 4918
+    },
+    "code/tools/merge_review/gtfs_matching/continuous/windows.py": {
+      "sha256": "e13b9393be473724acdb3b9ae3685d0997ebd8f476f6f69c87ef4c56ebda5f25",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/continuous/windows.py",
+      "bytes": 2350
+    },
+    "code/tools/merge_review/gtfs_matching/decision.py": {
+      "sha256": "43afbc0fa658ce7b3ac0280c3e937464ebda4a5930485f14b1e6b757a90cd470",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/decision.py",
+      "bytes": 11998
+    },
+    "code/tools/merge_review/gtfs_matching/diagnostic_candidates.py": {
+      "sha256": "2d4b3e67b5716edc453df345de1e603436622235fff64657c74afbcf79a86521",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/diagnostic_candidates.py",
+      "bytes": 13487
+    },
+    "code/tools/merge_review/gtfs_matching/feed.py": {
+      "sha256": "910333ade7a9b3297da8ea749f6a35ec3a94afe72d8d1d1d7b000f602516eaa5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/feed.py",
+      "bytes": 12555
+    },
+    "code/tools/merge_review/gtfs_matching/gaps.py": {
+      "sha256": "5c49c3c9f07c5c2576d4ff4321ac823176c3398144bb422be9d3f22698d8e6c1",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/gaps.py",
+      "bytes": 18993
+    },
+    "code/tools/merge_review/gtfs_matching/integration.py": {
+      "sha256": "b7a589cdcff5f3ddf90d12dcc6d32f7f3f71d49e2d122f4dc1a995e3f7d968ce",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/integration.py",
+      "bytes": 23435
+    },
+    "code/tools/merge_review/gtfs_matching/multimode.py": {
+      "sha256": "cb81a36f1574c8c02ccef2860c20eabd22b9ddd6fea4e133396bd9ad9978c213",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/multimode.py",
+      "bytes": 27459
+    },
+    "code/tools/merge_review/gtfs_matching/off_reference.py": {
+      "sha256": "ed5ce4f515875054c90feac81dc87dd713a3d2f9ba490f900b160c63cb3e6dc5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/off_reference.py",
+      "bytes": 10292
+    },
+    "code/tools/merge_review/gtfs_matching/overview.py": {
+      "sha256": "fe6e1ab3c3e05450a6d4f172f89927bcf362a140238f480a0455ba352834c346",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/overview.py",
+      "bytes": 14689
+    },
+    "code/tools/merge_review/gtfs_matching/partial.py": {
+      "sha256": "404d70d8a64b0c2c371b851143aef26903d0f42cfe64493db71abaad3e26cb6d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/partial.py",
+      "bytes": 16138
+    },
+    "code/tools/merge_review/gtfs_matching/partial_audit.py": {
+      "sha256": "26260afab33f13f416930cc6e6ac3dffd40bd2ccd552e7a3ab28e6ee2ec7a7d1",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/partial_audit.py",
+      "bytes": 29056
+    },
+    "code/tools/merge_review/gtfs_matching/partial_verify.py": {
+      "sha256": "56dd5b1a6f10726990a6603b1b4c4abe293e4f28779d1d2a4e48c58ebc4de0e4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/partial_verify.py",
+      "bytes": 8238
+    },
+    "code/tools/merge_review/gtfs_matching/projection.py": {
+      "sha256": "f931f33f36388ed7da1bdfc427aa95c4dc722528d142211c650b547cb924ab3f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/projection.py",
+      "bytes": 21710
+    },
+    "code/tools/merge_review/gtfs_matching/redecide.py": {
+      "sha256": "7d9f7006484b618ad2e56d8b7d009413271f0875472fca76b906afd24928e5a2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/redecide.py",
+      "bytes": 10278
+    },
+    "code/tools/merge_review/gtfs_matching/retrieval.py": {
+      "sha256": "aa69743c054848ea92da563d6b31c01087068924090965a36ed379445fb662bf",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/retrieval.py",
+      "bytes": 7245
+    },
+    "code/tools/merge_review/gtfs_matching/runner.py": {
+      "sha256": "eefa7f7068670b41a8eaecc30a7c480d36f9f3c195f33f1808e41e6cbda2094f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/runner.py",
+      "bytes": 36321
+    },
+    "code/tools/merge_review/gtfs_matching/score_replay_audit.py": {
+      "sha256": "9bc935deb45156b4fbd90d6bc1c972902e8c341a85d6ef8c7c5db36f1c94b00f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/score_replay_audit.py",
+      "bytes": 19140
+    },
+    "code/tools/merge_review/gtfs_matching/scoring.py": {
+      "sha256": "ebd5e0d2661733fe0d6ec3f8352c26579ec794ba4f679c8a84aa8a42f4a71ce4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/scoring.py",
+      "bytes": 35531
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_continuous_math.py": {
+      "sha256": "ce7627edd2b0774840174b3bf5b6933484a55ffdbf334e8b71d92ffda13d5a88",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_continuous_math.py",
+      "bytes": 14856
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_decision_guard.py": {
+      "sha256": "2c3289b1951caa968b3612d454fe2f01a05a0ab020438cb4d7bb98306306d0f3",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_decision_guard.py",
+      "bytes": 6911
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_delay_prior_parameter.py": {
+      "sha256": "a3982341c53b2bad0931ae4fafa034214994ea4e510f539c50f18b6b68940475",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_delay_prior_parameter.py",
+      "bytes": 1132
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_gaps.py": {
+      "sha256": "4295b6c9eaaeda858287cb3d5ad07d194bf8fb24f8f9c3e1db70d9a310b6cdd2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_gaps.py",
+      "bytes": 12342
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_matching_evidence.py": {
+      "sha256": "889f558160ed2a05e62d3d2290a2e540dec09c0e539e6951f8b24fb3ea959021",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_matching_evidence.py",
+      "bytes": 25082
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_partial.py": {
+      "sha256": "af0ce41e16cb5c59176e1b0e45819a91681694f6ff722af90b1cd4abd8ab51c6",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_partial.py",
+      "bytes": 12533
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_partial_audit.py": {
+      "sha256": "ae45328c2470c1fb2e424b4de3968534c59aa108db10abbafabc84c87ce19a05",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_partial_audit.py",
+      "bytes": 6747
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_partial_verify.py": {
+      "sha256": "40e04751b05737d5a4ff5b32445eb492525e9b1463010faec5c3f178d1c47566",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_partial_verify.py",
+      "bytes": 3676
+    },
+    "code/tools/merge_review/gtfs_matching/tests/test_score_replay_audit.py": {
+      "sha256": "7485c32f619ebc5c9760ddd230dee889a119b27e24426153f635907d172691b9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/tests/test_score_replay_audit.py",
+      "bytes": 7790
+    },
+    "code/tools/merge_review/gtfs_matching/ui_payload.py": {
+      "sha256": "446bf8c5aa2ea04d8b60e5a46d36eaaaeba3b0a74b50fba19b188f4e98991f96",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/ui_payload.py",
+      "bytes": 3558
+    },
+    "code/tools/merge_review/gtfs_matching/windows.py": {
+      "sha256": "e2bced4d792111d6688e236b98c603bac00adfae8d915a98bf0af9dddd4c28b0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/gtfs_matching/windows.py",
+      "bytes": 6318
+    },
+    "code/tools/merge_review/paths.py": {
+      "sha256": "9a4918c0c8c92b9502aab8cefdded7bf3f9281a4ac93149f25574d2c692973a6",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/paths.py",
+      "bytes": 680
+    },
+    "code/tools/merge_review/raw_bootstrap.py": {
+      "sha256": "aebff88a80b7a17c400379e2bc3b7aca4b4f7278ace037607017dfd8ed96de19",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/raw_bootstrap.py",
+      "bytes": 7867
+    },
+    "code/tools/merge_review/rebuild_validation.py": {
+      "sha256": "54aed5b6718b6b009f95d5884dbe4d35b5179212bbf9718257d4c270cf9f8c97",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/rebuild_validation.py",
+      "bytes": 22131
+    },
+    "code/tools/merge_review/retained_acceptance.py": {
+      "sha256": "a21c8c75a42af29f8316112d435263dd927804f5c9c19230a743bf2ca1732242",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/retained_acceptance.py",
+      "bytes": 28184
+    },
+    "code/tools/merge_review/retention.py": {
+      "sha256": "7938337d9694eedcda8c748f5d9bfd69ae6ba71f493ddbb1b58da148bba97aa5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/retention.py",
+      "bytes": 22261
+    },
+    "code/tools/merge_review/retention_preflight.py": {
+      "sha256": "66db82facbefbd4e3f6e7aa57006b2362230e4ee7109edfcadfc0fe657c40ce4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/retention_preflight.py",
+      "bytes": 2754
+    },
+    "code/tools/merge_review/server.py": {
+      "sha256": "76e89d9489657f5598a7cd99b3c6d14bed57040ad16e1d33cad4c0d91341ce5a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/server.py",
+      "bytes": 22918
+    },
+    "code/tools/merge_review/static/app.js": {
+      "sha256": "45909610359b2af2ea6e1d6d898a7d991c7335bc6ae884555b29ab842011b8d9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/app.js",
+      "bytes": 200750
+    },
+    "code/tools/merge_review/static/i18n-dynamic.js": {
+      "sha256": "d7283ac07a23c16d5cad2f2ad8fb115f0b2d3dea783b6a7b1546de8a74d643c6",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/i18n-dynamic.js",
+      "bytes": 75617
+    },
+    "code/tools/merge_review/static/i18n-static.js": {
+      "sha256": "065484badb5efd6e72e405d70975460350cf459394a7c0f1ebc1963a2bff7a58",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/i18n-static.js",
+      "bytes": 35642
+    },
+    "code/tools/merge_review/static/i18n.css": {
+      "sha256": "b8952c9cdc9a90e28ac533c6c89a6e795ec955fb80381a1fe2cd0759ef9e9d1d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/i18n.css",
+      "bytes": 926
+    },
+    "code/tools/merge_review/static/i18n.js": {
+      "sha256": "412f10943b1e85a571da93aed93c17b6d1dc923b2428b411ecaac5295f06c731",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/i18n.js",
+      "bytes": 6606
+    },
+    "code/tools/merge_review/static/index.html": {
+      "sha256": "e6d7f2ddd054861eb1c8a603fde0a58b321098339ca2eb4b366288c705648754",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/index.html",
+      "bytes": 31572
+    },
+    "code/tools/merge_review/static/styles.css": {
+      "sha256": "f9b4e8a5f095eada9c67b7927c11f134bcd17c1049f73f9f5c3324e503735736",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/static/styles.css",
+      "bytes": 41070
+    },
+    "code/tools/merge_review/store.py": {
+      "sha256": "c7eb3dbbe9a40a2d359b4c161dc2cde53cf35791a547dcbc503dd2bf3ce09b89",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/store.py",
+      "bytes": 4855
+    },
+    "code/tools/merge_review/tests/audit_continuous_run.py": {
+      "sha256": "41a378bc0aca77427c37a7064e26729940c01de9a1cc4f459251c739ed76125a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/audit_continuous_run.py",
+      "bytes": 9727
+    },
+    "code/tools/merge_review/tests/audit_occurrence_run.py": {
+      "sha256": "26c289a852c8cbc6854a14c6f3aa304086a4094f12ca53e61ba9aa9328747562",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/audit_occurrence_run.py",
+      "bytes": 31851
+    },
+    "code/tools/merge_review/tests/browser_debug_smoke.mjs": {
+      "sha256": "39c128520f9153b6bf181f34d25c6da8e2fc0996723babe44287e0c2ddeec692",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_debug_smoke.mjs",
+      "bytes": 23781
+    },
+    "code/tools/merge_review/tests/browser_dedup_timeline_smoke.mjs": {
+      "sha256": "82c603b8fd94dcad282c17035a41cadf66de2397e8f932ee16e98227361dc95a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_dedup_timeline_smoke.mjs",
+      "bytes": 19557
+    },
+    "code/tools/merge_review/tests/browser_direction_smoke.mjs": {
+      "sha256": "2a3c9b7d28026f0a7af54af9cf1a1e368498d299447e848a9516af4232170c7c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_direction_smoke.mjs",
+      "bytes": 21153
+    },
+    "code/tools/merge_review/tests/browser_gtfs_gap_smoke.mjs": {
+      "sha256": "9003024973210e4c10593597c73ec3af6a83c1196016dbd7e849ebc23388e806",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_gtfs_gap_smoke.mjs",
+      "bytes": 17423
+    },
+    "code/tools/merge_review/tests/browser_gtfs_modes_smoke.mjs": {
+      "sha256": "4734f5c5bc7b828b165b991db64034a48798da48016e081646b430c62ae04db2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_gtfs_modes_smoke.mjs",
+      "bytes": 31611
+    },
+    "code/tools/merge_review/tests/browser_gtfs_smoke.mjs": {
+      "sha256": "cce8455e7919accdde3e81c77315af02059c40c178b6fa5fbde461600d4482db",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_gtfs_smoke.mjs",
+      "bytes": 38668
+    },
+    "code/tools/merge_review/tests/browser_i18n_smoke.mjs": {
+      "sha256": "0e11c89fad9847d32fc7e87a7b31d660c161ae5a740825506667981285989452",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_i18n_smoke.mjs",
+      "bytes": 21951
+    },
+    "code/tools/merge_review/tests/browser_smoke.mjs": {
+      "sha256": "8e6be464867a22e03c9d8b9f12b834e97b12a6094a1d44197fdba14ad80eda48",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_smoke.mjs",
+      "bytes": 27975
+    },
+    "code/tools/merge_review/tests/browser_vehicle_stream_smoke.mjs": {
+      "sha256": "96e26cdb1aa7415fc477eceedb96cb01986b4496917544a92e9bc6738c1ec0b4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/browser_vehicle_stream_smoke.mjs",
+      "bytes": 25965
+    },
+    "code/tools/merge_review/tests/test_audit_occurrence_run.py": {
+      "sha256": "2056585e703c5d2b6d2881312dce6bd67b91bfb478ebf4c879536a702ed56071",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_audit_occurrence_run.py",
+      "bytes": 4884
+    },
+    "code/tools/merge_review/tests/test_avl_dedup.py": {
+      "sha256": "10cf4cab4ad87c9951bc214e69e1a06ef81da313cf8628f6de014d31facc5ee1",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_avl_dedup.py",
+      "bytes": 5384
+    },
+    "code/tools/merge_review/tests/test_case_storage.py": {
+      "sha256": "38bcf96c07c884108260843260e62a28ba5cfcf1f88e8ad7db83c9f0aa86fde7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_case_storage.py",
+      "bytes": 5825
+    },
+    "code/tools/merge_review/tests/test_case_storage_audit_readers.py": {
+      "sha256": "ea74c3f5bf12d904e6efb0d48c7e736002c3548f12eb5789c178cd1c1c505a4b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_case_storage_audit_readers.py",
+      "bytes": 8958
+    },
+    "code/tools/merge_review/tests/test_case_storage_integration.py": {
+      "sha256": "63e3c55d5d58ff3545042f7b3a53f731a2bfbc9e701b8e656a1566f1f2dbe873",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_case_storage_integration.py",
+      "bytes": 12972
+    },
+    "code/tools/merge_review/tests/test_cleanup.py": {
+      "sha256": "e77afe36b0c0b297f4dda48593c85e8e71451214953b4573a3912eebbcd76428",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_cleanup.py",
+      "bytes": 8081
+    },
+    "code/tools/merge_review/tests/test_continuous_reweight_audit.py": {
+      "sha256": "becd554825bd7f4b59e6488596d85416c42f933b726a35f27d8d7ece14b25603",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_continuous_reweight_audit.py",
+      "bytes": 10117
+    },
+    "code/tools/merge_review/tests/test_continuous_ui.mjs": {
+      "sha256": "a588a25f4c97ca2c5015b86e814414a746cee5730eb70de5f8c40611436a9359",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_continuous_ui.mjs",
+      "bytes": 7053
+    },
+    "code/tools/merge_review/tests/test_continuous_ui_diagnostics.py": {
+      "sha256": "61e0771b9629f7c0a3dfbd2578ff01327170c18de8c24438d5c9039ca9302839",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_continuous_ui_diagnostics.py",
+      "bytes": 7975
+    },
+    "code/tools/merge_review/tests/test_contract.py": {
+      "sha256": "e43bc5f36e27d6fd13fcdd466676daafe543a829a65d2f814fb7f2166d268953",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_contract.py",
+      "bytes": 2508
+    },
+    "code/tools/merge_review/tests/test_data.py": {
+      "sha256": "65cec82e5b9a351ea5702543d724421523666781f0f885d4532b5e7edceb8ced",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_data.py",
+      "bytes": 41348
+    },
+    "code/tools/merge_review/tests/test_debug.py": {
+      "sha256": "5f984ec8abec5c63c86dcdac574fc805227da59d869211764b270c7b98072797",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_debug.py",
+      "bytes": 22445
+    },
+    "code/tools/merge_review/tests/test_debug_server.py": {
+      "sha256": "c3367aeac6213375726d4897ab15383b3b41dbde85f84f8a19eed222760e627a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_debug_server.py",
+      "bytes": 7749
+    },
+    "code/tools/merge_review/tests/test_direction_data.py": {
+      "sha256": "5b97a87c0bbfd891c0b34b981fe0c58afa80e923d7b59b61d831742bacb0848f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_direction_data.py",
+      "bytes": 21334
+    },
+    "code/tools/merge_review/tests/test_direction_http.py": {
+      "sha256": "81b2a6d4e80fbf048f43128231ab51a1ea8e7160ca17f642d4bcedcf0d4bbd44",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_direction_http.py",
+      "bytes": 3975
+    },
+    "code/tools/merge_review/tests/test_direction_runner.py": {
+      "sha256": "2e24a09a4951bdb9956abe0edfd7a5a0c8ade094feeb0f68581650f05b26b0ff",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_direction_runner.py",
+      "bytes": 6728
+    },
+    "code/tools/merge_review/tests/test_direction_trips.py": {
+      "sha256": "9aeb7062d154e09ce4f81aee0555e8f15226293136f2eb1449498033fd361843",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_direction_trips.py",
+      "bytes": 14048
+    },
+    "code/tools/merge_review/tests/test_fresh_continuous_shadow.py": {
+      "sha256": "93703b98abd72bb53160533e4c077d3e3ffe8997e433d23f7d902647eb01eb30",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_fresh_continuous_shadow.py",
+      "bytes": 5140
+    },
+    "code/tools/merge_review/tests/test_gtfs_audit.py": {
+      "sha256": "c3c7eac9584179d3877f8777249719ed3f6965106a76d8bd97857a8b74473ae1",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_audit.py",
+      "bytes": 24888
+    },
+    "code/tools/merge_review/tests/test_gtfs_canonical.py": {
+      "sha256": "e92109e118531e11be55031584e6c92a454a7ecbf2c0f47840c252b3eeff0c2a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_canonical.py",
+      "bytes": 3623
+    },
+    "code/tools/merge_review/tests/test_gtfs_delay_publication.py": {
+      "sha256": "731f903b96772ade548e9f70794ba3a8e0a07211c887f713230bd9c5af733667",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_delay_publication.py",
+      "bytes": 1755
+    },
+    "code/tools/merge_review/tests/test_gtfs_diagnostic_candidates.py": {
+      "sha256": "5b5076abea20bd02c4b88aa5897d40b54b108a299f47a983fe7f6c1c1c525b2a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_diagnostic_candidates.py",
+      "bytes": 12682
+    },
+    "code/tools/merge_review/tests/test_gtfs_feed.py": {
+      "sha256": "971b552d8cbc5e362b3d501c6e6e5a5b9e727b41eae4328a5e13c35779c9ffbc",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_feed.py",
+      "bytes": 4198
+    },
+    "code/tools/merge_review/tests/test_gtfs_gap_adapter.py": {
+      "sha256": "c01acaf21243e533262714a8ac1afa13385983f2a07d5e1254dfc50f454b8206",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_gap_adapter.py",
+      "bytes": 8225
+    },
+    "code/tools/merge_review/tests/test_gtfs_gap_audit.py": {
+      "sha256": "83e975222aee769ce3fa7126ccb3b0d90b1aadd97957305702a7d54be372add1",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_gap_audit.py",
+      "bytes": 13353
+    },
+    "code/tools/merge_review/tests/test_gtfs_gap_runner.py": {
+      "sha256": "614d6aaaad3e0a1038795451e2aeca3fe4ee4137b5f39bef11128dac5a13f373",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_gap_runner.py",
+      "bytes": 5077
+    },
+    "code/tools/merge_review/tests/test_gtfs_mode_api.py": {
+      "sha256": "7e87f761c6130cf021c8686718fdee85e1a13062e3af5a1dba29e0510a5d0792",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_mode_api.py",
+      "bytes": 7094
+    },
+    "code/tools/merge_review/tests/test_gtfs_multimode_run.py": {
+      "sha256": "d93e0414b4dc03a182581a53d5b4ae7aa442318db5467b27d02164a536c90ba9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_multimode_run.py",
+      "bytes": 26856
+    },
+    "code/tools/merge_review/tests/test_gtfs_off_reference.py": {
+      "sha256": "7c3b4a03e14a341892616d61d79421f9b1dbfd0959f11dc2e7d3b367fe4ce3eb",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_off_reference.py",
+      "bytes": 1896
+    },
+    "code/tools/merge_review/tests/test_gtfs_overview.py": {
+      "sha256": "c8d61a18e9b11e3b8062ad549c4f04c94205a3af3b7daa7868607b3287866b6c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_overview.py",
+      "bytes": 13107
+    },
+    "code/tools/merge_review/tests/test_gtfs_projection.py": {
+      "sha256": "80c6994226c44ff982d65b6f44a52beebd892987f7ef65bacef0b65cd29e067b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_projection.py",
+      "bytes": 9044
+    },
+    "code/tools/merge_review/tests/test_gtfs_redecide.py": {
+      "sha256": "b2ed1e4d16de2e7f569ac3a4cc159eb28697964fdcf262ef91bcfd529ef2912b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_redecide.py",
+      "bytes": 18544
+    },
+    "code/tools/merge_review/tests/test_gtfs_retained_parent.py": {
+      "sha256": "a7d7a71cf9d209aa2417910696593e197b749704a8a941d079e25c4cd9008dbe",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_retained_parent.py",
+      "bytes": 5385
+    },
+    "code/tools/merge_review/tests/test_gtfs_ui_payload.py": {
+      "sha256": "68b115a937459e3ec225c7dacdc97062cbf0e6faea86dce9f0cd55314d8246a9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_ui_payload.py",
+      "bytes": 5029
+    },
+    "code/tools/merge_review/tests/test_gtfs_workbench.py": {
+      "sha256": "2a6a557a167fe0e90ca5e5742ce2a9f35d7735a96ffa4636222ebc6d566147a3",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_gtfs_workbench.py",
+      "bytes": 10561
+    },
+    "code/tools/merge_review/tests/test_i18n_runtime.mjs": {
+      "sha256": "886d02b58265e924a7fb2999e3bbc0f765d37bb0acd1416b1cda15b4a06a3ecc",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_i18n_runtime.mjs",
+      "bytes": 3462
+    },
+    "code/tools/merge_review/tests/test_raw_bootstrap.py": {
+      "sha256": "7a0534fbace888f4703d7cce74e8082dc6a90f314e0b44ac90b8f1af7b2de34e",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_raw_bootstrap.py",
+      "bytes": 8179
+    },
+    "code/tools/merge_review/tests/test_rebuild_validation.py": {
+      "sha256": "3711486e918c1c075ceae953ada62777457175bc30b61cc22cf7715bc868e56b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_rebuild_validation.py",
+      "bytes": 12548
+    },
+    "code/tools/merge_review/tests/test_retained_acceptance.py": {
+      "sha256": "890cf2164010062a5669f43318ad00b65d9016e1957e46a9bacad134c506113b",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_retained_acceptance.py",
+      "bytes": 14109
+    },
+    "code/tools/merge_review/tests/test_retention.py": {
+      "sha256": "44f881a6072aa47315e7e713a9b05725703f5b2fb561e6c984996a5ab1923c6a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_retention.py",
+      "bytes": 12160
+    },
+    "code/tools/merge_review/tests/test_retention_replay.py": {
+      "sha256": "8886e7c16b66c028db6919a66d0d7a5fcc4610da4150c0d732b33a195013b314",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_retention_replay.py",
+      "bytes": 10214
+    },
+    "code/tools/merge_review/tests/test_server.py": {
+      "sha256": "037f7c25a64ac6b7dcb3e3035ac495c2a3809daa168e34e505a199409f628923",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_server.py",
+      "bytes": 7263
+    },
+    "code/tools/merge_review/tests/test_validation_cleanup.py": {
+      "sha256": "8836d8c63f5ff01aabda9701bd2e7d876c19cbf0cc1442406f74279608fb6b3e",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_validation_cleanup.py",
+      "bytes": 9173
+    },
+    "code/tools/merge_review/tests/test_vehicle_dedup_http.py": {
+      "sha256": "118bb5d01dc4aef814a20139ba809a38794eb0ea7eeb5e21647b35f89fa1154d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_vehicle_dedup_http.py",
+      "bytes": 5761
+    },
+    "code/tools/merge_review/tests/test_vehicle_stream.py": {
+      "sha256": "815557b4570881c91d4916729191b7435f761049a779f0ae75054e9f375b93e0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_vehicle_stream.py",
+      "bytes": 6377
+    },
+    "code/tools/merge_review/tests/test_vehicle_stream_http.py": {
+      "sha256": "f56bbc4f4c66a5fb60bdc6d8e4558ba53c206c4e7386bd648ee6b97ff3bf589e",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_vehicle_stream_http.py",
+      "bytes": 5235
+    },
+    "code/tools/merge_review/tests/test_workbench_release.py": {
+      "sha256": "6e18504d1e694b7efb2ca720b75f8e2106ee48609f9320ea560474ed29524b24",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/tests/test_workbench_release.py",
+      "bytes": 10860
+    },
+    "code/tools/merge_review/validation_cleanup.py": {
+      "sha256": "6d183d0742fe110dcec119008f7a0b1a15dcc646d47534a9d4677d7f8f369c11",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/validation_cleanup.py",
+      "bytes": 13182
+    },
+    "code/tools/merge_review/vehicle_stream.py": {
+      "sha256": "bf31e61284b49170d2574fecc264bd4257bffa02e0fba4d3800bc2ae82866b0c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/vehicle_stream.py",
+      "bytes": 7168
+    },
+    "code/tools/merge_review/workbench.py": {
+      "sha256": "6e04552fa35d808f94be76d27dab593876427512210439ac75d4cf4357668853",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/tools/merge_review/workbench.py",
+      "bytes": 21331
+    },
+    "code/uv.lock": {
+      "sha256": "0acdcceb46b5b2bbe16b6c22448f80e3346f9c672f8bb23363eeb9856a4a3135",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/uv.lock",
+      "bytes": 68623
+    },
+    "code/workbench.sh": {
+      "sha256": "ceb03a75a3b7237070d2a12667533fb6d461f414d3d35b4e7249c34623a29173",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/code/workbench.sh",
+      "bytes": 354
+    },
+    "frozen_release/release.json": {
+      "sha256": "462a6a9257db11fd924ddb96ea8b34f98fecde4093766a3baf8269c4a4b9c0a4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/release.json",
+      "bytes": 28780
+    },
+    "frozen_release/release.sha256.json": {
+      "sha256": "a0f6ad11b0d2c72d4831c513a1869fbf8a44e6977bb3602772c4f04fb386337c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/release.sha256.json",
+      "bytes": 89
+    },
+    "frozen_release/profiles.json": {
+      "sha256": "9cb32b97b2b1708edde6f9b4761e395d02d21cb2f6f952c982a500844d7cc4fb",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/releases/workbench-04c-20260910T153527-0cb5d1dc/profiles.json",
+      "bytes": 31709
+    },
+    "frozen_release/pointer.json": {
+      "sha256": "0e4e65ea0daf0b70dc6e2b18641fd014a481dd5c90052bb77bc9f4f62be3876f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/config/workbench-release.json",
+      "bytes": 147
+    },
+    "code/tests/README.md": {
+      "sha256": "f8b75a47029ea098f389a88104da486cc452d69e51e6b1f2d85e5b8ee13c23dd",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/README.md",
+      "bytes": 1262
+    },
+    "code/tests/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/__init__.py",
+      "bytes": 0
+    },
+    "code/tests/conftest.py": {
+      "sha256": "94afe24cae5d5de8240c36fa9e28244569d753888fc9279bcee0571fde82d818",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/conftest.py",
+      "bytes": 3873
+    },
+    "code/tests/test_raw_audit.py": {
+      "sha256": "923779244e93a52dcf3b252f835b9d474c7c844ea678315fded818f7c1a4865e",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/test_raw_audit.py",
+      "bytes": 4648
+    },
+    "code/tests/unit/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/__init__.py",
+      "bytes": 0
+    },
+    "code/tests/unit/test_cli.py": {
+      "sha256": "93bb6e63af9670ca6c56f37e52366a389a0e410c5481cf9fda8ffe6fc115edac",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_cli.py",
+      "bytes": 10261
+    },
+    "code/tests/unit/test_feed_selection.py": {
+      "sha256": "e63df854893fed0bc8fc2a2e1c007d256a4352187b5acdee94f407bd3474c1d2",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_feed_selection.py",
+      "bytes": 12111
+    },
+    "code/tests/unit/test_gtfs_landing.py": {
+      "sha256": "1599c7a4918f0ff9e5cad3bd1cb397f9ebdacc70ce4721d242c6424f1739a3d0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_gtfs_landing.py",
+      "bytes": 6059
+    },
+    "code/tests/unit/test_gtfs_normalize.py": {
+      "sha256": "21aff5bc93c5e27b2476d9bff2209036f77f3c11427726ef2346bca5e9da4da4",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_gtfs_normalize.py",
+      "bytes": 8062
+    },
+    "code/tests/unit/test_gtfs_quality.py": {
+      "sha256": "5a75e46804fbc147cc5a837e56509d0a4ff6ff27712f556d447c68613248971c",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_gtfs_quality.py",
+      "bytes": 8229
+    },
+    "code/tests/unit/test_schedule.py": {
+      "sha256": "e69a82df86dcfcdd75dea74ff873d8876d9c6c79a1c2bab529700020911ac55a",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_schedule.py",
+      "bytes": 12143
+    },
+    "code/tests/unit/test_source_normalize.py": {
+      "sha256": "8427da55a2ec1d4c8479edea89206299e49aea7c23799158d37011ee45682e33",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/tests/unit/test_source_normalize.py",
+      "bytes": 11529
+    },
+    "run/completion.json": {
+      "sha256": "b409b71dfbddceb61b7823923af4275a436f40634e697d655923fe692288a7b7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/completion.json",
+      "bytes": 230
+    },
+    "run/config.json": {
+      "sha256": "32326702ab671d408aa3c1969e53e5ef3123ada6bf9f17f483a239fb8ef37613",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/config.json",
+      "bytes": 10187
+    },
+    "run/manifest.json": {
+      "sha256": "2012bad49e521e745ae92feab025eac0082873ccc31860afda79c7a39c125df3",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/manifest.json",
+      "bytes": 80384
+    },
+    "run/output_sha256.json": {
+      "sha256": "f5f66e025fdd718ffd2b7794cd7ad5283f74ec12221a6423c4b665cf164a920d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/output_sha256.json",
+      "bytes": 46911
+    },
+    "run/run.json": {
+      "sha256": "09537ccc3485ceb96ebb947fa262b5ada92d23c8cc3a213039ec5a4809630110",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/run.json",
+      "bytes": 16321
+    },
+    "run/selection.json": {
+      "sha256": "5a721bdb5a78e3162558cadef8cb916e0b9b03d25bda63dcc3a6d01169256b2d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/selection.json",
+      "bytes": 2576
+    },
+    "run/summary.json": {
+      "sha256": "b1630d67a3acea4841adc5a12e26f2986607978d8a8407cb563cb6cf30dca191",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/summary.json",
+      "bytes": 4711
+    },
+    "run/gtfs/canonical.json": {
+      "sha256": "27bf3ecaaa532f29e17c71eee45b31010a1862fee50f7534d0a40912d6cf6a76",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/gtfs/canonical.json",
+      "bytes": 19105449
+    },
+    "run/gtfs/feed.json": {
+      "sha256": "6a43259e0b0de9773e2b105f5f43a45c9299989f467ab099c01e33e67a2f20e5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/gtfs/feed.json",
+      "bytes": 5474
+    },
+    "run/cases/7d66b83a36ab6a77245a3d89.json.gz": {
+      "sha256": "f9eecd29182bfb73da6e62175593d91240988ca52c40bee8de8c49e3dc19ac1f",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/cases/7d66b83a36ab6a77245a3d89.json.gz",
+      "bytes": 15622059
+    },
+    "upstream_sample/cases/7d66b83a36ab6a77245a3d89.json.gz": {
+      "sha256": "0c986ba6de58a5376c97e1a8379ea2170718d56162c2e34064108e2e20d19dba",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/cases/7d66b83a36ab6a77245a3d89.json.gz",
+      "bytes": 11815049
+    },
+    "upstream_sample/completion.json": {
+      "sha256": "b409b71dfbddceb61b7823923af4275a436f40634e697d655923fe692288a7b7",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/completion.json",
+      "bytes": 230
+    },
+    "upstream_sample/config.json": {
+      "sha256": "7d6827e56d9392720dfe0965d18b0aaf71f8daddd9cb7acb825feec751667185",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/config.json",
+      "bytes": 8103
+    },
+    "upstream_sample/manifest.json": {
+      "sha256": "0a0c1648f2619ef4ab37501da28a899de26c8b848260f9fe19922302748dcaa9",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/manifest.json",
+      "bytes": 75603
+    },
+    "upstream_sample/output_sha256.json": {
+      "sha256": "e4ed9537af7f5f867049f6ac86f0e2ef71b7be10f98b8e11d0dd824990cd84fe",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/output_sha256.json",
+      "bytes": 46911
+    },
+    "upstream_sample/run.json": {
+      "sha256": "8575960180b129be20a48776af9633c3972e34feb8105d0f96a19958eb4a5e8d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/run.json",
+      "bytes": 14180
+    },
+    "upstream_sample/selection.json": {
+      "sha256": "5a721bdb5a78e3162558cadef8cb916e0b9b03d25bda63dcc3a6d01169256b2d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/selection.json",
+      "bytes": 2576
+    },
+    "upstream_sample/summary.json": {
+      "sha256": "5f14b6279e3a8abcebcec7f182830244dc9e9c4aa3b4a2455536bb4a53c83e50",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T030622-57e42718b0c1/summary.json",
+      "bytes": 4695
+    },
+    "reports/summary.md": {
+      "sha256": "c6d0038ab7ea4bbebc6a9c2ef709826e7c852dab282182f4dc8555ac6177d2b5",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/experiment04c-validation/summary.md",
+      "bytes": 5100
+    },
+    "reports/full-run-audit.json": {
+      "sha256": "96883d0b73b2b43ea6eb3ed1c1543d18071d546e6fa0ab6c212f69db835fd498",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/experiment04c-validation/full-run-audit.json",
+      "bytes": 443291
+    },
+    "reports/python-tests-final.xml": {
+      "sha256": "aef695bb086db75270a066bcc8aa4065aa20caa5cff0ab9da4c35b481861d5d0",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/experiment04c-validation/python-tests-final.xml",
+      "bytes": 230119
+    },
+    "input_metadata/feed_manifest.draft.csv": {
+      "sha256": "c9b69f19d3f580afb1ff6b743dec256aa7ee36c71db1d8a38a2e0e5021cd4465",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/feed_manifest.draft.csv",
+      "bytes": 5578
+    },
+    "input_metadata/uv.lock": {
+      "sha256": "0acdcceb46b5b2bbe16b6c22448f80e3346f9c672f8bb23363eeb9856a4a3135",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/uv.lock",
+      "bytes": 68623
+    },
+    "input_metadata/.python-version": {
+      "sha256": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
+      "source": "/home/jiahao/Documents/tides-implementations/agencies/ttc/.python-version",
+      "bytes": 5
+    }
+  },
+  "sample_relative_path": "cases/7d66b83a36ab6a77245a3d89.json.gz",
+  "source_run": "/home/jiahao/Documents/tides-implementations/agencies/ttc/artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823",
+  "reproduction": "Frozen code + profiles + original raw inputs; full raw rebuild. Only representative heavy cases are embedded. Full historical replay requires upstream files that may later be retired.",
+  "snapshot_complete": true
+}

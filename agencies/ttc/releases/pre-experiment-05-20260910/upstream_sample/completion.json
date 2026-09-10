@@ -1,0 +1,15 @@
+{
+  "debug_date": "2023-11-06",
+  "validation_ok": true,
+  "full_debug_day": true,
+  "route_scope": [
+    "29"
+  ],
+  "publishable": false,
+  "available_matching_modes": [
+    "global",
+    "early",
+    "middle",
+    "late"
+  ]
+}

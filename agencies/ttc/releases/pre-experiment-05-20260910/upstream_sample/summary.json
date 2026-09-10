@@ -1,0 +1,160 @@
+{
+  "parent_cases": 302,
+  "gap_split_parent_cases": 4,
+  "joint_gap_count": 4,
+  "gap_unlocated_observations": 0,
+  "avl": 92143,
+  "apc": 13862,
+  "excluded_observations": 7981,
+  "cases": 306,
+  "projection_points": 92143,
+  "off_reference_points": 1295,
+  "observations": 106005,
+  "vehicles": 31,
+  "retained_counts": {
+    "avl": 92143,
+    "apc": 13862
+  },
+  "status_counts": {
+    "PATTERN_ONLY": 299,
+    "UNMATCHED": 7
+  },
+  "representation": "gtfs_trip_candidates",
+  "gtfs_feed": {
+    "selected_feed": "ttc-d092742e6a5b",
+    "explicit_pin": "ttc-d092742e6a5b",
+    "candidates": [
+      {
+        "feed_id": "ttc-ad4525a567d4",
+        "priority": 110,
+        "status": "candidate",
+        "archive_sha256": "abed35c95d0922fd0f6ce641f1e2fa4a85cef98a17157a963971cedad7ab15ff",
+        "active_service_ids": [
+          "1",
+          "401",
+          "4401",
+          "501"
+        ]
+      },
+      {
+        "feed_id": "ttc-d092742e6a5b",
+        "priority": 120,
+        "status": "candidate",
+        "archive_sha256": "0a0cc10e62656699c60ab12562ff270c4b0edec64ccb3ac7a16b41eed595c684",
+        "active_service_ids": [
+          "1",
+          "401",
+          "4401",
+          "501"
+        ]
+      }
+    ],
+    "provenance_unreviewed": true
+  },
+  "gtfs_diagnostics": {
+    "active_trips": 328,
+    "route_shapes": 4,
+    "previous_day_tail_trips": 28,
+    "direction_id_assumed_north_south": false
+  },
+  "canonical_diagnostics": {
+    "reference_count": 3,
+    "shape_count": 4,
+    "canonical_invalid_trips": 0,
+    "shared_s_across_references": false,
+    "geometry_units": "local equirectangular metres",
+    "origin": [
+      43.67897196600567,
+      -79.43834273796034
+    ]
+  },
+  "validation_ok": true,
+  "violations": {
+    "persisted_observation_fields": 0,
+    "apc_source_conservation": 0,
+    "apc_duplicate_identity": 0,
+    "apc_original_fields": 0,
+    "apc_interval_time": 0,
+    "projection_source_conservation": 0,
+    "projection_duplicate_identity": 0,
+    "distance_gate": 0,
+    "too_many_final_candidates": 0,
+    "alternate_distance_gate": 0,
+    "shared_delay_clock": 0,
+    "persisted_case_content": 0,
+    "persisted_catalog_content": 0,
+    "parent_changed": 0,
+    "parent_observations_changed": 0,
+    "gtfs_archive_changed": false,
+    "gtfs_manifest_changed": false,
+    "code_changed": false,
+    "original_inputs_changed": false,
+    "partial_source_changed": 0,
+    "projection_changed": 0,
+    "partial_scope_leakage": 0,
+    "partial_clock_violations": 0,
+    "unexpected_global_result_change": 0
+  },
+  "accuracy": null,
+  "publishable": false,
+  "probability_calibrated": false,
+  "joint_gap_segmentation": {
+    "segmentation_joint_gap_s": 1800.0,
+    "operator": ">",
+    "scope": "each existing same-vehicle direction parent, after route scoping",
+    "presence": "union of actual AVL instants and closed APC arrival/departure intervals",
+    "avl_hold_s": 0.0,
+    "apc_invalid_interval": "valid arrival point, else valid departure point",
+    "timestamp_alias": "AVL event_time only when the time field is absent",
+    "direction_labels": "all labels, including unknown and conflicting labels",
+    "spatial_quality": "irrelevant to timestamped record presence",
+    "invalid_time": "missing, nonfinite, ambiguous or nonexistent cannot bridge gaps",
+    "parent_clipping": true,
+    "edge_gaps_split": false,
+    "unlocated": "separate diagnostic child only when its parent is split",
+    "source_conservation": "exactly once within each original parent membership"
+  },
+  "elapsed_s": 693.743,
+  "validation_scope": "Pinned raw observations, segmentation and projection preserved; all four matching modes recomputed with explicit scoring overrides; isolated partial evidence and original clocks; not matching accuracy.",
+  "matching_mode_status_counts": {
+    "global": {
+      "PATTERN_ONLY": 299,
+      "UNMATCHED": 7
+    },
+    "early": {
+      "PATTERN_ONLY": 299,
+      "UNMATCHED": 7
+    },
+    "middle": {
+      "PATTERN_ONLY": 300,
+      "UNMATCHED": 6
+    },
+    "late": {
+      "PATTERN_ONLY": 293,
+      "BOUNDARY_UNCERTAIN": 6,
+      "UNMATCHED": 7
+    }
+  },
+  "available_matching_modes": [
+    "global",
+    "early",
+    "middle",
+    "late"
+  ],
+  "partial_matching_replay": true,
+  "upstream_processing_elapsed_s": 653.945,
+  "matching_scoring_replay": true,
+  "scoring_overrides": {
+    "continuous_matching_enabled": true
+  },
+  "source_scoring_values": {
+    "continuous_matching_enabled": false
+  },
+  "scorer": "continuous_passage_v1",
+  "shadow_evaluation_reports": [
+    "shadow/global-report.json",
+    "shadow/early-report.json",
+    "shadow/middle-report.json",
+    "shadow/late-report.json"
+  ]
+}
