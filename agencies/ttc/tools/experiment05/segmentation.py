@@ -4,7 +4,24 @@ from __future__ import annotations
 
 import collections
 
+from tools.merge_review.gtfs_matching.canonical import finite
+
 from .io import stable_id
+
+
+def _apc_intersects_segment(row, start, end):
+    """Keep complete overlapping visits, including arrivals before first AVL.
+
+    Invalid/missing interval bounds use only a real observation instant. The
+    unchanged record then reaches plateau diagnostics as unknown-duration
+    evidence; neither a replacement interval nor a clipped raw visit is created.
+    """
+    arrival = row.get("arrival", row.get("interval_start"))
+    departure = row.get("departure", row.get("interval_end"))
+    if finite(arrival) and finite(departure) and departure >= arrival:
+        return arrival <= end and departure >= start
+    instant = row.get("t")
+    return finite(instant) and start <= instant <= end
 
 
 def _presence_gap(left, right, apc):
@@ -117,8 +134,7 @@ def segment_trips(observations, canonical, service_date, config):
             relevant_apc = [
                 row
                 for row in apc_groups[vehicle]
-                if row.get("t") is not None
-                and points[0]["t"] <= row["t"] <= points[-1]["t"]
+                if _apc_intersects_segment(row, points[0]["t"], points[-1]["t"])
             ]
             extent = assess_trip_extent(points, relevant_apc, canonical, config)
             summary = dict(

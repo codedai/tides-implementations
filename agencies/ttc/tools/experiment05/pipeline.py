@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import time
 import uuid
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,7 +21,15 @@ from tools.merge_review.gtfs_matching.partial import MODES
 
 from . import PIPELINE_VERSION, STAGES
 from .config import DEFAULT_CONFIG, ROOT, load_config
-from .io import read_json, read_rows, reject_symlinks, sha256, write_json, write_rows
+from .io import (
+    concatenate_rows,
+    read_json,
+    read_rows,
+    reject_symlinks,
+    sha256,
+    write_json,
+    write_rows,
+)
 from .sources import available_dates, load_active_feed, parse_date, source_paths
 
 _WORKER = None
@@ -45,6 +53,7 @@ STAGE_OUTPUTS = {
         "apc_attachment_audit.parquet",
     ),
     "generate_candidates": (
+        "stages/candidate_shards",
         "candidate_rankings.parquet",
         "local_window_evidence.parquet",
         "mode_results.parquet",
@@ -338,15 +347,16 @@ def initialize_run(
     return {"run_dir": str(target), "run_manifest": manifest, "cached": False}
 
 
-def _parallel(jobs, worker, canonical, config, modes, emit):
+def _parallel(jobs, worker, canonical, config, modes, emit, consume=None):
     workers = config["execution"]["workers"]
     if workers == 1 or len(jobs) <= 1:
         _worker_init(canonical, config, modes)
         results = []
         for index, job in enumerate(jobs, 1):
-            results.append(worker(job))
+            result = worker(job)
+            results.append(consume(result) if consume else result)
             emit(completed=index, total=len(jobs))
-        return results
+        return sorted(results, key=lambda pair: pair[0])
     # Polars must not be forked after initializing its native thread pool.
     import multiprocessing
 
@@ -356,11 +366,24 @@ def _parallel(jobs, worker, canonical, config, modes, emit):
         initializer=_worker_init,
         initargs=(canonical, config, modes),
     ) as executor:
-        futures = [executor.submit(worker, job) for job in jobs]
+        queued = iter(jobs)
+        futures = {
+            executor.submit(worker, next(queued))
+            for _ in range(min(workers, len(jobs)))
+        }
         results = []
-        for future in as_completed(futures):
-            results.append(future.result())
-            emit(completed=len(results), total=len(jobs))
+        while futures:
+            completed, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in completed:
+                # A completed Future owns its result until released. Bound
+                # submissions too, so fast workers cannot outrun the sink.
+                futures.remove(future)
+                result = future.result()
+                results.append(consume(result) if consume else result)
+                emit(completed=len(results), total=len(jobs))
+                job = next(queued, None)
+                if job is not None:
+                    futures.add(executor.submit(worker, job))
     return sorted(results, key=lambda pair: pair[0])
 
 
@@ -505,28 +528,52 @@ def _stage(name, folder, manifest, config, root, emit):
         jobs = [
             (segment, members[segment["trip_id_performed"]]) for segment in segments
         ]
+        layout = {
+            "rankings": (
+                "candidate_rankings.parquet",
+                ("trip_id_performed", "match_mode", "candidate_rank", "score"),
+            ),
+            "windows": (
+                "local_window_evidence.parquet",
+                ("trip_id_performed", "match_mode"),
+            ),
+            "mode_results": (
+                "mode_results.parquet",
+                ("trip_id_performed", "match_mode"),
+            ),
+        }
+
+        def consume(result):
+            identity, payload = result
+            key = hashlib.sha256(identity.encode()).hexdigest()
+            target = table(f"stages/candidate_shards/{key}")
+            for name, (_, columns) in layout.items():
+                write_rows(target / f"{name}.parquet", payload[name], columns=columns)
+            # Only this small descriptor survives in the parent process.
+            return identity, str(target)
+
         results = _parallel(
-            jobs, _candidate_job, canonical, config, manifest["match_modes"], emit
+            jobs,
+            _candidate_job,
+            canonical,
+            config,
+            manifest["match_modes"],
+            emit,
+            consume=consume,
         )
-        ranking = [row for _, result in results for row in result["rankings"]]
-        windows = [row for _, result in results for row in result["windows"]]
-        mode_results = [row for _, result in results for row in result["mode_results"]]
-        write_rows(
-            table("candidate_rankings.parquet"),
-            ranking,
-            columns=("trip_id_performed", "match_mode", "candidate_rank", "score"),
-        )
-        write_rows(
-            table("local_window_evidence.parquet"),
-            windows,
-            columns=("trip_id_performed", "match_mode"),
-        )
-        write_rows(table("mode_results.parquet"), mode_results)
+        counts = {
+            name: concatenate_rows(
+                table(destination),
+                [Path(target) / f"{name}.parquet" for _, target in results],
+                columns=columns,
+            )
+            for name, (destination, columns) in layout.items()
+        }
         write_rows(table("scheduled_lookup.parquet"), scheduled_lookup(canonical))
         return {
-            "candidates": len(ranking),
-            "local_windows": len(windows),
-            "mode_decisions": len(mode_results),
+            "candidates": counts["rankings"],
+            "local_windows": counts["windows"],
+            "mode_decisions": counts["mode_results"],
         }
     if name == "assign_scheduled":
         from .assignment import assign_trips

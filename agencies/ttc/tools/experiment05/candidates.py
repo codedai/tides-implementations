@@ -146,6 +146,17 @@ def rank_segment(segment, observations, canonical, config, modes):
                 for key, value in candidate.items()
                 if key not in HEAVY_CANDIDATE_FIELDS
             }
+            whole = candidate.get("whole_alignment", {})
+            trace = whole.get("delay_process", [])
+            if "whole_alignment" in candidate:
+                # This is the scorer's canonical trace location. Copy the owner
+                # before pruning: decision output may share the original object.
+                row["whole_alignment"] = {
+                    key: value
+                    for key, value in whole.items()
+                    if key != "delay_process"
+                    or config["execution"].get("persist_alignment_traces", False)
+                }
             row.update(
                 trip_id_performed=segment["trip_id_performed"],
                 match_mode=mode,
@@ -158,11 +169,9 @@ def rank_segment(segment, observations, canonical, config, modes):
                 ordering_tuple=[candidate["score"], candidate["candidate_id"]],
                 score_direction="lower_is_better",
                 scheduled_trajectory_reference=candidate["candidate_id"],
-                delay_process_point_count=len(candidate.get("delay_process", [])),
+                delay_process_point_count=len(trace),
                 score_threshold_applied_to_assignment=False,
             )
-            if config["execution"].get("persist_alignment_traces", False):
-                row["delay_process"] = candidate.get("delay_process", [])
             rankings.append(row)
         local = result.get("local_scores", {})
         if isinstance(local, dict):

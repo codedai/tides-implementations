@@ -170,6 +170,9 @@ Reason counts are nonexclusive; one unmatched trip may have multiple diagnostics
 
 ## Output layout and schema
 
+The [version-1 diagnostic schema contract](experiment05-output-schema.md)
+specifies keys, row grains, units, nullable values and nested diagnostic encoding.
+
 ```text
 outputs/experiment_05/
   cleanup/                       # dry-run, protected inventory, execution audit
@@ -216,6 +219,18 @@ GTFS data. Per-ping candidate delay traces are optional via
 `execution.persist_alignment_traces`; default outputs retain all score
 components and local evidence, not duplicated trace arrays. Nested diagnostics
 are described by each table's sidecar, rather than inserted into TIDES core.
+The optional trace has one canonical storage location:
+`whole_alignment.delay_process`; `delay_process_point_count` records its size
+even when omitted. Atomic delay-dynamics states, APC support and projection
+rejections remain available in compact mode.
+
+Candidate worker submissions are bounded by the configured worker count.
+Completed per-segment results are written to shared
+`stages/candidate_shards/`, releasing the result objects and their Futures;
+ordered, hash-verified shards are streamed into the public Parquet tables.
+The compact shards are retained as stage diagnostics alongside those final
+tables. They are not four copies of the raw/projection inputs. This prevents
+the coordinator from accumulating a full day's nested candidate objects in RAM.
 
 See [tides05-contract.md](tides05-contract.md) for fixed TIDES v1.0 schemas,
 profile/Frictionless validation and cross-table rules. Empty CSV cells encode
@@ -247,6 +262,9 @@ version, config hash, raw AVL/APC hashes, GTFS archive/metadata hashes and runti
 environment. Default calls reuse verified success; force creates a new run.
 Run metadata timestamps/IDs differ on force, but fixed-input business outputs
 and IDs must agree. Missing inputs/feed or invalid stages return explicit errors.
+An all-four-mode run and a later single-mode request have different cache keys;
+the latter is currently a separate run. To inspect/download a single mode
+without recomputation, use that mode's package in the existing all-mode summary.
 
 For independent stages:
 

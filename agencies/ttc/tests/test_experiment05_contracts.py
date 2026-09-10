@@ -7,6 +7,7 @@ import pytest
 from tools.experiment05 import STAGES
 from tools.experiment05.config import DEFAULT_CONFIG, load_config
 from tools.experiment05.io import (
+    concatenate_rows,
     read_json,
     read_rows,
     stable_id,
@@ -89,6 +90,7 @@ def test_nested_stage_tables_roundtrip_and_hash_validation(tmp_path):
 
 
 def test_empty_table_and_existing_stage_output_pins(tmp_path):
+    (tmp_path / "stages/candidate_shards").mkdir(parents=True)
     path = tmp_path / "candidate_rankings.parquet"
     write_rows(path, [], columns=("trip_id_performed", "candidate_rank"))
     assert read_rows(path) == []
@@ -98,6 +100,87 @@ def test_empty_table_and_existing_stage_output_pins(tmp_path):
     first = _stage_output_pins(tmp_path, "generate_candidates")
     second = _stage_output_pins(tmp_path, "generate_candidates")
     assert first == second and len(first) == 8
+
+
+def test_streaming_shards_preserve_order_nullable_union_and_nested_values(tmp_path):
+    paths = [tmp_path / f"shard-{index}.parquet" for index in range(4)]
+    write_rows(paths[0], [], columns=("candidate_rank",))
+    write_rows(paths[1], [{"id": "a", "candidate_rank": 1, "detail": "plain"}])
+    write_rows(paths[2], [{"id": "b", "candidate_rank": 2, "detail": {"x": [1]}}])
+    write_rows(paths[3], [{"id": "c", "candidate_rank": 3, "new": True}])
+    target = tmp_path / "combined.parquet"
+    assert concatenate_rows(target, paths) == 3
+    rows = read_rows(target)
+    assert [row["id"] for row in rows] == ["a", "b", "c"]
+    assert [row["candidate_rank"] for row in rows] == [1, 2, 3]
+    assert rows[0]["detail"] == "plain"
+    assert rows[1]["detail"] == {"x": [1]}
+    assert rows[2]["detail"] is None and rows[2]["new"] is True
+    assert rows[0]["new"] is None
+    paths[1].write_bytes(paths[1].read_bytes() + b"tamper")
+    with pytest.raises(ValueError, match="shard hash changed"):
+        concatenate_rows(tmp_path / "rejected.parquet", paths)
+
+
+def test_streaming_zero_rows_has_explicit_empty_contract(tmp_path):
+    path = tmp_path / "zero.parquet"
+    write_rows(path, [], columns=("id",))
+    target = tmp_path / "all-empty.parquet"
+    assert concatenate_rows(target, [path], columns=("id",)) == 0
+    assert read_rows(target) == []
+
+
+def test_candidate_pool_submissions_are_bounded_and_result_descriptors_sorted(
+    monkeypatch,
+):
+    from tools.experiment05 import pipeline
+
+    pending = set()
+    maximum = 0
+
+    class Future:
+        def __init__(self, value):
+            self.value = value
+
+        def result(self):
+            return self.value
+
+    class Executor:
+        def __init__(self, **kwargs):
+            self.workers = kwargs["max_workers"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def submit(self, worker, job):
+            nonlocal maximum
+            pending.add(job)
+            maximum = max(maximum, len(pending))
+            assert len(pending) <= self.workers
+            return Future(worker(job))
+
+    def consume(result):
+        pending.remove(result[0])
+        return result[0], "stored-descriptor"
+
+    monkeypatch.setattr(pipeline, "ProcessPoolExecutor", Executor)
+    monkeypatch.setattr(
+        pipeline, "wait", lambda futures, **kwargs: ({next(iter(futures))}, set())
+    )
+    result = pipeline._parallel(
+        list(reversed(range(17))),
+        lambda job: (job, "large-payload"),
+        {},
+        {"execution": {"workers": 3}},
+        ["global"],
+        lambda **kwargs: None,
+        consume=consume,
+    )
+    assert maximum == 3 and not pending
+    assert result == [(index, "stored-descriptor") for index in range(17)]
 
 
 def test_mode_names_and_identity_are_not_input_order_dependent():

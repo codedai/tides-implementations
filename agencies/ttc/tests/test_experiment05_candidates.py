@@ -1,6 +1,7 @@
 """Independent 05 projection/attachment/scoring handoff contracts, not a batch E2E."""
 
 import copy
+import json
 
 import pytest
 
@@ -205,6 +206,50 @@ def test_actual_scoring_preserves_off_reference_coverage_loss(scored_evidence, c
         assert candidate["coverage_metrics"]["projection"][
             "point_ratio"
         ] == pytest.approx(20 / 21)
+
+
+def test_compact_and_full_real_four_mode_scores_preserve_all_nontrace_fields(
+    scored_evidence, config, monkeypatch
+):
+    segment, rows, canonical = scored_evidence
+    original_inputs = copy.deepcopy((segment, rows, canonical, config))
+    real_matcher = candidates.match_candidate_segment
+    captured = []
+
+    def capture_real_matcher(*args, **kwargs):
+        result = real_matcher(*args, **kwargs)
+        captured.append((result, copy.deepcopy(result)))
+        return result
+
+    monkeypatch.setattr(candidates, "match_candidate_segment", capture_real_matcher)
+    modes = ["global", "early", "middle", "late"]
+    compact = candidates.rank_segment(segment, rows, canonical, config, modes)
+    full_config = copy.deepcopy(config)
+    full_config["execution"]["persist_alignment_traces"] = True
+    full = candidates.rank_segment(segment, rows, canonical, full_config, modes)
+    assert len(captured) == 8
+    assert all(result == before for result, before in captured)
+    assert (segment, rows, canonical, config) == original_inputs
+    assert {row["match_mode"] for row in compact["rankings"]} == set(modes)
+    assert compact["rankings"]
+    assert len(compact["rankings"]) == len(full["rankings"])
+    for small, large in zip(compact["rankings"], full["rankings"], strict=True):
+        assert "delay_process" not in small
+        assert "delay_process" not in large
+        assert "delay_process" not in small["whole_alignment"]
+        trace = large["whole_alignment"]["delay_process"]
+        assert len(trace) > 0
+        assert small["delay_process_point_count"] == len(trace)
+        assert large["delay_process_point_count"] == len(trace)
+        assert large["delay_fit"]["dynamics_diagnostics"]["states"]
+        assert large["delay_fit"]["dynamics_diagnostics"]["intervals"]
+    full_without_trace = copy.deepcopy(full)
+    for row in full_without_trace["rankings"]:
+        del row["whole_alignment"]["delay_process"]
+    # Includes ranking, every score component/weight, all coverage denominators,
+    # APC/rejection and atomic-dynamics diagnostics, windows and mode decisions.
+    assert compact == full_without_trace
+    assert len(json.dumps(compact)) < len(json.dumps(full))
 
 
 def test_masked_tail_and_unrelated_trip_do_not_change_actual_rankings(

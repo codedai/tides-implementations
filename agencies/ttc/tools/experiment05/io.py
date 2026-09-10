@@ -124,6 +124,55 @@ def read_rows(path):
     return rows
 
 
+def concatenate_rows(path, sources, *, columns=()):
+    """Stream ordered, verified table shards without decoding nested JSON rows."""
+    path = reject_symlinks(path)
+    descriptors = []
+    nested = set()
+    for source in sources:
+        source = reject_symlinks(source)
+        descriptor = read_json(source.with_suffix(".schema.json"))
+        if sha256(source) != descriptor["sha256"]:
+            raise ValueError(f"Stage shard hash changed: {source}")
+        if descriptor["row_count"]:
+            descriptors.append((source, descriptor))
+            nested.update(descriptor["json_columns"])
+    if not descriptors:
+        return write_rows(path, [], columns=columns)
+    frames = []
+    for source, descriptor in descriptors:
+        frame = pl.scan_parquet(source)
+        # A diagnostic may be structured only in some shards. Normalize a
+        # scalar from another shard to valid JSON before the common union.
+        for name in nested - set(descriptor["json_columns"]):
+            if name in descriptor["columns"]:
+                frame = frame.with_columns(
+                    pl.col(name).map_elements(
+                        lambda value: json.dumps(value, sort_keys=True),
+                        return_dtype=pl.String,
+                    )
+                )
+        frames.append(frame)
+    joined = pl.concat(frames, how="diagonal_relaxed")
+    schema = joined.collect_schema()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".writing")
+    joined.sink_parquet(temporary, compression="zstd", maintain_order=True)
+    os.replace(temporary, path)
+    count = sum(descriptor["row_count"] for _, descriptor in descriptors)
+    write_json(
+        path.with_suffix(".schema.json"),
+        {
+            "schema": "experiment05-table-v1",
+            "json_columns": sorted(nested),
+            "columns": {key: str(dtype) for key, dtype in schema.items()},
+            "row_count": count,
+            "sha256": sha256(path),
+        },
+    )
+    return count
+
+
 def stable_id(namespace, *parts):
     digest = hashlib.sha256(
         json.dumps(parts, sort_keys=True, separators=(",", ":")).encode()
