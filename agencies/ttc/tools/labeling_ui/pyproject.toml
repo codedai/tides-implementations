@@ -1,0 +1,29 @@
+[project]
+name = "ttc-labeling-ui"
+version = "0.1.0"
+description = "Inspection-first labeling UI for r1-spike scheduled_trip review cases"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit>=1.37,<2",
+    "polars>=1,<2",
+    "numpy>=1.26",
+    "pyarrow>=16",
+    "plotly>=5.22,<7",
+    # pandas 3's default arrow-backed strings segfault under streamlit's
+    # script-runner thread with this pyarrow/polars combination; pandas 2
+    # avoids that native path entirely
+    "pandas>=2,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88

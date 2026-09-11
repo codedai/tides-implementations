@@ -1,0 +1,36 @@
+{
+  "version": "coverage-study-1",
+  "profile": "diagnostic-apc-avl-coverage",
+  "publishable": false,
+  "tides_conformance_claimed": false,
+  "authorization": "User request on 2026-09-08: inspect raw data, identify edge cases, try segmentation and merge combinations, evaluate TIDES-based trust and feasibility.",
+  "scope": "All raw AVL/APC rows; no GTFS inputs, existing human labels, or frozen holdouts are consumed.",
+  "timezone_assumption": "America/Toronto naive local wall time; ambiguous/nonexistent instants abstain; source calendar date is not service_date.",
+  "segmentation_methods": ["gap_only", "avl_context", "apc_assisted"],
+  "merge_methods": ["time_only", "spatiotemporal", "sequence_extension"],
+  "threshold_status": "Exploratory, uncalibrated; similarity scores are not probabilities.",
+  "regimes": {
+    "strict": {"time_tolerance_s": 30, "radius_m": 50, "interpolation_gap_s": 60, "extension_horizon_s": 600},
+    "nominal": {"time_tolerance_s": 60, "radius_m": 100, "interpolation_gap_s": 90, "extension_horizon_s": 900},
+    "wide": {"time_tolerance_s": 120, "radius_m": 200, "interpolation_gap_s": 180, "extension_horizon_s": 1800}
+  },
+  "common": {
+    "nearest_baseline_tolerance_s": 300,
+    "max_apc_dwell_s": 1800,
+    "chain_gap_s": 600,
+    "chain_speed_max_kph": 130,
+    "anchor_distinct_stops": 3,
+    "accept_score": 650,
+    "null_score": 550,
+    "margin_score": 60
+  },
+  "evaluation": {
+    "accuracy": null,
+    "reason": "No independent reviewed ground-truth trip/attachment labels used in this newly commissioned diagnostic study.",
+    "mask_probe_vehicles": 12,
+    "mask_prefix_apc_s": 900,
+    "mask_suffix_avl_s": 780,
+    "mask_selection": "Hash-ordered vehicles, hash-ordered qualifying source-overlap windows; selection frozen before probe results. Recovery against unmasked algorithm output is not truth.",
+    "edge_cases_exhaustive_claim": false
+  }
+}

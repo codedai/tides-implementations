@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>TIDES · APC–AVL 逐趟审查</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23118879'/%3E%3Ctext x='16' y='24' text-anchor='middle' fill='white' font-size='25' font-family='serif'%3ET%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/i18n.css">
+  <script src="/i18n-static.js" defer></script>
+  <script src="/i18n-dynamic.js" defer></script>
+  <script src="/i18n.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TIDES 审查首页"><span class="brand-icon">T</span><strong>TIDES</strong><span class="brand-divider"></span><span>Merge review</span></a>
+    <div class="topbar-actions"><div class="top-meta"><span class="local-dot"></span> 本地证据工作台 <span class="version">DIRECT EVIDENCE · v2</span></div><button id="language-toggle" class="language-switch" type="button" role="switch" aria-checked="false" aria-label="界面语言：中文。切换为英文" title="界面语言：中文。切换为英文"><span data-language="zh-CN" class="active" lang="zh-CN">中文</span><span class="language-switch-divider" aria-hidden="true">/</span><span data-language="en" lang="en">EN</span></button></div>
+  </header>
+  <div id="global-error" class="global-error" role="alert" hidden></div>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="筛选与候选行程">
+      <div class="sidebar-heading"><div><span class="eyebrow">REVIEW QUEUE</span><h1>逐趟检查</h1></div><span id="case-count" class="count-pill">—</span></div>
+      <div class="filters">
+        <label><span id="method-select-label">分割上下文</span><select id="method-select" aria-label="分割方法"></select></label>
+        <label>车辆<select id="vehicle-select" aria-label="车辆"></select></label>
+        <div class="filter-pair"><label>日期<select id="date-filter"><option value="">全部日期</option></select></label><label>线路<select id="route-filter"><option value="">全部线路</option></select></label></div>
+        <div class="filter-pair"><label>融合状态<select id="status-filter"><option value="">全部状态</option><option value="direct">直接支持</option><option value="partial">部分支持</option><option value="ambiguous">歧义</option><option value="unmatched">未关联</option><option value="ineligible">不具备条件</option></select></label><label>审查状态<select id="review-filter"><option value="">全部审查</option><option value="unreviewed">未审查</option><option value="accepted">可接受</option><option value="problem">有问题</option><option value="uncertain">待确认</option></select></label></div>
+        <div id="direction-filters" class="filter-pair" hidden><label>候选方向<select id="direction-filter"><option value="">全部方向</option></select></label><label>方向冲突<select id="direction-conflict-filter"><option value="">全部候选</option><option value="with">有方向冲突</option><option value="without">无已标记冲突</option></select></label></div>
+        <label class="search-label"><span class="sr-only">搜索候选行程</span><input id="case-search" type="search" placeholder="搜索片段 ID、线路、日期…" autocomplete="off"></label>
+      </div>
+      <div class="queue-progress"><div><span id="review-progress-text">尚未载入</span><span id="review-progress-percent">—</span></div><progress id="review-progress" max="100" value="0" aria-label="当前筛选审查进度"></progress></div>
+      <div id="case-list" class="case-list" role="list" aria-label="候选行程列表"><div class="empty-small">正在载入数据目录…</div></div>
+      <button id="load-more" class="text-button load-more" hidden>显示更多</button>
+      <footer class="sidebar-footer"><a href="/api/reviews/export" id="export-reviews" download>↓ 导出审查记录</a><span>J / K 切换行程</span></footer>
+    </aside>
+    <main class="main" id="main-content">
+      <section id="debug-console" class="panel debug-console" aria-label="单日参数实验控制台" hidden>
+        <div class="panel-header"><div><span class="eyebrow">ONE-DAY DEBUG LAB</span><h3><span id="debug-mode-title">单日分割与融合实验</span> · <span id="debug-date">2023-11-06</span></h3><span class="panel-subtitle">固定原始证据；每次重跑创建独立运行，不覆盖基线与人工审查。</span></div><span class="count-pill">非生产结果</span></div>
+        <div class="debug-body">
+          <div class="debug-run-controls"><label>正在检查的运行<select id="debug-run-select"></select></label><label>对照基线<select id="debug-base-select"></select></label><button id="debug-refresh" type="button" class="subtle-button">刷新运行</button></div>
+          <p id="debug-run-loading" class="stream-notice" role="status" hidden>正在载入所选运行；实验参数暂时停用，载入完成后再编辑和提交。</p>
+          <form id="debug-form">
+            <div class="debug-run-controls"><label>实验名称<input id="debug-label" maxlength="80" placeholder="例如：仅车辆号汇集 · 不执行匹配" autocomplete="off"></label><label>本次处理方法<select id="debug-method"></select></label><button id="debug-reset" type="button" class="subtle-button">恢复当前运行参数</button></div>
+            <p id="vehicle-only-config-note" class="stream-notice" hidden>仅按 VehicleID 汇集当天 APC 和 AVL，保留每条来源记录并统一时间排序。不执行 trip 分割、时空匹配、插值或阈值判定；同车不代表同一 trip 或同一停站。</p>
+            <details class="debug-parameters"><summary>分割参数 <span>源时间间隔、上下文持续性与几何反向</span></summary><div id="debug-segmentation-parameters" class="parameter-grid"></div></details>
+            <details class="debug-parameters"><summary>直接证据 merge 参数 <span>时空支持、插值、反证与候选竞争</span></summary><div id="debug-merge-parameters" class="parameter-grid"></div></details>
+            <details id="debug-gtfs-settings" class="debug-parameters" hidden><summary>GTFS 证据与候选参数 <span>版本保存完整设置；不是浏览窗口长度或校准概率</span></summary><div id="debug-gtfs-parameters" class="parameter-grid"></div></details>
+            <div class="debug-submit"><small>阈值是实验设置，不是 TIDES 规定或准确率。当天边缘表示数据截断，不确认 trip 始终点。</small><button id="debug-submit" type="submit" class="primary-button">重跑 2023-11-06 →</button></div>
+          </form>
+          <div id="debug-job" class="debug-job" role="status" aria-live="polite" hidden><div><strong id="debug-job-title">运行中</strong><span id="debug-job-message"></span></div><progress id="debug-job-progress" max="100" value="0" aria-label="单日重跑进度"></progress><button id="debug-load-ready" class="subtle-button" hidden>加载已完成运行</button></div>
+          <details class="debug-provenance"><summary>运行摘要与固定数据来源</summary><pre id="debug-provenance"></pre></details>
+        </div>
+      </section>
+      <section id="matching-view-toolbar" class="panel matching-view-toolbar" aria-label="GTFS 决策模式与检查页面" hidden>
+        <div class="matching-page-tabs" role="tablist" aria-label="GTFS 检查页面"><button id="trip-detail-tab" type="button" role="tab" aria-selected="true" aria-controls="trip-detail-page">逐趟检查</button><button id="day-overview-tab" type="button" role="tab" aria-selected="false" aria-controls="day-overview-page">全天总览</button></div>
+        <label>GTFS 决策方式<select id="matching-mode-select" aria-label="GTFS 决策方式"><option value="global">全局 · 整段</option><option value="early">前期 · 前 1/3</option><option value="middle">中期 · 中 1/3</option><option value="late">后期 · 后 1/3</option></select></label>
+        <p id="matching-mode-note" role="status">正在读取本运行支持的决策方式…</p>
+      </section>
+      <section id="day-overview-page" class="day-overview-page" role="tabpanel" aria-labelledby="day-overview-tab" hidden>
+        <div class="case-header"><div><span class="eyebrow">VEHICLE-DAY · TIME / DISTANCE</span><h2>全天运行与计划总览</h2><p class="muted">全部车辆、全部分段；按方向和 canonical reference 分面，距离轴不混用。</p></div><button id="day-overview-refresh" type="button" class="subtle-button">刷新总览</button></div>
+        <div class="panel overview-controls"><label>显示时间窗<select id="overview-window-size" aria-label="全天总览窗口长度"><option value="86400">全天 · 24 小时</option><option value="43200">12 小时</option><option value="21600">6 小时</option><option value="10800">3 小时</option><option value="3600">1 小时</option><option value="1800">30 分钟</option><option value="custom">自定义分钟…</option></select></label><label id="overview-custom-label" hidden>分钟<input id="overview-custom-minutes" type="number" min="1" max="1440" value="120" aria-label="全天总览自定义分钟"></label><button id="overview-previous" type="button" class="icon-button small" aria-label="总览上一个时间窗">←</button><button id="overview-next" type="button" class="icon-button small" aria-label="总览下一个时间窗">→</button><output id="overview-window-label">00:00 – 24:00</output><input id="overview-pan" type="range" min="0" max="1000" step="1" value="0" aria-label="全天总览横向移动时间窗" disabled></div>
+        <p id="day-overview-status" class="stream-notice" role="status">正在载入全天投影与 GTFS 候选…</p>
+        <div class="overview-legend"><span><i class="legend-line teal-bg"></i>AVL 有效投影 · 实线</span><span><i class="legend-line overview-schedule-key"></i>GTFS 原计划 · 虚线</span><span><i class="legend-line overview-fallback-key"></i>未过门槛 · 首个诊断候选</span><span><i class="legend-line overview-apc-key"></i>APC 站点时间区间</span><span>浅色为决策范围之外的上下文；不计入本模式评分。</span></div>
+        <p class="stream-order-note">每段只展示一个通过门槛的候选；如无，则展示首个已评分但未过门槛的候选并标记。没有评分不补候选。GTFS 使用原计划时刻，不按估计延误移动。点击轨迹或下方条目进入同模式逐趟检查。</p>
+        <div id="day-overview-facets" aria-label="按方向和参考轴分开的全天时空图"></div>
+        <details class="panel overview-case-panel"><summary>全部候选片段 <span id="overview-case-count"></span> · 包含无投影／无计划候选</summary><div id="overview-case-list" class="overview-case-list"></div></details>
+      </section>
+      <div id="trip-detail-page" role="tabpanel" aria-labelledby="trip-detail-tab">
+      <section class="case-header">
+        <div><div class="eyebrow" id="case-kicker">OBSERVATION-LEVEL REVIEW</div><h2 id="case-title">APC × AVL 直接证据</h2><div id="case-subtitle" class="muted">选择候选行程，逐条检查时空关联。</div></div>
+        <div class="case-navigation"><span id="case-position">— / —</span><button id="previous-case" class="icon-button" aria-label="上一个行程" title="上一个 · K" disabled>←</button><button id="next-case" class="icon-button" aria-label="下一个行程" title="下一个 · J" disabled>→</button></div>
+      </section>
+      <div class="evidence-notice"><span class="notice-icon">i</span><p id="evidence-notice-copy"><strong>这里的“trip”是候选片段，不是已确认的 trip performed。</strong> 地图与曲线展示观测证据；未引入 GTFS。时间为源数据本地墙钟，未校正两源时差，DST 歧义不作推断。</p></div>
+      <section id="debug-diff" class="panel debug-diff" aria-label="当前车辆跨运行差异" hidden>
+        <div class="panel-header"><div><h3>与基线对照 · 同一原始 APC / AVL 证据</h3><span class="panel-subtitle">按 source rid 与 AVL 成员比较，不用新旧 segment ID 强行对齐；绿色表示新增边界，红色表示移除。</span></div><span id="debug-diff-status" class="chart-caption"></span></div>
+        <div id="debug-diff-summary" class="diff-summary"></div>
+        <div class="chart-wrap"><svg id="debug-boundary-svg" role="img" aria-label="基线与当前运行的分割边界差异时间线"></svg></div>
+        <div id="debug-diff-list" class="diff-list" aria-label="APC source rid 级变化"></div>
+        <details class="debug-provenance"><summary>完整 source-rid 差异与边界来源</summary><pre id="debug-diff-json"></pre></details>
+      </section>
+      <section class="metrics" aria-label="当前候选片段统计">
+        <div class="metric"><span>加载窗口有效 GPS</span><strong id="metric-avl">—</strong><small id="metric-avl-note" class="teal">片段成员与邻近上下文分开统计</small></div>
+        <div class="metric"><span>待检查 APC 记录</span><strong id="metric-apc">—</strong><small>整段计数 · 不加总客流</small></div>
+        <div class="metric"><span>直接 / 部分支持</span><strong id="metric-support">—</strong><small>证据层级，非置信概率</small></div>
+        <div class="metric"><span>需关注记录</span><strong id="metric-attention">—</strong><small id="metric-attention-note">歧义 · 未关联 · 不具备条件</small></div>
+      </section>
+      <div id="dedup-summary" class="stream-notice dedup-summary" role="status" hidden></div>
+      <div id="case-loading" class="loading-line" hidden>正在读取车辆轨迹与完整证据…</div>
+      <div id="no-case" class="empty-panel" hidden>没有符合筛选条件的候选片段。请调整左侧筛选。</div>
+      <div id="case-workspace" hidden>
+        <section id="gap-segmentation-panel" class="panel gap-segmentation-panel" aria-label="联合观测间隔分段与父片段追溯" hidden>
+          <div class="panel-header"><div><span class="eyebrow">JOINT APC + AVL GAP</span><h3 id="gap-fragment-title">联合观测间隔子片段</h3><span id="gap-parent-id" class="panel-subtitle mono"></span></div></div>
+          <p id="gap-segmentation-note" class="stream-order-note"></p>
+          <div id="gap-boundary-list" class="gap-boundary-list"></div>
+          <details class="direction-rules"><summary>父边界、间隔证据与原始冲突追溯</summary><pre id="gap-segmentation-audit"></pre></details>
+        </section>
+        <section class="window-toolbar" aria-label="联动显示时间范围"><div><strong>显示时间窗</strong><span id="window-label">整段</span></div><div class="window-actions"><select id="window-size" aria-label="显示窗口长度"><option value="full">全段</option><option value="60">1 分钟</option><option value="120">2 分钟</option><option value="300">5 分钟</option><option value="600">10 分钟</option><option value="900">15 分钟</option><option value="1800">30 分钟</option><option value="3600">60 分钟</option><option value="7200">120 分钟</option><option value="custom">自定义长度…</option></select><span id="window-custom-controls" class="window-custom-controls" hidden><input id="window-custom-value" type="number" min="0.001" step="any" value="5" aria-label="自定义时间窗长度"><select id="window-custom-unit" aria-label="自定义时间窗单位"><option value="60">分钟</option><option value="1">秒</option></select><button id="window-custom-apply" class="subtle-button" type="button">应用</button></span><button id="window-previous" class="icon-button small" aria-label="上一个时间窗">←</button><button id="window-next" class="icon-button small" aria-label="下一个时间窗">→</button><button id="window-focus" class="subtle-button">聚焦 APC ±5 分钟</button><select id="context-size" aria-label="邻近上下文范围"><option value="0">无邻近上下文</option><option value="180" selected>上下文 ±3 分钟</option><option value="900">上下文 ±15 分钟</option><option value="1800">上下文 ±30 分钟</option></select></div><small>仅切换浏览范围，不重分割行程。上方数字为整段统计；邻近上下文独立于采纳关联。</small></section>
+        <section id="gtfs-candidate-panel" class="panel gtfs-candidate-panel" aria-label="GTFS 最终候选与证据" hidden>
+          <div class="panel-header"><div><span class="eyebrow">GTFS SCHEDULE COMPARISON</span><h3>GTFS 候选 <span id="gtfs-candidate-count" class="inline-count"></span></h3><span id="gtfs-result-summary" class="panel-subtitle"></span></div><span id="gtfs-result-status" class="status-badge"></span></div>
+          <p id="gtfs-uncertainty-note" class="stream-order-note">候选分数不是校准概率；没有独立真值时，匹配准确率与置信概率均未知。MATCHED 仍是本实验算法判断，不是已验证 trip identity。</p>
+          <div id="gtfs-evidence-summary" class="diff-summary" aria-label="GTFS 支持与覆盖摘要，不是校准概率"></div>
+          <div id="gtfs-candidate-list" class="gtfs-candidate-list" aria-label="最终零至三个 GTFS 候选"></div>
+          <section id="gtfs-diagnostic-candidates" class="gtfs-diagnostic-section" aria-label="未过门槛的 GTFS 诊断候选">
+            <h4>未过门槛的诊断候选（最多 3）<span id="gtfs-diagnostic-count" class="inline-count"></span></h4>
+            <p id="gtfs-diagnostic-note" class="stream-order-note"></p>
+            <div id="gtfs-diagnostic-list" class="gtfs-candidate-list" aria-label="仅供排查的未通过门槛候选，不计入最终结果"></div>
+          </section>
+          <div class="gtfs-reference-controls"><label>共同距离参考轴<select id="gtfs-reference-select" aria-label="GTFS canonical 距离参考轴"></select></label><span id="gtfs-reference-note"></span></div>
+          <p id="gtfs-coverage" class="stream-order-note"></p>
+          <details id="gtfs-windows-panel" class="direction-rules"><summary>有效覆盖与 NO_EVIDENCE 窗口 <span id="gtfs-window-count"></span></summary><label class="gtfs-window-filter">窗口证据<select id="gtfs-window-filter"><option value="">全部窗口</option><option value="NO_EVIDENCE">NO_EVIDENCE</option><option value="EVIDENCE">EVIDENCE</option></select></label><div id="gtfs-window-list" class="gtfs-window-list" aria-label="多尺度有效证据窗口，可点击定位"></div></details>
+          <details class="direction-rules"><summary>诊断、覆盖与可追溯候选证据</summary><pre id="gtfs-diagnostics"></pre></details>
+        </section>
+        <section id="direction-panel" class="panel direction-panel" aria-label="方向候选与冲突证据" hidden>
+          <div class="panel-header"><div><h3>方向候选与冲突 <span id="direction-conflict-count" class="inline-count"></span></h3><span id="direction-conflict-summary" class="panel-subtitle"></span></div><label class="direction-toggle"><input id="direction-conflicts-visible" type="checkbox" checked>图中标出冲突窗口</label></div>
+          <p id="direction-candidate-note" class="stream-order-note"></p>
+          <div id="direction-conflict-list" class="direction-conflict-list" aria-label="方向冲突及双方来源记录"></div>
+          <details class="direction-rules"><summary>实验 02 固定规则与候选边界来源</summary><pre id="direction-rules"></pre></details>
+          <details id="direction-filter-audit" class="direction-rules"><summary>车日 PI/PO 排除审计 <span id="direction-filtered-count"></span> · 原始字段仍保留</summary><p class="stream-order-note">以下为本车日被排除的 AVL 代表记录及其去重追溯，不是当前候选成员；原 CSV 未修改。</p><pre id="direction-filtered-json"></pre></details>
+        </section>
+        <div class="primary-grid">
+          <section class="panel map-panel" aria-label="地理轨迹地图">
+            <div class="panel-header"><div><h3>地理轨迹</h3><span class="panel-subtitle">实测轨迹与 APC 位置</span></div><div class="map-controls"><button id="map-basemap" class="subtle-button" aria-pressed="false">街道底图</button><button id="map-fit" class="subtle-button" title="适配全部可见证据">适配</button><button id="map-zoom-out" class="icon-button small" aria-label="地图缩小">−</button><button id="map-zoom-in" class="icon-button small" aria-label="地图放大">+</button></div></div>
+            <div class="map-stage" id="map-stage"><svg id="map-svg" role="img" aria-label="AVL 地理轨迹与 APC 关联记录" tabindex="0"></svg><div class="map-mode" id="map-mode">离线坐标地图 · 拖动平移 / 滚轮缩放</div><div id="map-scale" class="map-scale"></div><a id="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" hidden>© OpenStreetMap contributors</a><div id="map-tooltip" class="map-tooltip" hidden></div></div>
+            <div class="map-legend"><span><i class="legend-line teal-bg"></i>AVL 实测轨迹</span><span>APC 按证据状态着色</span><span><i class="legend-dot teal-bg"></i>直接</span><span><i class="legend-dot amber-bg"></i>部分</span><span><i class="legend-line dashed"></i>推导插值</span><span><i class="legend-dot red-bg"></i>歧义 / 反证</span><label><input id="layer-context" type="checkbox" checked>上下文</label><label><input id="layer-pings" type="checkbox">全部 GPS 点</label><label><input id="layer-counters" type="checkbox" checked>反证</label></div>
+          </section>
+          <section class="panel inspector-panel" aria-label="选中 APC 的证据">
+            <div class="panel-header"><div><span class="eyebrow">EVIDENCE INSPECTOR</span><h3>观测证据</h3></div><span id="selected-status" class="status-badge">未选择</span></div>
+            <div id="inspector" class="inspector-body"><div class="inspector-empty"><span class="empty-crosshair">⌖</span><strong>选择一条 APC 记录</strong><p>点击地图、时间线或下方表格，查看它与实际 GPS 的关联依据。</p></div></div>
+          </section>
+        </div>
+        <section class="panel timeline-panel" aria-label="源数据时间线">
+          <div class="panel-header"><div><h3>双源时间线</h3><span class="panel-subtitle">AVL 覆盖 · APC 到离站区间 · 选中记录的证据锚点</span></div><div class="chart-caption" id="cursor-label">移动时间游标检查实际 GPS</div></div>
+          <div class="chart-wrap"><svg id="timeline-svg" role="img" aria-label="AVL 与 APC 覆盖时间线"></svg></div>
+          <div class="timeline-pan-controls" aria-label="横向浏览时间窗">
+            <div class="timeline-pan-heading"><label for="timeline-pan" id="timeline-pan-title">横向浏览全天</label><output id="timeline-pan-label" for="timeline-pan">—</output><button id="timeline-pan-detail" type="button" class="subtle-button" hidden>切换 30 分钟详细窗</button></div>
+            <svg id="timeline-pan-overview" role="img" aria-label="全天两源观测分布与当前可见时间窗"></svg>
+            <input id="timeline-pan" type="range" min="0" max="1000" step="1" value="0" aria-label="横向浏览全天" aria-describedby="timeline-pan-help timeline-pan-label" disabled>
+            <small id="timeline-pan-help">左右拖动可见时间窗，地图与进度曲线同步；不修改来源顺序。下方游标只移动窗内检查时刻。</small>
+          </div>
+          <div class="time-scrubber"><span>时间游标</span><input id="time-scrubber" type="range" min="0" max="1000" value="0" aria-label="时间游标"><output id="scrubber-time">—</output></div>
+        </section>
+        <section id="gtfs-schedule-panel" class="panel gtfs-schedule-panel" aria-label="GTFS 计划与两源实际时间对照" hidden>
+          <div class="panel-header"><div><h3>GTFS 计划 × AVL / APC 时刻</h3><span class="panel-subtitle">同一源本地时间轴；计划停站与实际观测并列，计划不补成实际证据。</span></div><span id="gtfs-schedule-caption" class="chart-caption"></span></div>
+          <div class="chart-wrap"><svg id="gtfs-schedule-svg" role="img" aria-label="GTFS 候选 schedule 与 AVL APC 时间对照"></svg></div>
+        </section>
+        <section class="panel progress-panel" aria-label="实测累计行驶距离">
+          <div class="panel-header"><div><h3>时空进度曲线</h3><span class="panel-subtitle">连续观测段内累计距离 × 源本地时间；断点归零、不补线，不等于计划行程完成率</span></div><span class="chart-caption">● 实测支持　◇ 插值支持</span></div>
+          <div class="chart-wrap"><svg id="progress-svg" role="img" aria-label="实际 GPS 累计距离和 APC 支持点"></svg></div>
+        </section>
+        <section id="gtfs-progress-panel" class="panel gtfs-progress-panel" aria-label="共同 GTFS 参考轴上的时空对照" hidden>
+          <div class="panel-header"><div><h3>Canonical s × 时间 · 计划与有效证据</h3><span class="panel-subtitle">AVL 有效投影、APC 站点到离站区间、GTFS 计划轨迹共用所选 reference；不同 fragment 不连接。</span></div><span class="chart-caption">OFF_REFERENCE 仅诊断，不进入 s–t 曲线</span></div>
+          <div class="chart-wrap"><svg id="gtfs-progress-svg" role="img" aria-label="GTFS canonical s 轴上的有效 AVL APC 与计划轨迹"></svg></div>
+          <p id="gtfs-progress-note" class="stream-order-note"></p>
+        </section>
+        <section id="observation-stream-panel" class="panel table-panel observation-stream-panel" aria-label="同车全部 APC 与 AVL 统一时间排序记录" hidden>
+          <div class="panel-header"><div><h3>同车统一观测时间表 <span id="observation-count" class="inline-count"></span></h3><span class="panel-subtitle">UNION ALL · 不匹配、不去重、不拆 trip；表内序号沿用服务端完整记录顺序。</span></div></div>
+          <div class="observation-controls"><label>来源<select id="observation-source-filter"><option value="">APC + AVL</option><option value="apc">APC</option><option value="avl">AVL</option></select></label><label class="observation-search-label">搜索<input id="observation-search" type="search" placeholder="来源 ID、线路、Branch、原始时间…" autocomplete="off"></label><label class="observation-window-label"><input id="observation-window-only" type="checkbox">仅当前浏览时间窗</label><label id="observation-conflicts-label" class="observation-window-label" hidden><input id="observation-conflicts-only" type="checkbox">仅方向冲突记录</label></div>
+          <p class="stream-order-note">event_time 用于展示排序，不修改来源时刻。相同时间的稳定显示顺序只是可复现规则，不证明物理先后；缺失时间仍保留。点击 AVL 仅查看其原始位置与字段，不给 APC 建立匹配。</p>
+          <div class="table-scroll observation-table-scroll"><table><thead><tr><th>源顺序 / 来源</th><th>event_time / 时间依据</th><th>来源记录 ID</th><th>Route / 名称 / Branch</th><th id="observation-direction-heading" hidden>方向 / 候选归属（非匹配）</th><th>原始位置</th><th>来源时刻</th></tr></thead><tbody id="observation-table-body"></tbody></table></div>
+          <div class="observation-pagination"><span id="observation-page-info" aria-live="polite"></span><label>每页<select id="observation-page-size"><option value="100">100 行</option><option value="250">250 行</option><option value="500">500 行</option></select></label><button id="observation-first" class="subtle-button" type="button">首页</button><button id="observation-previous" class="icon-button small" aria-label="上一页观测" type="button">←</button><label class="observation-page-label">第<input id="observation-page" type="number" min="1" step="1" value="1" aria-label="跳转观测页码">页</label><button id="observation-next" class="icon-button small" aria-label="下一页观测" type="button">→</button><button id="observation-last" class="subtle-button" type="button">末页</button></div>
+          <div id="observation-selection-note" class="table-limit" hidden></div>
+        </section>
+        <section id="apc-detail-panel" class="panel table-panel" aria-label="APC 记录明细">
+          <div class="panel-header"><div><h3>APC 观测明细 <span class="inline-count" id="table-count"></span></h3><span class="panel-subtitle">数量字段保持来源值；“—”表示未知，不代表 0</span></div><input type="search" id="apc-search" class="table-search" placeholder="查找站点、APC ID、原因…" aria-label="搜索 APC 记录"></div>
+          <div class="table-scroll"><table><thead><tr><th>观测 / 站点</th><th>到站 → 离站</th><th>Route / 名称 / Branch / 方向</th><th>证据状态</th><th>上 / 下车</th><th>到 / 离车载量</th><th>上下文关系</th></tr></thead><tbody id="apc-table-body"></tbody></table></div>
+          <div id="table-limit" class="table-limit" hidden></div>
+        </section>
+        <div class="bottom-grid">
+          <section class="panel review-panel" aria-label="人工审查记录">
+            <div class="panel-header"><div><h3>审查这趟候选片段</h3><span class="panel-subtitle">独立人工判断，不修改融合结果或源数据</span></div><span id="review-save-state" class="save-state">未审查</span></div>
+            <div class="review-body"><fieldset id="review-verdict"><legend class="sr-only">人工审查结论</legend><label><input type="radio" name="verdict" value="accepted"><span>✓ 可接受</span></label><label><input type="radio" name="verdict" value="problem"><span>! 有问题</span></label><label><input type="radio" name="verdict" value="uncertain"><span>? 待确认</span></label><label><input type="radio" name="verdict" value="unreviewed" checked><span>未审查</span></label></fieldset><label class="notes-label" for="review-notes">检查笔记 · 最多 10,000 字符</label><textarea id="review-notes" rows="3" placeholder="例如：APC 尾段缺少 AVL；终点出现两次访问；反证疑似来自时钟偏差…" maxlength="10000"></textarea><div class="review-actions"><span>Ctrl / ⌘ + S 保存</span><button id="save-review" class="subtle-button">保存</button><button id="save-next" class="primary-button">保存并下一趟 →</button></div></div>
+          </section>
+          <section class="panel provenance-panel"><div class="panel-header"><h3>可追溯信息与注意事项</h3></div><div class="provenance-body"><ul id="case-warnings"></ul><details><summary>查看运行来源与数据范围</summary><pre id="case-provenance"></pre></details></div></section>
+        </div>
+      </div>
+      </div>
+      <footer class="main-footer"><span>TIDES · 直接证据审查</span><span id="run-label">LOCAL DATA · READ-ONLY SOURCES</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

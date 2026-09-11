@@ -57,6 +57,15 @@ APC has nullable raw-normalized `arrival`/`departure`, `boarding`/`alighting`,
 `apc_evidence_included`, `apc_attachment_reason` and candidate attachment
 diagnostics retain ambiguity instead of silently selecting a nearest-time row.
 
+The production export policy `apc_stop_interval_departure_proxy_v1` is an explicit
+research assumption applied only during TIDES mapping. It does not overwrite the
+shared APC/visit evidence's unverified-grain or event-semantics flags. Package
+`diagnostics.json` records the assumed stop-visit grain and each emitted event's
+source interval, timestamp basis and proxy status. Arrival/departure events use
+their source times; both aggregate passenger count events use departure as a proxy.
+See [the versioned mapping contract](experiment05-apc-events.md). No diagnostic
+columns are inserted into TIDES core CSVs.
+
 ## Supporting evidence and manifests
 
 `platform_diagnostics.parquet` stores non-overlapping window/run movement,
@@ -80,3 +89,8 @@ timestamps and validation. `summary.json` is the lightweight browser-facing
 result. `validation_report.json` reports independent pipeline invariants; each
 mode's TIDES package has its own validator report. Only successful, hash-verified
 runs are reusable caches.
+
+The browser's read-only visualization contract is separately versioned as
+`experiment05-visualization-v1`; see [its API and display semantics](experiment05-visualization.md).
+It reads these pinned artifacts without altering their schema, duplicating shared
+source data by mode or recalculating candidate ranks.

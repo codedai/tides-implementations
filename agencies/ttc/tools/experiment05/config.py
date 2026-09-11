@@ -81,6 +81,11 @@ def load_config(path=DEFAULT_CONFIG):
             raise ValueError(f"Expected boolean: export.{key}")
     if not config["export"]["include_vehicles"]:
         raise ValueError("Vehicles are required for package referential integrity")
+    if config["export"].get("passenger_event_policy") not in (
+        "omit_without_event_semantics",
+        "apc_stop_interval_departure_proxy_v1",
+    ):
+        raise ValueError("Unsupported export.passenger_event_policy")
     if not config["execution"]["cache_success_only"]:
         raise ValueError("Failed or unvalidated runs must never be reusable caches")
     return config, hashlib.sha256(raw).hexdigest()

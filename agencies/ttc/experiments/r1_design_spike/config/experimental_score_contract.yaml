@@ -1,0 +1,428 @@
+# Experimental score contract for the R1 design-validation spike.
+#
+# EVERY numerical value in this file is an unapproved experimental
+# hypothesis. Nothing here is calibrated (the plan's §11 calibration
+# protocol has not run), nothing is a production default, and the two
+# variants exist precisely to measure how sensitive decisions are to
+# reasonable alternative choices.
+#
+# Firewall: passenger quantities (Boarding/Alighting/Arrload/Depload/
+# AvgSample/NoTrips) and legacy TripID-derived values are structurally
+# banned from registration (enforced in scoring.py).
+#
+# Units convention: *_s features are integer seconds; *_dm features are
+# supplied in metres and quantized at 0.1 m (raw units = decimetres);
+# *_millis features are ratios/fractions pre-scaled to 0..1000.
+
+schema_version: 1
+contract_name: experimental_score_contract
+status: experimental
+score_scale: 1000000
+
+features:
+  # ----- segment_selection (Stage 1) -----
+  seg_sched_start_residual_s:
+    family: seg_schedule
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [300, 850000], [900, 500000], [1800, 200000], [3600, 0]]
+    hard_bound: {max: 10800, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: hard_invalid}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 30
+    reason_code: XR1.SCORE.SEG_START_RESIDUAL
+    status: experimental
+    note: >-
+      |segment start - scheduled trip start|. Pullout/layover can shift
+      starts, so the decay is deliberately slow (plan S5 caution).
+  seg_sched_end_residual_s:
+    family: seg_schedule
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [300, 850000], [900, 500000], [1800, 200000], [3600, 0]]
+    hard_bound: {max: 10800, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: hard_invalid}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 20
+    reason_code: XR1.SCORE.SEG_END_RESIDUAL
+    status: experimental
+    note: End-of-segment residual against scheduled trip end.
+  seg_interval_overlap_millis:
+    family: seg_schedule
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [250, 200000], [500, 600000], [800, 900000], [1000, 1000000]]
+    missing: {mode: hard_invalid}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 30
+    reason_code: XR1.SCORE.SEG_OVERLAP
+    status: experimental
+    note: >-
+      overlap / min(segment_duration, scheduled_duration), pre-scaled to
+      0..1000. Denominator declared in temporal_features.py.
+  seg_duration_ratio_millis:
+    family: seg_schedule
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [500, 400000], [800, 800000], [1000, 1000000]]
+    missing: {mode: hard_invalid}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 10
+    reason_code: XR1.SCORE.SEG_DURATION_RATIO
+    status: experimental
+    note: min/max duration ratio of segment vs scheduled trip.
+  seg_median_shape_residual_dm:
+    family: seg_spatial
+    unit: decimetres
+    direction: lower_better
+    quantum: 0.1
+    transform:
+      points: [[0, 1000000], [300, 800000], [800, 400000], [1500, 100000], [2500, 0]]
+    hard_bound: {max: 5000, reason_code: XR1.GEOM.HARD_CONTRADICTION}
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 25
+    reason_code: XR1.SCORE.SEG_SHAPE_RESIDUAL
+    status: experimental
+    note: >-
+      Median per-ping point-to-segment residual against the candidate
+      route/direction geometry, metres in, decimetre units. Median over
+      pings sorted by source record id (order-free anyway).
+  seg_offroute_frac_millis:
+    family: seg_spatial
+    unit: ratio_millis
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [100, 800000], [300, 400000], [600, 100000], [1000, 0]]
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 10
+    reason_code: XR1.SCORE.SEG_OFFROUTE_FRAC
+    status: experimental
+    note: Fraction of pings beyond the soft spatial bound.
+  seg_route_mapping_confidence_millis:
+    family: seg_mapping
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [500, 500000], [1000, 1000000]]
+    missing: {mode: hard_invalid}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 10
+    reason_code: XR1.SCORE.SEG_ROUTE_MAPPING
+    status: experimental
+    note: >-
+      1000 for a unique route_short_name mapping; split across
+      candidates when the mapping is ambiguous.
+  seg_date_key_agreement_millis:
+    family: seg_date
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 100000], [500, 500000], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 15
+    reason_code: XR1.SCORE.SEG_DATE_KEY
+    status: experimental
+    note: >-
+      Fraction of pings whose source_date_key equals the candidate
+      service date. Deliberately floored above zero: Date_Key is
+      evidence, not truth (D-03), and cross-midnight d-1 candidates
+      legitimately disagree.
+
+  # ----- apc_attachment (Stage 2) -----
+  att_interval_gap_s:
+    family: att_temporal
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [60, 900000], [300, 600000], [900, 250000], [1800, 50000], [2700, 0]]
+    hard_bound: {max: 3600, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: hard_invalid}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 35
+    reason_code: XR1.SCORE.ATT_INTERVAL_GAP
+    status: experimental
+    note: >-
+      max(0, a0-s1, s0-a1) between the APC interval and segment
+      interval. The hard bound is the stale-evidence guard: the legacy
+      9,083 s backward as-of match must be rejected here.
+  att_interval_overlap_millis:
+    family: att_temporal
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [100, 300000], [500, 700000], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 300000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 15
+    reason_code: XR1.SCORE.ATT_OVERLAP
+    status: experimental
+    note: >-
+      overlap / max(1, min(interval lengths)); zero-length APC dwells
+      use the neutral value when the ratio is undefined.
+  att_nearest_ping_gap_s:
+    family: att_temporal
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [60, 850000], [300, 500000], [900, 150000], [1800, 0]]
+    hard_bound: {max: 3600, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: neutral, neutral_q: 300000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 20
+    reason_code: XR1.SCORE.ATT_NEAREST_PING
+    status: experimental
+    note: >-
+      min(arrival_to_nearest_ping_s, departure_to_nearest_ping_s)
+      within the candidate segment.
+  att_stop_to_path_residual_dm:
+    family: att_spatial
+    unit: decimetres
+    direction: lower_better
+    quantum: 0.1
+    transform:
+      points: [[0, 1000000], [500, 750000], [1500, 350000], [3000, 50000], [5000, 0]]
+    hard_bound: {max: 10000, reason_code: XR1.GEOM.HARD_CONTRADICTION}
+    missing: {mode: neutral, neutral_q: 400000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 20
+    reason_code: XR1.SCORE.ATT_STOP_PATH
+    status: experimental
+    note: Mapped GTFS stop coordinate to candidate route geometry.
+  att_stop_to_ping_interp_dm:
+    family: att_spatial
+    unit: decimetres
+    direction: lower_better
+    quantum: 0.1
+    transform:
+      points: [[0, 1000000], [300, 850000], [1000, 500000], [2500, 100000], [5000, 0]]
+    hard_bound: {max: 10000, reason_code: XR1.GEOM.HARD_CONTRADICTION}
+    missing: {mode: neutral, neutral_q: 400000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 15
+    reason_code: XR1.SCORE.ATT_STOP_PING
+    status: experimental
+    note: >-
+      Mapped stop coordinate to the AVL position interpolated at APC
+      arrival between bracketing pings; only within the configured
+      interpolation gap, never extrapolated.
+  att_route_agreement_millis:
+    family: att_mapping
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 10
+    reason_code: XR1.SCORE.ATT_ROUTE_AGREEMENT
+    status: experimental
+    note: APC route label vs the segment's dominant route label.
+  att_stop_mapping_confidence_millis:
+    family: att_mapping
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [500, 400000], [1000, 1000000]]
+    missing: {mode: hard_invalid}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 10
+    reason_code: XR1.SCORE.ATT_STOP_MAPPING
+    status: experimental
+    note: >-
+      1000 for a unique stop_code mapping in the candidate feed/date
+      scope; split when ambiguous. Candidates with no mapping at all use
+      the NO_ATTACHMENT alternative instead.
+  att_date_key_agreement_millis:
+    family: att_date_fold
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 200000], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 600000}
+    decisions: [apc_attachment]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: record, order: source_record_id}
+    weight: 5
+    reason_code: XR1.SCORE.ATT_DATE_KEY
+    status: experimental
+    note: APC source calendar date vs candidate service date.
+
+  # ----- stage1_support (Policy B/C input; see stage1_policies.py) -----
+  seg_apc_date_support_millis:
+    family: seg_apc_support
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [500, 500000], [1000, 1000000]]
+    missing: {mode: regime_switch}
+    decisions: [stage1_support]
+    regimes: [apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 100
+    reason_code: XR1.SCORE.SEG_APC_SUPPORT
+    status: experimental
+    note: >-
+      Normalized unshared APC date-consistency support (one source
+      record contributes at most once; see Stage 1 policy tests).
+      Missing support switches the segment to the avl_only regime —
+      never renormalized.
+
+variants:
+  conservative:
+    thresholds:
+      segment_selection: {absolute_q: 550000, margin_q: 60000}
+      apc_attachment: {absolute_q: 600000, margin_q: 80000}
+    null_scores:
+      segment_selection: {"XNULL:UNRESOLVED_SERVICE_DATE": 400000}
+      apc_attachment: {"XNULL:NO_ATTACHMENT": 450000}
+    null_family_q:
+      segment_selection:
+        seg_schedule: 500000   # the NO_SCHEDULED_TRIP prior
+        seg_spatial: 500000    # no usable geometry
+        seg_apc_support: 500000
+      apc_attachment:
+        att_spatial: 400000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 40, seg_spatial: 25, seg_mapping: 15, seg_date: 20}
+        apc_evidence:
+          {seg_schedule: 30, seg_spatial: 20, seg_mapping: 10, seg_date: 15,
+           seg_apc_support: 25}
+      apc_attachment:
+        avl_only:
+          {att_temporal: 40, att_spatial: 30, att_mapping: 20, att_date_fold: 10}
+        apc_evidence:
+          {att_temporal: 40, att_spatial: 30, att_mapping: 20, att_date_fold: 10}
+    feature_overrides: {}
+
+  # forced_diagnostic exists ONLY to exercise Stage 2/3 on real data:
+  # with conservative/permissive margins, every trip-scale segment on this
+  # 5-10-minute-headway route abstains (low_margin), so attachment and
+  # sequence validation would never run on the fixture. Its near-zero
+  # margin bar is INTENTIONALLY UNSAFE and must never be a publish or
+  # production setting.
+  forced_diagnostic:
+    thresholds:
+      segment_selection: {absolute_q: 450000, margin_q: 500}
+      apc_attachment: {absolute_q: 500000, margin_q: 1000}
+    null_scores:
+      segment_selection: {"XNULL:UNRESOLVED_SERVICE_DATE": 300000}
+      apc_attachment: {"XNULL:NO_ATTACHMENT": 350000}
+    null_family_q:
+      segment_selection:
+        seg_schedule: 450000
+        seg_spatial: 500000
+        seg_apc_support: 500000
+      apc_attachment:
+        att_spatial: 450000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 45, seg_spatial: 20, seg_mapping: 15, seg_date: 20}
+        apc_evidence:
+          {seg_schedule: 35, seg_spatial: 15, seg_mapping: 10, seg_date: 15,
+           seg_apc_support: 25}
+      apc_attachment:
+        avl_only:
+          {att_temporal: 45, att_spatial: 25, att_mapping: 20, att_date_fold: 10}
+        apc_evidence:
+          {att_temporal: 45, att_spatial: 25, att_mapping: 20, att_date_fold: 10}
+    feature_overrides: {}
+
+  permissive:
+    thresholds:
+      segment_selection: {absolute_q: 450000, margin_q: 25000}
+      apc_attachment: {absolute_q: 500000, margin_q: 40000}
+    null_scores:
+      segment_selection: {"XNULL:UNRESOLVED_SERVICE_DATE": 300000}
+      apc_attachment: {"XNULL:NO_ATTACHMENT": 350000}
+    null_family_q:
+      segment_selection:
+        seg_schedule: 450000
+        seg_spatial: 500000
+        seg_apc_support: 500000
+      apc_attachment:
+        att_spatial: 450000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 45, seg_spatial: 20, seg_mapping: 15, seg_date: 20}
+        apc_evidence:
+          {seg_schedule: 35, seg_spatial: 15, seg_mapping: 10, seg_date: 15,
+           seg_apc_support: 25}
+      apc_attachment:
+        avl_only:
+          {att_temporal: 45, att_spatial: 25, att_mapping: 20, att_date_fold: 10}
+        apc_evidence:
+          {att_temporal: 45, att_spatial: 25, att_mapping: 20, att_date_fold: 10}
+    feature_overrides:
+      att_interval_gap_s:
+        transform:
+          points: [[0, 1000000], [120, 900000], [600, 600000], [1800, 250000], [3600, 50000], [5400, 0]]
+        hard_bound: {max: 5400, reason_code: XR1.TEMPORAL.STALE}
+      att_nearest_ping_gap_s:
+        transform:
+          points: [[0, 1000000], [120, 850000], [600, 500000], [1800, 150000], [3600, 0]]
+        hard_bound: {max: 5400, reason_code: XR1.TEMPORAL.STALE}
+      seg_sched_start_residual_s:
+        transform:
+          points: [[0, 1000000], [600, 850000], [1800, 500000], [3600, 200000], [7200, 0]]
+      seg_sched_end_residual_s:
+        transform:
+          points: [[0, 1000000], [600, 850000], [1800, 500000], [3600, 200000], [7200, 0]]
+      att_stop_to_path_residual_dm:
+        transform:
+          points: [[0, 1000000], [1000, 750000], [2500, 350000], [5000, 50000], [7500, 0]]
+        hard_bound: {max: 15000, reason_code: XR1.GEOM.HARD_CONTRADICTION}

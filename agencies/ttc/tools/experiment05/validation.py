@@ -4,10 +4,225 @@ from __future__ import annotations
 
 import collections
 import csv
+import hashlib
+import json
 import math
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .io import read_json, read_rows, sha256
+
+
+def validate_proxy_event_mode(package_dir, mode, visits, source_by_rid, assignments):
+    """Independently reconstruct the declared proxy policy from upstream evidence.
+
+    This deliberately does not call the exporter or trust its validation report.
+    Results are aggregated per mode, never one JSON check per passenger event.
+    """
+    policy = "apc_stop_interval_departure_proxy_v1"
+    target = Path(package_dir)
+    expected, provenance = {}, {}
+    source_errors = []
+    assigned = {
+        (row["service_date"], row["trip_id_performed"]): row["trip_id_scheduled"]
+        for row in assignments
+        if row["match_mode"] == mode
+    }
+
+    def finite(value):
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        )
+
+    def stamp(value):
+        return datetime.fromtimestamp(value, UTC).isoformat().replace("+00:00", "Z")
+
+    for visit in visits:
+        rids = list(visit.get("source_rids", []))
+        sources = [source_by_rid.get(rid) for rid in rids]
+        if any(source is None for source in sources):
+            source_errors.append(visit["stop_visit_id"])
+        apc_ids = [
+            rid for rid in rids if source_by_rid.get(rid, {}).get("source") == "apc"
+        ]
+        arrival, departure = visit.get("arrival_t"), visit.get("departure_t")
+        if (
+            not apc_ids
+            or not finite(arrival)
+            or not finite(departure)
+            or departure < arrival
+        ):
+            continue
+        key = visit["service_date"], visit["trip_id_performed"]
+        if key not in assigned or any(
+            source is not None
+            and (
+                source.get("vehicle_id") != visit["vehicle_id"]
+                or source.get("trip_id_performed") not in (None, key[1])
+                or source.get("service_date") not in (None, key[0])
+            )
+            for source in sources
+        ):
+            source_errors.append(visit["stop_visit_id"])
+        specifications = [
+            ("Vehicle arrived at stop", 1, arrival, "APC_RECORDED_ARRIVAL", False),
+            ("Vehicle departed stop", 1, departure, "APC_RECORDED_DEPARTURE", False),
+        ]
+        for kind, field in (
+            ("Passenger boarded", "boarding"),
+            ("Passenger alighted", "alighting"),
+        ):
+            count = visit.get(field)
+            if finite(count) and count > 0 and int(count) == count:
+                specifications.append(
+                    (
+                        kind,
+                        int(count),
+                        departure,
+                        "APC_DEPARTURE_PROXY_FOR_VISIT_TOTAL",
+                        True,
+                    )
+                )
+        for kind, count, timestamp, basis, proxy in specifications:
+            event_id = (
+                "e05-"
+                + hashlib.sha256(
+                    json.dumps(
+                        [key, visit["trip_stop_sequence"], kind], separators=(",", ":")
+                    ).encode()
+                ).hexdigest()[:32]
+            )
+            expected[event_id] = {
+                "event_type": kind,
+                "event_count": str(count),
+                "event_timestamp": stamp(timestamp),
+                "service_date": key[0],
+                "trip_id_performed": key[1],
+                "trip_stop_sequence": str(visit["trip_stop_sequence"]),
+                "vehicle_id": visit["vehicle_id"],
+                "stop_id": visit.get("stop_id") or "",
+                "trip_id_scheduled": assigned.get(key) or "",
+                "scheduled_stop_sequence": str(visit["scheduled_stop_sequence"])
+                if visit.get("scheduled_stop_sequence") is not None
+                else "",
+                "location_ping_id": "",
+                "device_id": "",
+                "train_car_id": "",
+                "pattern_id": "",
+            }
+            provenance[event_id] = {
+                "passenger_event_id": event_id,
+                "stop_visit_id": visit["stop_visit_id"],
+                "service_date": key[0],
+                "trip_id_performed": key[1],
+                "trip_stop_sequence": visit["trip_stop_sequence"],
+                "event_type": kind,
+                "event_count": count,
+                "event_timestamp": stamp(timestamp),
+                "source_rids": rids,
+                "apc_source_rids": apc_ids,
+                "original_interval": {
+                    "arrival_t": arrival,
+                    "departure_t": departure,
+                    "arrival_time": stamp(arrival),
+                    "departure_time": stamp(departure),
+                },
+                "timestamp_basis": basis,
+                "timestamp_is_proxy": proxy,
+                "semantics_assumed": True,
+                "measured_individual_passenger_time": False,
+                "assumption_policy": policy,
+                "source_grain_uncertain": visit.get("grain_uncertain"),
+                "count_basis": "APC_VISIT_TOTAL"
+                if proxy
+                else "ONE_SOURCE_RECORDED_VEHICLE_EVENT",
+            }
+    rows = []
+    try:
+        if (target / "passenger_events.csv").exists():
+            with (target / "passenger_events.csv").open(
+                newline="", encoding="utf-8"
+            ) as stream:
+                rows = list(csv.DictReader(stream))
+        diagnostics = read_json(target / "diagnostics.json")
+    except (OSError, ValueError) as exc:
+        return [
+            {
+                "name": f"tides_{mode}_proxy_event_files_readable",
+                "passed": False,
+                "details": str(exc),
+            }
+        ]
+    actual = {row.get("passenger_event_id"): row for row in rows}
+    entries = diagnostics.get("passenger_event_lineage")
+    entries_valid = isinstance(entries, list) and all(
+        isinstance(row, dict) for row in entries
+    )
+    audit = (
+        {row.get("passenger_event_id"): row for row in entries} if entries_valid else {}
+    )
+
+    def mismatches(fields):
+        return [
+            identity
+            for identity in expected
+            if identity in actual
+            and any(
+                actual[identity].get(field) != expected[identity][field]
+                for field in fields
+            )
+        ]
+
+    time_count_errors = mismatches(("event_type", "event_count", "event_timestamp"))
+    link_errors = mismatches(
+        set(next(iter(expected.values()), {}))
+        - {
+            "event_type",
+            "event_count",
+            "event_timestamp",
+        }
+    )
+    provenance_errors = [
+        identity
+        for identity, wanted in provenance.items()
+        if identity not in audit
+        or json.dumps({key: audit[identity].get(key) for key in wanted}, sort_keys=True)
+        != json.dumps(wanted, sort_keys=True)
+    ]
+    tests = [
+        (
+            "identity_completeness",
+            len(rows) == len(actual) == len(expected) and set(actual) == set(expected),
+            {"expected": len(expected), "actual": len(rows), "unique_ids": len(actual)},
+        ),
+        ("times_and_counts", not time_count_errors, time_count_errors[:10]),
+        ("trip_assignment_and_nulls", not link_errors, link_errors[:10]),
+        ("source_lineage", not source_errors, source_errors[:10]),
+        (
+            "provenance",
+            entries_valid
+            and len(entries) == len(audit) == len(expected)
+            and set(audit) == set(expected)
+            and not provenance_errors,
+            provenance_errors[:10],
+        ),
+        (
+            "policy_declaration",
+            diagnostics.get("export_policy", {}).get("passenger_event_policy") == policy
+            and diagnostics.get("match_mode") == mode,
+            None,
+        ),
+    ]
+    return [
+        {
+            "name": f"tides_{mode}_proxy_event_{name}",
+            "passed": bool(passed),
+            "details": details,
+        }
+        for name, passed, details in tests
+    ]
 
 
 def validate_pipeline(run_dir, manifest, config):
@@ -220,6 +435,12 @@ def validate_pipeline(run_dir, manifest, config):
             ),
             list(group),
         )
+    proxy_visits = (
+        read_rows(folder / "stop_visits_evidence.parquet")
+        if config.get("export", {}).get("passenger_event_policy")
+        == "apc_stop_interval_departure_proxy_v1"
+        else None
+    )
     for mode in manifest["match_modes"]:
         report = read_json(folder / "tides" / mode / "validation_report.json")
         check(
@@ -247,6 +468,11 @@ def validate_pipeline(run_dir, manifest, config):
             len(exported) == len(expected_assignments)
             and actual_assignments == expected_assignments,
         )
+        if proxy_visits is not None:
+            for result in validate_proxy_event_mode(
+                folder / "tides" / mode, mode, proxy_visits, final, assignments
+            ):
+                check(result["name"], result["passed"], result.get("details"))
     # Every completed upstream stage is still pinned before publication.
     for stage, result in manifest["stages"].items():
         if result.get("status") == "complete":

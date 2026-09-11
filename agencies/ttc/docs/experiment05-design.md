@@ -235,8 +235,13 @@ the coordinator from accumulating a full day's nested candidate objects in RAM.
 See [tides05-contract.md](tides05-contract.md) for fixed TIDES v1.0 schemas,
 profile/Frictionless validation and cross-table rules. Empty CSV cells encode
 null; JSON uses genuine null. No string `None`, `null` or `NA` is emitted as a
-missing value. Current APC gives counts over intervals, not confirmed passenger
-event timestamps; `passenger_events.csv` is omitted with explicit reasons.
+missing value. Under the explicit `apc_stop_interval_departure_proxy_v1` research
+policy, each attached APC stop interval supplies arrival/departure events and
+positive aggregate passenger events timestamped at departure. The latter are
+documented proxies, not individual passenger measurements. Source intervals,
+uncertainty and attribution remain in diagnostics; scoring still uses intervals.
+The former conservative omission policy remains configurable. See
+[APC event assumptions and stop-visit construction](experiment05-apc-events.md).
 Devices are omitted by default. No invented core fields are added.
 
 ## CLI and browser use

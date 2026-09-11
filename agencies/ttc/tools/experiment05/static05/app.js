@@ -4,7 +4,7 @@ const words = {
   en: { title:'Experiment 05 · Workbench',subtitle:'Raw observations → three locked assignment rounds → TIDES export',newRun:'Run experiment',date:'Data date',route:'Route',mode:'Matching mode',all:'All four modes',global:'Global',early:'Early',middle:'Middle',late:'Late',run:'Start processing',force:'Force a fresh run (keep existing results)',notice:'One job at a time. Successful cached results are verified by the same pipeline. An assignment is not a calibrated confirmation of trip identity.',availability:'Raw data and GTFS availability',progress:'Processing progress',idle:'Not started',progressEmpty:'Actual stage states and row counts appear after starting.',history:'Saved runs',refresh:'Refresh',result:'Results and exports',stageCounts:'Stage row counts',downloads:'Download CSV / Parquet / JSON',format:'Format',allFormats:'All formats',rawSummary:'Full summary',footer:'Localhost only · No external resources · Published SHA-256 checked before download',loadingDates:'Loading available dates…',chooseDate:'Select a date',noDates:'No processable dates',available:'Available',unavailable:'Unavailable',reason:'Reason',queued:'Queued',running:'Processing',complete:'Complete',failed:'Failed',cached:'Reused verified cached results',fresh:'Created fresh processing results',pass:'Validation passed',fail:'Validation failed',pending:'Complete results not published',performed:'Performed segments',assigned:'Assigned',unmatched:'Unassigned',emptyRuns:'No saved runs yet.',zip:'Download TIDES ZIP for this mode',noOutputs:'No published downloads are available.',field:'Field',count:'Count',noReasons:'No unmatched reasons',connection:'Connection interrupted; retrying…' }
 };
 let lang = localStorage.getItem('experiment05-language') === 'en' ? 'en' : 'zh';
-let availabilityData = null, savedRuns = [], currentDetail = null, currentJob = null, busy = false;
+let availabilityData = null, savedRuns = [], currentDetail = null, currentJob = null, busy = false, summaryRequestSerial = 0;
 const $ = id => document.getElementById(id);
 const t = key => words[lang][key] || key;
 const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = String(value ?? '—'); if (className) node.className = className; return node; };
@@ -47,7 +47,7 @@ function renderJob() {
   $('stage-progress').replaceChildren();
   for (const event of currentJob.progress || []) {
     const counts = event.row_counts || event.stage_row_counts || {};
-    const extras = Object.keys(counts).length ? ' · ' + JSON.stringify(counts) : event.performed_trip_count !== undefined ? ' · trips: ' + count(event.performed_trip_count) : '';
+    const extras = Object.keys(counts).length ? ' · ' + JSON.stringify(counts) : event.completed !== undefined && event.total !== undefined ? ` · ${count(event.completed)} / ${count(event.total)}` : event.performed_trip_count !== undefined ? ' · trips: ' + count(event.performed_trip_count) : '';
     $('stage-progress').append(text('li', `${event.stage ?? 'pipeline'} · ${event.state ?? ''}${extras}`));
   }
   if (!(currentJob.progress || []).length) $('stage-progress').append(text('li', t('progressEmpty'), 'muted'));
@@ -82,15 +82,21 @@ function renderSummary() {
   }
   $('stage-counts').replaceChildren(table([t('field'),t('count')],Object.entries(summary?.stage_row_counts || {}).map(([key,value]) => [key,typeof value === 'object' ? JSON.stringify(value) : count(value)])));
   $('summary-json').textContent = JSON.stringify(summary || currentDetail.run_manifest,null,2); renderDownloads();
+  window.Experiment05Viz?.setRun(currentDetail, lang);
 }
 function translate() {
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   document.querySelectorAll('[data-i18n]').forEach(node => node.textContent = t(node.dataset.i18n));
   $('language-switch').textContent = lang === 'zh' ? 'English' : '中文';
   if (availabilityData) renderAvailability(); renderRuns(); renderJob(); renderSummary();
+  window.Experiment05Viz?.setLanguage(lang);
 }
 async function loadRuns() { savedRuns = (await api('/api/runs')).runs || []; renderRuns(); }
-async function loadSummary(runId) { try { error(''); currentDetail = await api(`/api/runs/${encodeURIComponent(runId)}/summary`); renderSummary(); } catch (exception) { error(exception.message); } }
+async function loadSummary(runId) {
+  const serial = ++summaryRequestSerial;
+  try { error(''); const detail = await api(`/api/runs/${encodeURIComponent(runId)}/summary`); if(serial !== summaryRequestSerial)return; currentDetail = detail; renderSummary(); }
+  catch (exception) { if(serial === summaryRequestSerial)error(exception.message); }
+}
 async function poll(jobId) {
   try {
     currentJob = await api(`/api/jobs/${jobId}`); renderJob();

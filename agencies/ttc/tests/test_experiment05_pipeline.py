@@ -178,7 +178,30 @@ def test_real_ten_stage_pipeline_and_four_tides_packages(tiny_project, day):
             trip = next(csv.DictReader(stream))
         assert trip["service_date"] == day and trip["trip_id_scheduled"] == "near"
         assert not (folder / "tides" / mode / mode).exists()
-        assert not (folder / "tides" / mode / "passenger_events.csv").exists()
+        with (folder / "tides" / mode / "passenger_events.csv").open() as stream:
+            events = list(csv.DictReader(stream))
+        assert len(events) == 8  # Two visits, each with four distinct event types.
+        visits = read_rows(folder / "stop_visits_evidence.parquet")
+        assert len(visits) == 2
+        assert {row["trip_id_scheduled"] for row in events} == {"near"}
+        assert {row["trip_stop_sequence"] for row in events} == {"1", "2"}
+        for sequence in ("1", "2"):
+            selected = {
+                row["event_type"]: row
+                for row in events
+                if row["trip_stop_sequence"] == sequence
+            }
+            assert set(selected) == {
+                "Vehicle arrived at stop",
+                "Vehicle departed stop",
+                "Passenger boarded",
+                "Passenger alighted",
+            }
+            assert selected["Passenger boarded"]["event_count"] == "2"
+            assert selected["Passenger alighted"]["event_count"] == "1"
+            departure = selected["Vehicle departed stop"]["event_timestamp"]
+            assert selected["Passenger boarded"]["event_timestamp"] == departure
+            assert selected["Passenger alighted"]["event_timestamp"] == departure
     assert source_pins == {
         name: sha256(tiny_project["root"] / name) for name in source_pins
     }
@@ -200,6 +223,45 @@ def test_success_cache_and_force_preserve_business_rows(tiny_project):
             Path(forced["run_dir"]) / name
         )
     assert pipeline.verify_completed(first["run_dir"])["validation_ok"]
+
+
+def test_export_policy_does_not_change_matching_or_source_evidence(tiny_project):
+    revised = pipeline.run_pipeline("2024-04-01", **tiny_project)
+    policy_path = tiny_project["root"] / "conservative.toml"
+    policy_path.write_text(
+        tiny_project["config_path"]
+        .read_text()
+        .replace(
+            'passenger_event_policy = "apc_stop_interval_departure_proxy_v1"',
+            'passenger_event_policy = "omit_without_event_semantics"',
+        )
+    )
+    conservative = pipeline.run_pipeline(
+        "2024-04-01", root=tiny_project["root"], config_path=policy_path
+    )
+    new, old = Path(revised["run_dir"]), Path(conservative["run_dir"])
+    assert new != old  # A changed export policy must not reuse the old cache.
+    for relative in (
+        "stages/raw_observations.parquet",
+        "stages/normalized_observations.parquet",
+        "stages/event_timeline.parquet",
+        "stages/projected_observations.parquet",
+        "performed_trip_segments.parquet",
+        "fused_projected_observations.parquet",
+        "stop_visits_evidence.parquet",
+        "candidate_rankings.parquet",
+        "local_window_evidence.parquet",
+        "assignments.parquet",
+        "assignment_audit.parquet",
+    ):
+        assert read_rows(new / relative) == read_rows(old / relative)
+    for mode in ("global", "early", "middle", "late"):
+        for name in ("trips_performed", "stop_visits", "vehicle_locations", "vehicles"):
+            assert (new / "tides" / mode / f"{name}.csv").read_bytes() == (
+                old / "tides" / mode / f"{name}.csv"
+            ).read_bytes()
+        assert (new / "tides" / mode / "passenger_events.csv").is_file()
+        assert not (old / "tides" / mode / "passenger_events.csv").exists()
 
 
 def test_stage_prerequisite_and_completed_stage_idempotency(tiny_project):

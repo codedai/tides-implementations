@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Experiment 05 · Transit Workbench</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/viz.css">
+  <script src="/viz.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -36,6 +38,33 @@
     <section class="panel" aria-labelledby="history-heading">
       <div class="section-heading"><h2 id="history-heading" data-i18n="history">已保存的运行</h2><button id="refresh-runs" type="button" class="secondary" data-i18n="refresh">刷新</button></div>
       <div id="run-list" class="run-list"></div>
+    </section>
+    <section id="viz-panel" class="panel" hidden aria-labelledby="viz-heading">
+      <div class="section-heading"><div><p class="eyebrow" data-viz-i18n="eyebrow">已保存的观测 · 只读检查</p><h2 id="viz-heading" data-viz-i18n="title">Trip 可视化检查</h2></div><span id="viz-run-status" class="badge"></span></div>
+      <p id="viz-run-id" class="muted"></p>
+      <div class="viz-toolbar">
+        <div class="viz-tabs" role="tablist" aria-label="Visualization view"><button id="viz-trip-tab" type="button" role="tab" aria-selected="true" aria-controls="viz-trip-page" data-viz-i18n="tripView">逐趟检查</button><button id="viz-day-tab" type="button" role="tab" aria-selected="false" aria-controls="viz-day-page" data-viz-i18n="dayView">全天总览</button></div>
+        <label><span data-viz-i18n="decisionMode">已计算的匹配模式</span><select id="viz-mode"><option value="global" data-viz-i18n="global">全局</option><option value="early" data-viz-i18n="early">前期</option><option value="middle" data-viz-i18n="middle">中期</option><option value="late" data-viz-i18n="late">后期</option></select></label>
+      </div>
+      <p class="notice" data-viz-i18n="identityNotice">已分配不等于已校准的真实身份；未分配时展示的候选仅用于诊断。时间轴使用原始时钟，不按估计延误平移。</p>
+      <p id="viz-loading" class="muted" role="status" hidden data-viz-i18n="loading">正在读取已保存的可视化数据…</p><p id="viz-error" role="alert" hidden></p>
+      <div id="viz-trip-page" role="tabpanel" aria-labelledby="viz-trip-tab">
+        <div class="viz-filters"><label><span data-viz-i18n="vehicle">车辆</span><select id="viz-vehicle"></select></label><label><span data-viz-i18n="direction">方向</span><select id="viz-direction"></select></label><label class="viz-search-label"><span data-viz-i18n="search">搜索 Trip / 车辆 / 时间</span><input id="viz-search" type="search" autocomplete="off"></label></div>
+        <div class="viz-trip-navigation"><button id="viz-previous" class="secondary" type="button" data-viz-i18n="previous">上一趟</button><label><span data-viz-i18n="performedTrip">分割后的 Trip</span><select id="viz-trip"></select></label><button id="viz-next" class="secondary" type="button" data-viz-i18n="next">下一趟</button></div>
+        <p id="viz-trip-count" class="muted"></p><div id="viz-trip-metadata" class="viz-metadata"></div>
+        <div id="viz-candidate-list" class="viz-candidates"></div>
+        <div class="viz-window-controls"><label><span data-viz-i18n="viewSpan">浏览窗口</span><select id="viz-span"><option value="full" data-viz-i18n="fullTrip">完整 Trip</option><option value="300">5 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option></select></label><label class="viz-pan-label"><span id="viz-window-label"></span><input id="viz-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan trip time window"></label></div>
+        <div id="viz-selection-note" class="muted"></div>
+        <p class="viz-mobile-note muted" data-viz-i18n="mobileSwipe"></p>
+        <section class="viz-chart-panel"><div class="section-heading"><h3 data-viz-i18n="map">地理位置与线路形状</h3><button id="viz-map-fit" type="button" class="secondary" data-viz-i18n="fitMap">适合线路范围</button></div><p class="muted viz-note" data-viz-i18n="mapNote">真实经纬度、北向上；不使用外部底图。APC仅显示有依据的站点位置，不制造GPS轨迹。</p><div id="viz-map" class="viz-map"></div><div id="viz-map-legend" class="viz-legend"></div></section>
+        <section class="viz-chart-panel"><h3 data-viz-i18n="timeline">AVL · APC · GTFS 时间线</h3><div id="viz-timeline" class="viz-chart"></div></section>
+        <section class="viz-chart-panel"><h3 data-viz-i18n="progress">时间—线路进度</h3><p class="muted viz-note" data-viz-i18n="progressNote">只连接同一连续有效投影片段。OFF_REFERENCE、被截尾部分和真实时间缺口不会被伪装成连续服务轨迹。</p><div id="viz-progress" class="viz-chart"></div></section>
+        <details><summary data-viz-i18n="diagnostics">本趟诊断与证据说明</summary><pre id="viz-diagnostics"></pre></details>
+      </div>
+      <div id="viz-day-page" role="tabpanel" aria-labelledby="viz-day-tab" hidden>
+        <div class="viz-window-controls"><label><span data-viz-i18n="viewSpan">浏览窗口</span><select id="viz-day-span"><option value="full" data-viz-i18n="fullDay">全天</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option><option value="14400">240 min</option></select></label><label class="viz-pan-label"><span id="viz-day-window-label"></span><input id="viz-day-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan full-day time window"></label></div>
+        <p class="muted" data-viz-i18n="dayNote">按方向和canonical reference分面；每趟只显示已分配班次，或明确标记为诊断的排名1候选。点击任意Trip进入逐趟检查。</p><div id="viz-day-metrics" class="viz-metadata"></div><div id="viz-day-legend" class="viz-legend"></div><p class="viz-mobile-note muted" data-viz-i18n="mobileSwipe"></p><div id="viz-day-charts"></div>
+      </div>
     </section>
     <section id="result-panel" class="panel" hidden aria-labelledby="result-heading">
       <div class="section-heading"><h2 id="result-heading" data-i18n="result">结果与导出</h2><span id="validator-status" class="badge"></span></div>

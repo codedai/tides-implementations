@@ -23,6 +23,12 @@ from jsonschema import Draft7Validator
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas/experiment05/tides-v1"
 SPEC_COMMIT = "b2cb23178e00cb58dbdb1b9a5a8626818278ecbb"
 MODES = {"global", "early", "middle", "late"}
+CONSERVATIVE_EVENT_POLICY = "omit_without_event_semantics"
+APC_DEPARTURE_PROXY_EVENT_POLICY = "apc_stop_interval_departure_proxy_v1"
+PASSENGER_EVENT_POLICIES = {
+    CONSERVATIVE_EVENT_POLICY,
+    APC_DEPARTURE_PROXY_EVENT_POLICY,
+}
 TABLES = (
     "vehicles",
     "devices",
@@ -169,6 +175,15 @@ def build_tides_rows(
     include_devices = config.get("export", {}).get("include_devices", True)
     if not isinstance(include_devices, bool):
         raise ValueError("export.include_devices must be boolean")
+    event_policy = config.get("export", {}).get(
+        "passenger_event_policy", CONSERVATIVE_EVENT_POLICY
+    )
+    if (
+        not isinstance(event_policy, str)
+        or event_policy not in PASSENGER_EVENT_POLICIES
+    ):
+        raise ValueError("Unknown export.passenger_event_policy")
+    use_departure_proxy = event_policy == APC_DEPARTURE_PROXY_EVENT_POLICY
     tables = {name: [] for name in TABLES}
     diagnostics = {
         "research_only": True,
@@ -182,9 +197,13 @@ def build_tides_rows(
         "source_timezone": config.get("normalization", {}).get(
             "timezone", config.get("timezone", "America/Toronto")
         ),
-        "export_policy": {"include_devices": include_devices},
+        "export_policy": {
+            "include_devices": include_devices,
+            "passenger_event_policy": event_policy,
+        },
         "omissions": [],
         "lineage": [],
+        "passenger_event_lineage": [],
         "segment_envelopes": [],
     }
     segment_index, by_id = {}, collections.defaultdict(list)
@@ -446,11 +465,27 @@ def build_tides_rows(
                 "disposition": "inferred_stop_visit_exported",
             }
         )
-        for kind, field in (
-            ("Passenger boarded", "boarding"),
-            ("Passenger alighted", "alighting"),
-        ):
-            count, event_t = visit.get(field), visit.get(f"{field}_event_t")
+        source_rids = list(visit.get("source_rids", []))
+        apc_source_rids = [
+            rid for rid in source_rids if source_index[rid].get("source") == "apc"
+        ]
+        events = [
+            ("Passenger boarded", "boarding", visit.get("boarding")),
+            ("Passenger alighted", "alighting", visit.get("alighting")),
+        ]
+        if use_departure_proxy:
+            events = [
+                ("Vehicle arrived at stop", "arrival", 1),
+                ("Vehicle departed stop", "departure", 1),
+                *events,
+            ]
+        for kind, field, count in events:
+            is_count_event = field in {"boarding", "alighting"}
+            event_t = (
+                (arrival if field == "arrival" else departure)
+                if use_departure_proxy
+                else visit.get(f"{field}_event_t")
+            )
             reason = None
             if count is None:
                 reason = "COUNT_UNAVAILABLE"
@@ -458,7 +493,13 @@ def build_tides_rows(
                 reason = "COUNT_SEMANTICS_INVALID_NO_ROUNDING"
             elif count == 0:
                 continue
-            elif (
+            elif use_departure_proxy and not apc_source_rids:
+                reason = "APC_SOURCE_LINEAGE_REQUIRED_FOR_PROXY_POLICY"
+            elif use_departure_proxy and not (
+                _finite(arrival) and _finite(departure) and departure >= arrival
+            ):
+                reason = "COMPLETE_APC_STOP_INTERVAL_REQUIRED_FOR_PROXY_POLICY"
+            elif not use_departure_proxy and (
                 visit.get("passenger_event_semantics_valid") is not True
                 or event_t is None
             ):
@@ -502,6 +543,47 @@ def build_tides_rows(
                         else None,
                     },
                 )
+            )
+            diagnostics["passenger_event_lineage"].append(
+                {
+                    "passenger_event_id": event_id,
+                    "stop_visit_id": visit_id,
+                    "service_date": key[0],
+                    "trip_id_performed": key[1],
+                    "trip_stop_sequence": seq,
+                    "event_type": kind,
+                    "event_count": int(count),
+                    "event_timestamp": _stamp(event_t),
+                    "source_rids": source_rids,
+                    "apc_source_rids": apc_source_rids,
+                    "original_interval": {
+                        "arrival_t": arrival,
+                        "departure_t": departure,
+                        "arrival_time": _stamp(arrival),
+                        "departure_time": _stamp(departure),
+                    },
+                    "timestamp_basis": (
+                        "APC_DEPARTURE_PROXY_FOR_VISIT_TOTAL"
+                        if is_count_event
+                        else "APC_RECORDED_ARRIVAL"
+                        if field == "arrival"
+                        else "APC_RECORDED_DEPARTURE"
+                    )
+                    if use_departure_proxy
+                    else "EXPLICIT_CONFIRMED_EVENT_TIMESTAMP",
+                    "timestamp_is_proxy": use_departure_proxy and is_count_event,
+                    "semantics_assumed": use_departure_proxy,
+                    "measured_individual_passenger_time": False
+                    if use_departure_proxy
+                    else None,
+                    "assumption_policy": event_policy if use_departure_proxy else None,
+                    "source_grain_uncertain": visit.get("grain_uncertain"),
+                    "count_basis": "APC_VISIT_TOTAL"
+                    if use_departure_proxy and is_count_event
+                    else "ONE_SOURCE_RECORDED_VEHICLE_EVENT"
+                    if use_departure_proxy
+                    else "EXPLICIT_CONFIRMED_EVENT_COUNT",
+                }
             )
     tables["vehicles"] = [
         _row("vehicles", {"vehicle_id": value}) for value in sorted(vehicle_ids)

@@ -1,0 +1,8 @@
+.topbar-actions { display: flex; align-items: center; gap: 16px; }
+.language-switch { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; flex-shrink: 0; padding: 5px 9px; border: 1px solid #d9e4e2; border-radius: 7px; background: #fff; color: #81938f; font: inherit; font-size: 11px; cursor: pointer; }
+.language-switch:hover { border-color: #168b78; background: #f7fbfa; }
+.language-switch:focus-visible { outline: 2px solid #168b78; outline-offset: 3px; }
+.language-switch .active { color: #087e6f; font-weight: 700; }
+.language-switch-divider { color: #c1cfca; }
+html[lang="en"] .panel-subtitle, html[lang="en"] .stream-notice, html[lang="en"] .stream-order-note, html[lang="en"] .parameter-field, html[lang="en"] .case-item-meta { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .topbar-actions { gap: 8px; } .topbar-actions .top-meta { display: none; } .language-switch { min-height: 32px; } }

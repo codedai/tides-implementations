@@ -83,6 +83,9 @@ class Workbench:
         )
         self.jobs, self.active_job = {}, None
         self.lock = threading.RLock()
+        from .visualization import VisualizationStore
+
+        self.visualizations = VisualizationStore()
 
     def availability(self):
         return self.pipeline.availability(root=self.root, config_path=self.config_path)
@@ -404,6 +407,16 @@ class Workbench:
                 raise WebError(404, "JOB_NOT_FOUND", "Unknown background job")
             return copy.deepcopy(self.jobs[job_id])
 
+    def visualization(self, run_id, kind, mode, trip_id=None):
+        from .visualization import VisualizationError
+
+        try:
+            return self.visualizations.get(
+                self.run_path(run_id), self.manifest(run_id), kind, mode, trip_id
+            )
+        except VisualizationError as exc:
+            raise WebError(exc.status, exc.code, str(exc)) from exc
+
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -552,6 +565,8 @@ class Handler(BaseHTTPRequestHandler):
             "/": ("index.html", "text/html; charset=utf-8"),
             "/app.js": ("app.js", "application/javascript"),
             "/style.css": ("style.css", "text/css; charset=utf-8"),
+            "/viz.js": ("viz.js", "application/javascript"),
+            "/viz.css": ("viz.css", "text/css; charset=utf-8"),
         }
         if path in assets and not query:
             name, mime = assets[path]
@@ -568,6 +583,28 @@ class Handler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)/summary", path)
         if match and not query:
             return self._json(200, app.summary(match[1]))
+        match = re.fullmatch(
+            r"/api/runs/([A-Za-z0-9_-]+)/visualization/(catalog|trip|overview)", path
+        )
+        if match:
+            allowed = {"mode", "trip_id"} if match[2] == "trip" else {"mode"}
+            if set(query) != allowed or any(
+                len(values) != 1 for values in query.values()
+            ):
+                raise WebError(
+                    400,
+                    "INVALID_VISUALIZATION_QUERY",
+                    "Explicit mode and, for trip detail, one trip_id are required",
+                )
+            return self._json(
+                200,
+                app.visualization(
+                    match[1],
+                    match[2],
+                    query["mode"][0],
+                    query.get("trip_id", [None])[0],
+                ),
+            )
         match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)/download", path)
         if (
             match

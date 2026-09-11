@@ -74,7 +74,11 @@ persist_alignment_traces = false
 
 [export]
 tides_version = "1.0"
-passenger_event_policy = "omit_without_event_semantics"
+# Versioned project assumption: one attached APC row is one observed stop visit.
+# Arrival/departure events use their source timestamps; aggregate boarding and
+# alighting counts both use departure as a documented proxy, not measured instants.
+# See docs/experiment05-apc-events.md. The conservative policy remains supported.
+passenger_event_policy = "apc_stop_interval_departure_proxy_v1"
 include_vehicles = true
 include_devices = false
 

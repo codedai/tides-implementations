@@ -1,0 +1,126 @@
+{
+  "rubric_version": "apc-avl-coverage-v1",
+  "status": "diagnostic_research_specification",
+  "evaluated_on": "2026-09-08",
+  "purpose": "Compare schedule-independent segmentation and APC-AVL attachment without equating diagnostic consistency with correct performed trips.",
+  "normative_reference": {
+    "name": "TIDES",
+    "tag": "v1.0",
+    "commit": "b2cb23178e00cb58dbdb1b9a5a8626818278ecbb",
+    "upstream": "https://github.com/TIDES-transit/TIDES",
+    "schema_base_url": "https://github.com/TIDES-transit/TIDES/blob/b2cb23178e00cb58dbdb1b9a5a8626818278ecbb/spec/",
+    "human_readable_tables": "https://tides-transit.org/v1.0/tables/",
+    "human_readable_architecture": "https://tides-transit.org/v1.0/architecture/",
+    "verification": "Official versioned web documentation checked; clean existing upstream checkout independently verified at HEAD=v1.0^{}=the pinned commit. File hashes below are computed from that checkout.",
+    "schema_sha256": {
+      "trips_performed.schema.json": "a81193e7c7f021c1c0b9b28211143be281cea35d5bcaede13e84fead692cfa57",
+      "stop_visits.schema.json": "74d8a4e44c6ce82e92a8ee458d46d575ed1b928a986b89ebfb37ffffdc9a64f6",
+      "vehicle_locations.schema.json": "b408bc61c0409db89ecdb9545a2323c02a098796056b4908fd95309eea28f5fa",
+      "passenger_events.schema.json": "90485bd3ed5b7727ad56f9890e51b54c0364eb0e4100afae0f9fac1a3c2a37e6",
+      "vehicles.schema.json": "ab1edd274b5ccf0b33550523878333a10454a96f308854e416ecf7050d605380",
+      "tides.spec.json": "2b28308c889bc56c7b4a985ebfa3b23f30b976e295776c707d0f7a21041b22a0",
+      "tides-datapackage-profile.json": "c8d6928cf8de9bf42c0f9f790ee50afc6910c88804490a58be842f1ae8c80356"
+    },
+    "publication_schema": {
+      "vehicles": {"required": ["vehicle_id"], "primary_key": ["vehicle_id"]},
+      "vehicle_locations": {"required": ["location_ping_id", "event_timestamp", "vehicle_id"], "primary_key": ["location_ping_id"]},
+      "trips_performed": {"required": ["service_date", "trip_id_performed", "vehicle_id"], "primary_key": ["service_date", "trip_id_performed"]},
+      "stop_visits": {"required": ["service_date", "trip_id_performed", "trip_stop_sequence"], "primary_key": ["service_date", "trip_id_performed", "trip_stop_sequence"]},
+      "passenger_events": {"required": ["passenger_event_id", "service_date", "event_timestamp", "trip_stop_sequence", "event_type", "vehicle_id"], "primary_key": ["passenger_event_id"]}
+    },
+    "resources_individually_optional": true,
+    "datapackage_min_resources": 1,
+    "references_require_project_checks": true
+  },
+  "threshold_classes": {
+    "tides_normative": "A pinned schema constraint or field meaning; never tuned to improve experiment coverage.",
+    "project_hard_invariant": "A zero-tolerance source integrity or honest-evidence rule for this study; not represented as a TIDES numeric matching requirement.",
+    "semantic_publication_gate": "A condition for a future publication claim; unresolved does not prevent diagnostic comparison.",
+    "exploratory": "An explicitly versioned research configuration, including time, distance, gap, speed, anchor, boundary and margin thresholds; not a calibrated operational standard."
+  },
+  "rule_result_schema": {
+    "required_fields": ["rule_id", "status", "violations", "evaluated", "not_evaluated", "reason"],
+    "allowed_statuses": ["pass", "fail", "not_evaluated", "not_applicable"],
+    "zero_denominator": "null metric with reason; never an automatic pass",
+    "missing_implementation": "not_evaluated; never pass",
+    "rule_fields_in_this_file": "Assertions are a reusable specification, not evidence that an evaluator has implemented or run them."
+  },
+  "hard_invariants": [
+    {"id": "I01_SOURCE_CONSERVATION", "class": "project_hard_invariant", "assertion": "Per source file: raw physical data rows = structurally usable rows + explicitly rejected rows. Every usable row has exactly one terminal disposition per configuration, including out_of_experiment_scope where relevant.", "denominator": "all raw data rows per source file", "allowed_violations": 0},
+    {"id": "I02_IMMUTABLE_LINEAGE", "class": "project_hard_invariant", "assertion": "All derived rows and accepted links resolve to immutable source file digest + physical data-row ordinal; input digests remain unchanged; candidate scores, configuration and algorithm version are retained.", "denominator": "all emitted derived rows and links", "allowed_violations": 0},
+    {"id": "I03_UNIQUE_APC_ATTRIBUTION", "class": "project_hard_invariant", "assertion": "An APC source record has at most one accepted trip/segment hypothesis per configuration. Multiple candidate links are allowed. Counts are aggregated once per approved event identity, never once per matching AVL ping or candidate.", "denominator": "all usable APC source records", "allowed_violations": 0},
+    {"id": "I04_SEGMENT_PARTITION", "class": "project_hard_invariant", "assertion": "Each eligible AVL source record belongs to exactly one segment within a selected segmentation hypothesis. Alternative hypotheses must be explicitly separated; no accidental split at batch, midnight or source-file boundaries.", "denominator": "all AVL records eligible for the selected segmentation hypothesis", "allowed_violations": 0},
+    {"id": "I05_REAL_GPS_ONLY", "class": "project_hard_invariant", "assertion": "Every location_ping_id resolves to a real AVL row. Interpolated positions are derived features with supporting source IDs, never recorded GPS events. APC-only extension has no invented ping.", "denominator": "all emitted location-ping identities and accepted GPS references", "allowed_violations": 0},
+    {"id": "I06_DIRECT_SUPPORT_VALID", "class": "project_hard_invariant", "assertion": "Every accepted direct match satisfies its declared vehicle, time and coordinate requirements. Interpolation has ordered bracketing points in the same segment, within the maximum gap and without crossing an unresolved boundary. No interpolation or direct evidence claim extrapolates beyond observed AVL coverage.", "denominator": "all accepted direct matches", "allowed_violations": 0},
+    {"id": "I07_SUPPORT_NOT_CONFIDENCE", "class": "project_hard_invariant", "assertion": "APC-only continuation is labeled inferred with null direct GPS support. source_support, assignment_method, assignment_status and evidence status remain separate. Unknown evidence is not converted to zero residual, contradiction, probability, or observed fact.", "denominator": "all accepted or unresolved APC attachments", "allowed_violations": 0},
+    {"id": "I08_ABSTENTION_AND_BOUNDARIES", "class": "project_hard_invariant", "assertion": "Candidate generation retains a null assignment and relevant competing boundary/trip hypotheses. Ties, configured search overflow and unmet acceptance rules yield abstention; no stable sort key is presented as evidence resolving an ambiguous match.", "denominator": "all attachment decision cases", "allowed_violations": 0},
+    {"id": "I09_NO_SEMANTIC_PROMOTION", "class": "project_hard_invariant", "assertion": "Physical segment IDs, source Date_Key, tatripId, local-day buckets and fragment visit ordinals are not silently promoted to verified trip IDs, service dates, true operational trip identifiers or full-trip stop sequence.", "denominator": "all derived identity, service-date and visit-sequence claims", "allowed_violations": 0},
+    {"id": "I10_LOGICAL_DETERMINISM", "class": "project_hard_invariant", "assertion": "Identical input digests, configuration, seed and algorithm version produce identical canonical decisions and IDs. Ordering and batching permutations preserve outcomes when those operations are declared semantically irrelevant.", "denominator": "all canonical decisions compared across completed determinism reruns", "allowed_violations": 0}
+  ],
+  "semantic_publication_gates": [
+    {"id": "P01_SCHEMA_AND_REFERENCES", "applies_to": "every proposed TIDES resource", "requirement": "Pinned types, required fields, primary keys, enums and ranges pass; package profile passes; all populated references resolve under the selected package's documented policy, including performed-trip composite keys. Schema validity alone is insufficient because the pinned schemas do not encode these references as foreignKeys."},
+    {"id": "P02_TIME_AND_SERVICE_DATE", "applies_to": "timestamped events and trip-related resources", "requirement": "Resolve or explicitly exclude ambiguous local timestamps, including DST fold candidates and clock basis. service_date is established independently of local calendar date. No guessed cutoff/fold. Unresolved service date blocks trips_performed and APC event resources; an otherwise eligible vehicle_locations row may omit service_date and trip linkage."},
+    {"id": "P03_APC_GRAIN", "applies_to": "APC-derived stop_visits and passenger_events", "requirement": "Data-owner evidence establishes row meaning, AvgSample, NoTrips, count units, rounding, collisions and additivity. AvgSample=1 is a useful research stratum, not proof of a single visit. Counts must not be multiplied by AvgSample or NoTrips without the contract."},
+    {"id": "P04_APC_EVENT_SEMANTICS", "applies_to": "APC-derived event times and counts", "requirement": "Confirm integer/nonnegative total semantics and event timestamp proxy. Keep unconfirmed door allocations and load meanings null. Negative/inverted intervals cannot create negative dwell. A load-equation residual is a diagnostic, not automatic correction."},
+    {"id": "P05_ACTUAL_VISIT_ORDER", "applies_to": "stop_visits and passenger_events", "requirement": "trip_stop_sequence represents actual visited-stop order beginning at 1 and consecutive within a performed trip. Repeated stop IDs retain separate visits; scheduled_stop_sequence is distinct. Incomplete prefixes, internal missing/excluded visits and unknown trip boundaries require completeness evidence or policy exclusion, not renumbering of fragments into complete trips."},
+    {"id": "P06_TRIP_IDENTITY_AND_ENDPOINTS", "applies_to": "trips_performed and trip-level references", "requirement": "Evidence supports one actual trip rather than an arbitrary segment or multiple trips. actual_trip_start/end are origin departure/destination arrival only when supported. Otherwise preserve observed_start/end separately and keep nullable actual endpoints unknown. Revised boundary/extension assignments retain history."},
+    {"id": "P07_SOURCE_IDENTITY_AND_SCHEDULE_FIELDS", "applies_to": "cross-source and GTFS references", "requirement": "Retain source vehicle namespaces and evidence for equivalence. Raw route/stop/trip labels are not unverified GTFS IDs. Defer GTFS fields without a feed-scoped verified mapping; missing schedule association does not prove an Added, Missing, Canceled or Unscheduled operational status. No global one-to-one scheduled-trip constraint."}
+  ],
+  "metrics": [
+    {"id": "raw_scope_coverage", "numerator": "source rows evaluated by the experiment", "denominator": "all structurally usable source rows in the input manifest", "meaning": "How much of the raw fixture was tested; report separately for AVL and APC."},
+    {"id": "accepted_direct_rate_all_apc", "numerator": "APC source rows accepted with direct observed GPS support", "denominator": "all APC source rows in the raw scan", "meaning": "Fixture-level direct-link yield, not accuracy."},
+    {"id": "accepted_direct_rate_eligible_apc", "numerator": "eligible APC source rows accepted with direct observed GPS support", "denominator": "APC source rows meeting the declared eligibility policy in experiment scope", "meaning": "Conditional direct-link yield; publish the eligibility exclusions."},
+    {"id": "accepted_inferred_rate", "numerator": "APC source rows assigned by continuation without direct support", "denominator": "all APC source rows in experiment scope", "meaning": "Inferred extension exposure, reported separately from direct yield."},
+    {"id": "abstention_rate", "numerator": "eligible APC records assigned ambiguous, insufficient_evidence, no_candidate, unresolved_time or search_overflow", "denominator": "eligible APC records in experiment scope", "meaning": "Report disjoint reason counts; distinguish absence of evidence from evaluated incompatibility."},
+    {"id": "spatial_residual_distribution", "numerator": "distance to supporting observed/interpolated AVL position per accepted direct link", "denominator": "accepted direct links with a valid spatial residual", "meaning": "Report N and p50/p90/p95/p99/max; missing residuals separately. Agreement on an optimization feature is not independent accuracy."},
+    {"id": "temporal_residual_distribution", "numerator": "declared event-anchor or interval residual per accepted direct link", "denominator": "accepted direct links with a valid time residual", "meaning": "State anchor, clock adjustment and interval treatment; report N and quantiles."},
+    {"id": "boundary_sensitivity", "numerator": "APC records changing accepted source-record support group or becoming unresolved across predeclared threshold/method perturbations", "denominator": "APC records evaluated in all compared configurations", "meaning": "Compare memberships/source IDs, not method-specific segment IDs; report changes near boundaries separately."},
+    {"id": "fragmentation", "numerator": "segments and one-ping/short segments by method", "denominator": "evaluated vehicle-hours and vehicle-day groups with timezone basis declared", "meaning": "Report segment duration, gaps and route/ID mixing; neither fewer segments nor greater route purity proves correct trip boundaries."},
+    {"id": "coverage_asymmetry", "numerator": "APC-only prefixes/tails/internal gaps and AVL-only extents", "denominator": "paired candidate groups with computable coverage intervals", "meaning": "Report count, duration and supported-row counts. Interval-envelope overlap is not continuous sensor coverage."},
+    {"id": "masked_recovery", "numerator": "pre-mask supported APC cases retaining their original source-supported candidate group after masking", "denominator": "pre-mask selected supported APC cases still observed in the masked input", "meaning": "Recoverability relative to the original algorithmic assignment, not truth. Report direct-to-inferred transitions, abstention and wrong-neighbor switching separately."},
+    {"id": "independent_attachment_precision", "numerator": "accepted decisions agreeing with adjudicated independent labels", "denominator": "accepted decisions with eligible adjudicated independent labels", "meaning": "null if unavailable; report labeled selection coverage and uncertainty clustered by vehicle-day."},
+    {"id": "independent_boundary_precision_recall", "numerator": "one-to-one matches between predicted and independently reviewed trip boundaries within preregistered tolerance", "denominator": "predicted boundaries for precision; reviewed observable boundaries for recall", "meaning": "null if unavailable; censored/unknown boundaries excluded explicitly, with counts."},
+    {"id": "operational_cost", "numerator": "wall seconds, CPU seconds where measured, peak RSS bytes, input/output bytes, candidate counts and overflow counts", "denominator": "source rows and vehicle-days actually processed", "meaning": "Separate shared raw-scan cost from per-method cost; report measured units and machine. Missing measurements stay null."}
+  ],
+  "reporting_regimes": [
+    "direct_overlap",
+    "apc_only_prefix",
+    "apc_only_tail",
+    "avl_only_prefix_or_tail",
+    "internal_avl_gap",
+    "no_temporal_overlap",
+    "no_common_vehicle",
+    "clock_offset_candidate",
+    "dst_fold_unresolved",
+    "cross_midnight",
+    "file_boundary_censored",
+    "avg_sample_1_vs_gt_1_vs_missing",
+    "visit_key_collision",
+    "repeated_stop_or_loop",
+    "terminal_or_turnaround_candidate",
+    "route_or_source_trip_id_change",
+    "invalid_or_missing_coordinates",
+    "short_or_one_ping_fragment"
+  ],
+  "ranking_policy": {
+    "aggregate_quality_score": null,
+    "hard_no_go": "Any observed hard-invariant violation disqualifies a method configuration as a trustworthy accepted-link candidate until fixed; retain its baseline results for diagnosis.",
+    "incomplete_checks": "A configuration with not_evaluated applicable hard rules is unverified on those dimensions, not globally passed.",
+    "conditional_comparison": "Among invariant-compliant tested outputs, report the non-dominated tradeoffs of direct evidence yield, abstention, residuals, boundary/coverage sensitivity, inferred-extension exposure, runtime and memory, per regime. Select a candidate for the next review stage only with an explicit use case and unresolved limits.",
+    "publication_verdict": "separate gate status per resource; this diagnostic study publishes no production TIDES package",
+    "accuracy_verdict": "inconclusive_without_independent_reviewed_labels",
+    "calibrated_threshold_policy": "Freeze threshold choices and target decision criteria on development groups before opening an independent reviewed holdout. The current study's numerical thresholds are exploratory.",
+    "synthetic_tests": "Known synthetic outcomes establish behavior on constructed inputs and implementation invariants only; they do not validate real-world TTC labels.",
+    "mask_tests": "Recovery/robustness under artificial missingness; no independent real-world accuracy claim."
+  },
+  "unequal_coverage_example": {
+    "avl_observed_interval": ["13:00", "14:00"],
+    "apc_observed_interval": ["13:15", "14:13"],
+    "overlap": "13:15-14:00: eligible direct links require actual sampled support and time-space agreement, not interval overlap alone.",
+    "avl_only_prefix": "13:00-13:15: preserve observed AVL; passenger values unknown, not zero.",
+    "apc_only_tail": "14:00-14:13: preserve APC records. Assign provisionally to the existing candidate only with supported sequential continuity, no accepted competing boundary, and an explicit inferred assignment. Otherwise keep boundary alternatives or abstain.",
+    "gps_extrapolation": "forbidden",
+    "trip_endpoint_claim": "13:00-14:13 is the candidate observation envelope, not verified actual_trip_start/end.",
+    "revision": "A new terminal/turnaround/clock-offset or adjacent-trip observation may split/reassign the tail. Source IDs persist; hypothesis IDs and assignment version may change with retained history."
+  }
+}

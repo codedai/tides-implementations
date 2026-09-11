@@ -1,0 +1,233 @@
+# Spike-02 EXTENSION over experimental_score_contract.yaml (deep-merged
+# at load time by spike02_scoring.py; the Spike-01 file is never edited).
+#
+# EVERY numerical value here is an unapproved experimental hypothesis.
+# The anchor features exist to test H6: do terminal and per-stop
+# residuals create materially larger adjacent-trip margins than the
+# interval evidence Spike 01 showed to be insufficient (margins
+# 0.07-2.5%)? The steep residual decays are sized against the measured
+# 5-10-minute headway of routes 29/929: one headway of error must cost
+# most of the feature's score, otherwise adjacent trips stay
+# indistinguishable by construction.
+#
+# Passenger quantities remain structurally banned from every feature.
+
+contract_name: experimental_score_contract_spike02
+
+features:
+  anchor_term_start_residual_s:
+    family: anchor_terminal
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [120, 850000], [300, 450000], [600, 100000], [1200, 0]]
+    hard_bound: {max: 10800, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 40
+    reason_code: XR2.SCORE.ANCHOR_TERM_START
+    status: experimental
+    note: >-
+      |outbound service-start (or physical-departure) hypothesis of the
+      bounding terminal episode - scheduled first-stop departure|.
+      Decay is one-headway-steep on purpose.
+  anchor_term_end_residual_s:
+    family: anchor_terminal
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [120, 850000], [300, 450000], [600, 100000], [1200, 0]]
+    hard_bound: {max: 10800, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 40
+    reason_code: XR2.SCORE.ANCHOR_TERM_END
+    status: experimental
+    note: >-
+      |inbound service-end (or physical-arrival) hypothesis of the
+      bounding terminal episode - scheduled last-stop arrival|.
+  anchor_terminal_pair_millis:
+    family: anchor_terminal
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [500, 500000], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 20
+    reason_code: XR2.SCORE.ANCHOR_TERMINAL_PAIR
+    status: experimental
+    note: >-
+      Do the segment's bounding terminal clusters match the candidate
+      trip's endpoint stops' clusters? 500 per matching end.
+  anchor_stop_aligned_n:
+    family: anchor_stops
+    unit: count
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [3, 400000], [5, 650000], [10, 850000], [20, 1000000]]
+    missing: {mode: neutral, neutral_q: 300000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 20
+    reason_code: XR2.SCORE.ANCHOR_STOP_N
+    status: experimental
+    note: Stable per-stop alignment matches (present in every optimum).
+  anchor_stop_aligned_frac_millis:
+    family: anchor_stops
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [400, 300000], [700, 700000], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 400000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 15
+    reason_code: XR2.SCORE.ANCHOR_STOP_FRAC
+    status: experimental
+    note: Aligned / observed mapped visits.
+  anchor_stop_residual_median_s:
+    family: anchor_stops
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [60, 850000], [150, 500000], [300, 100000], [600, 0]]
+    hard_bound: {max: 3600, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: neutral, neutral_q: 400000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 35
+    reason_code: XR2.SCORE.ANCHOR_STOP_MEDIAN
+    status: experimental
+    note: >-
+      Median |observed - scheduled| over stable matches. At one 300 s
+      headway of error the score is nearly gone — this is the feature
+      that must separate adjacent trips if H6 holds.
+  anchor_stop_residual_p90_s:
+    family: anchor_stops
+    unit: seconds
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [120, 800000], [300, 400000], [600, 100000], [1200, 0]]
+    hard_bound: {max: 7200, reason_code: XR1.TEMPORAL.STALE}
+    missing: {mode: neutral, neutral_q: 400000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 15
+    reason_code: XR2.SCORE.ANCHOR_STOP_P90
+    status: experimental
+    note: Tail residual over stable matches.
+  anchor_skipped_sched_frac_millis:
+    family: anchor_stops
+    unit: ratio_millis
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [300, 700000], [600, 300000], [1000, 0]]
+    missing: {mode: neutral, neutral_q: 600000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 5
+    reason_code: XR2.SCORE.ANCHOR_SKIPPED
+    status: experimental
+    note: >-
+      Scheduled occurrences inside the matched span left unmatched /
+      span. APC legitimately misses stops; weight is deliberately low.
+  anchor_extra_stop_frac_millis:
+    family: anchor_stops
+    unit: ratio_millis
+    direction: lower_better
+    quantum: 1
+    transform:
+      points: [[0, 1000000], [200, 800000], [500, 400000], [1000, 0]]
+    missing: {mode: neutral, neutral_q: 600000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 10
+    reason_code: XR2.SCORE.ANCHOR_EXTRA
+    status: experimental
+    note: Observed mapped visits not stable-matched / observed.
+  anchor_direction_agreement_millis:
+    family: anchor_direction
+    unit: ratio_millis
+    direction: higher_better
+    quantum: 1
+    transform:
+      points: [[0, 0], [1000, 1000000]]
+    missing: {mode: neutral, neutral_q: 500000}
+    decisions: [segment_selection]
+    regimes: [avl_only, apc_evidence]
+    aggregation: {grain: segment, order: source_record_id}
+    weight: 25
+    reason_code: XR2.SCORE.ANCHOR_DIRECTION
+    status: experimental
+    note: >-
+      Majority APC direction label vs trip direction_id UNDER ONE
+      POLARITY HYPOTHESIS (D-11 open; both polarities are separate
+      candidates and equal evidence ties/abstains).
+
+variants:
+  conservative:
+    null_family_q:
+      segment_selection:
+        anchor_terminal: 500000
+        anchor_stops: 400000
+        anchor_direction: 500000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 20, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           anchor_terminal: 15, anchor_stops: 30, anchor_direction: 10}
+        apc_evidence:
+          {seg_schedule: 15, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           seg_apc_support: 10, anchor_terminal: 15, anchor_stops: 25,
+           anchor_direction: 10}
+  permissive:
+    null_family_q:
+      segment_selection:
+        anchor_terminal: 500000
+        anchor_stops: 450000
+        anchor_direction: 500000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 20, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           anchor_terminal: 15, anchor_stops: 30, anchor_direction: 10}
+        apc_evidence:
+          {seg_schedule: 15, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           seg_apc_support: 10, anchor_terminal: 15, anchor_stops: 25,
+           anchor_direction: 10}
+  forced_diagnostic:
+    null_family_q:
+      segment_selection:
+        anchor_terminal: 500000
+        anchor_stops: 450000
+        anchor_direction: 500000
+    family_weights:
+      segment_selection:
+        avl_only:
+          {seg_schedule: 20, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           anchor_terminal: 15, anchor_stops: 30, anchor_direction: 10}
+        apc_evidence:
+          {seg_schedule: 15, seg_spatial: 10, seg_mapping: 5, seg_date: 10,
+           seg_apc_support: 10, anchor_terminal: 15, anchor_stops: 25,
+           anchor_direction: 10}

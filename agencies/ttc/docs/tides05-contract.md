@@ -72,13 +72,25 @@ Unverified load and door allocation remain null: whole-vehicle boarding counts
 are not put in `boarding_1`. Non-integer dwell is left null with a reason rather
 than rounded. Inverted intervals fail.
 
-Passenger events are omitted by default with per-visit/event diagnostic reasons.
-To export a positive boarding/alighting event, the visit must explicitly provide
-`passenger_event_semantics_valid=true`, an integer nonnegative count, and
-`boarding_event_t` / `alighting_event_t` within the stop interval. Merely supplying
-an APC arrival/departure interval does not establish individual event time.
-`event_count` holds the count; no arbitrary door or nearest-ping linkage is added.
-Zero activity creates no event; missing counts are not zero. `AvgOTP` is unused.
+The production config selects the user-approved research assumption
+`passenger_event_policy="apc_stop_interval_departure_proxy_v1"`: one valid,
+attached APC source row represents one stop visit and its counts are visit totals.
+Vehicle-arrival/departure events use the respective original timestamps (count 1).
+Positive integer boarding/alighting totals each form one event at the original
+departure time. Both passenger timestamps are **documented proxies**, not measured
+individual passenger instants. Per-event diagnostics retain source IDs, the original
+interval, policy and assumed/proxy semantics; no extra core columns, arbitrary door,
+or nearest-ping linkage is invented. Zero passenger activity creates no count event;
+missing counts are not zero. `AvgOTP` remains unused. This export-only convention
+does not change projection, segmentation, interval evidence or candidate scoring.
+
+The previous `omit_without_event_semantics` policy remains available and is the
+standalone API fallback when no policy is supplied. Under that policy a visit must
+explicitly provide `passenger_event_semantics_valid=true`, a valid count and
+`boarding_event_t` / `alighting_event_t` within its stop interval. The new policy
+does not claim that source grain has been independently verified; original evidence
+flags are preserved. See [APC assumptions and stop-visit construction](experiment05-apc-events.md)
+for the complete versioned mapping, limitations, example and audit requirements.
 
 ## Fixed standard, offline validation and provenance
 

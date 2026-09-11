@@ -1,0 +1,148 @@
+# Run configuration for R1 Design-Validation Spike 02 (boundary
+# refinement / terminal episodes / anchor-and-align).
+# EVERY threshold is experimental and unapproved. Units in key names.
+
+profile: diagnostic-experimental-r1-spike-02
+publishable: false
+tides_conformance_claimed: false
+normative_contract_claimed: false
+r1_closed: false
+authorization_basis: user-requested isolated design-validation experiment
+
+timezone: America/Toronto   # naive local wall times (G0.3/D-16 open)
+
+inputs:
+  normalized_dir: artifacts/diagnostic-2026-08-06/normalized
+  gtfs_artifact_dirs:
+    "2023-11-04": artifacts/gtfs-2023-11-04-ttc-d092742e6a5b
+    "2023-11-05": artifacts/gtfs-2023-11-05-ttc-d092742e6a5b
+    "2023-11-27": artifacts/gtfs-2023-11-27-ttc-de8294439596
+    "2023-11-28": artifacts/gtfs-2023-11-28-ttc-de8294439596
+    "2023-11-29": artifacts/gtfs-2023-11-29-ttc-de8294439596
+    "2023-11-30": artifacts/gtfs-2023-11-30-ttc-de8294439596
+    "2023-12-01": artifacts/gtfs-2023-12-01-ttc-de8294439596
+  spike01_r1c_prefix: artifacts/experimental-r1-spike-r1c-
+
+slices:
+  # Identical to Spike 01 so results are directly comparable.
+  normal_day:
+    description: primary slice; vehicles include 7237 (Wilson case)
+    avl_dates: ["2023-11-28"]
+    apc_dates: ["2023-11-28"]
+    service_date_candidates: ["2023-11-27", "2023-11-28"]
+    wall_start: "2023-11-28 00:00:00"
+    wall_end: "2023-11-28 23:59:59"
+    vehicles_n: 3
+  dst_fall_back:
+    description: regression-only; boundary logic must not invent folds
+    avl_dates: ["2023-11-04", "2023-11-05"]
+    apc_dates: ["2023-11-04", "2023-11-05"]
+    service_date_candidates: ["2023-11-04", "2023-11-05"]
+    wall_start: "2023-11-04 23:30:00"
+    wall_end: "2023-11-05 03:30:00"
+    vehicles_n: 3
+  month_boundary:
+    description: regression-only; right-censored records stay censored
+    avl_dates: ["2023-11-30"]
+    apc_dates: ["2023-11-30", "2023-12-01"]
+    service_date_candidates: ["2023-11-29", "2023-11-30", "2023-12-01"]
+    wall_start: "2023-11-30 22:00:00"
+    wall_end: "2023-12-01 02:30:00"
+    vehicles_n: 3
+
+provisional:
+  max_continuity_gap_s: 1800      # X4-A gap-only run substrate
+  censor_margin_s: 900
+
+apc_alignment:
+  max_time_gap_s: 900             # trip-agnostic edge temporal bound
+  interpolation_max_gap_s: 300
+
+clusters:
+  geofence_radius_m: 150.0
+  merge_radius_m: 250.0
+  config_version: xtc2-cfg-1
+  experimental_stop_code_hypotheses:
+    # D-10 OPEN: versioned hypothesis, provenance recorded, never an
+    # approved crosswalk. Coordinates are the observed APC coordinates.
+    "1652":
+      lat: 43.734548
+      lon: -79.450792
+      name: WILSON STATION (stop-code 1652 hypothesis, D-10 open)
+      provenance: >-
+        APC on_street text + observed APC coordinates + legacy
+        methodology document; spatial evidence alone remains a
+        hypothesis per D-10
+
+episodes:
+  visit_blip_max_pings: 2
+  visit_blip_max_s: 120
+  dwell_low_move_m: 30.0
+  dwell_min_s: 120
+  outbound_window_pings_n: 5
+  outbound_min_move_m: 200.0
+  apc_pad_s: 600
+  direction_pad_s: 900
+  direction_window_pings_n: 5
+  progress_window_pings_n: 10
+  progress_min_delta_m: 500.0
+  spanning_min_interval_s: 300
+  min_evidence_families: 2
+  apc_conflict_tolerance_s: 300
+  min_visit_span_for_outbound_s: 300
+
+refinement:
+  variants: [v1_avl_only, v2_conditional, vx_unconditional]
+  primary_variant: v2_conditional
+  score_bar_q: 400000
+  margin_q: 50000
+
+attachment:
+  t_mid_variants_s: [1200, 1800, 2700, 3600]
+  primary_t_mid_s: 3600           # comparison baseline = Spike-01 bound
+  cluster_stop_confidence_millis: 500
+  cluster_rescue_enabled: true
+
+anchors:
+  stop_align_skip_cost: 1000
+  stop_residual_cap_s: 3600
+  visit_pad_s: 60
+  min_aligned_stops_for_anchor: 5
+  enable_direction: true
+
+alignment_paths:
+  unmatched_cost_q: 400000
+  max_optima: 64
+  run_many_to_one_variant: true
+
+geometry:
+  soft_bound_m: 50.0
+  hard_bound_m: 250.0
+
+temporal:
+  interpolation_max_gap_s: 300
+  candidate_prefilter_gap_s: 7200
+
+candidates:
+  schedule_window_expansion_s: 1800
+  segment_hypothesis_cap: 128
+  apc_candidate_cap: 64
+  component_record_cap: 400
+
+stage1:
+  policy: policy_b
+  policy_b_min_support_records: 2
+
+windows:
+  window_hours: 24
+  window_hours_alt: 12
+  orders: [forward, reverse, shuffled]
+  shuffle_seed: 20261107
+
+score_contract:
+  base_path: experiments/r1_design_spike/config/experimental_score_contract.yaml
+  ext_path: experiments/r1_design_spike/config/spike02_score_contract_ext.yaml
+  variants: [conservative, permissive, forced_diagnostic]
+  primary_variant: conservative
+  # forced_diagnostic remains INTENTIONALLY UNSAFE; it exists so the
+  # attachment and sequence stages measurably run on real data.

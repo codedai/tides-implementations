@@ -58,6 +58,35 @@ def test_config_rejects_invalid_threshold_and_policy_types(tmp_path, old, new):
         load_config(path)
 
 
+@pytest.mark.parametrize("policy", ["invented", "", None, True, 1, []])
+def test_passenger_event_policy_is_explicit_and_validated(tmp_path, policy):
+    path = tmp_path / "policy.toml"
+    replacement = (
+        "" if policy is None else ("passenger_event_policy = " + json.dumps(policy))
+    )
+    path.write_text(
+        DEFAULT_CONFIG.read_text().replace(
+            'passenger_event_policy = "apc_stop_interval_departure_proxy_v1"',
+            replacement,
+        )
+    )
+    with pytest.raises(ValueError, match="passenger_event_policy"):
+        load_config(path)
+
+
+def test_conservative_passenger_event_policy_remains_supported(tmp_path):
+    path = tmp_path / "conservative.toml"
+    path.write_text(
+        DEFAULT_CONFIG.read_text().replace(
+            'passenger_event_policy = "apc_stop_interval_departure_proxy_v1"',
+            'passenger_event_policy = "omit_without_event_semantics"',
+        )
+    )
+    assert load_config(path)[0]["export"]["passenger_event_policy"] == (
+        "omit_without_event_semantics"
+    )
+
+
 def test_nested_stage_tables_roundtrip_and_hash_validation(tmp_path):
     rows = [
         {
