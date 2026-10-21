@@ -22,9 +22,10 @@ from uiv2.views.forms import SCHEDULED_JUDGMENT_LABELS
 
 pytestmark = requires_artifacts
 
-# 粒度单选的选项值是中文显示标签（GRAIN_OPTIONS 的 label 侧）；
-# 入库的仍是英文 grain 值，见 uiv2.views.forms.GRAIN_OPTIONS。
-GRAIN_SINGLE_TRIP = "一个可评的、trip 尺度的 chunk"
+# The grain radio's option values are the display labels (the label side of
+# GRAIN_OPTIONS); the stored value is still the English grain enum, see
+# uiv2.views.forms.GRAIN_OPTIONS.
+GRAIN_SINGLE_TRIP = "A reviewable, trip-scale chunk"
 
 STATIC_LEAK_STRINGS = (
     "MATCH_TOP_CANDIDATE",
@@ -35,13 +36,13 @@ STATIC_LEAK_STRINGS = (
 )
 
 ROUTING_VOCABULARY = (
-    "计划班次盲审二审",
-    "多 trip 分段评审",
-    "跨边界双角色评审",
-    "片段角色与缝合评审",
-    "上下文不足片段评审",
-    "源数据 / 时间质量评审",
-    "无匹配活动评审",
+    "Scheduled-trip blind second pass",
+    "Multi-trip segmentation review",
+    "Boundary-spanning dual-role review",
+    "Fragment role and stitching review",
+    "Insufficient-context fragment review",
+    "Source data / time quality review",
+    "No-match activity review",
 )
 
 
@@ -115,33 +116,33 @@ def _complete_alias(run_dir: Path, case_id: str) -> str:
 
 def test_first_case_renders_blind(at: AppTest, first_pass_leaks):
     text = _page_text(at)
-    assert "案例 C-" in text
+    assert "Case C-" in text
     for leak in first_pass_leaks:
         assert leak not in text, leak
-    assert "存盘前保持隐藏" in text
+    assert "first-pass labels stay hidden until each case's blind save" in text
 
 
 def test_pre_grain_page_shows_no_routing_vocabulary(at: AppTest):
     at = _select_case(at, "C-134f2a21")
     text = _page_text(at)
-    assert "任务名将在你回答粒度问题后揭示" in text
+    assert "the task name is revealed after you answer the grain question" in text
     for phrase in ROUTING_VOCABULARY:
         assert phrase not in text, phrase
     grain = _grain_radio(at, "C-134f2a21")
     assert grain.value is None, "the grain question must have no preselection"
     grain.set_value(GRAIN_SINGLE_TRIP).run()
     text = _page_text(at)
-    assert "计划班次盲审二审" in text
+    assert "Scheduled-trip blind second pass" in text
 
 
 def test_grain_question_gates_task_form(at: AppTest, first_pass_leaks):
     at = _select_case(at, "C-134f2a21")
-    judgment_radios = [radio for radio in at.radio if str(radio.label) == "判断"]
+    judgment_radios = [radio for radio in at.radio if str(radio.label) == "Judgment"]
     assert not judgment_radios, "task form must not render before the grain answer"
     _grain_radio(at, "C-134f2a21").set_value(GRAIN_SINGLE_TRIP).run()
-    judgment_radios = [radio for radio in at.radio if str(radio.label) == "判断"]
+    judgment_radios = [radio for radio in at.radio if str(radio.label) == "Judgment"]
     assert judgment_radios, "scheduled form should appear after the grain answer"
-    # AppTest reports the *displayed* options, so this asserts the localized
+    # AppTest reports the *displayed* options, so this asserts the display-label
     # null option is on screen ...
     options = list(judgment_radios[0].options)
     assert SCHEDULED_JUDGMENT_LABELS["no_scheduled_match"] in options, (
@@ -163,9 +164,9 @@ def test_candidate_universe_shows_all_without_model_truncation(at: AppTest):
     biggest = routing.sort("candidate_count", descending=True).row(0, named=True)
     at = _select_case(at, biggest["case_id"])
     text = _page_text(at)
-    assert f"共 {biggest['candidate_count']} 个候选" in text
+    assert f"Candidate universe — {biggest['candidate_count']} candidates" in text
     assert biggest["candidate_count"] >= 50
-    assert "你自己设置的筛选条件" not in text
+    assert "filters you set yourself" not in text
 
 
 def test_filters_report_hidden_count_and_are_logged(at: AppTest, fresh_run01):
@@ -185,7 +186,7 @@ def test_filters_report_hidden_count_and_are_logged(at: AppTest, fresh_run01):
     narrowed = (int(starts[1]), int(starts[-1]))
     at.slider(key=f"fs::{case_id}").set_value(narrowed).run()
     text = _page_text(at)
-    assert "你自己设置的筛选条件" in text
+    assert "filters you set yourself" in text
     history = (fresh_run01 / "review_history.jsonl").read_text()
     assert "candidate_filter_applied" in history
 
@@ -198,8 +199,8 @@ def test_blind_save_writes_history_then_allows_reveal(at: AppTest, fresh_run01):
     alias = _complete_alias(fresh_run01, case_id)
     at.selectbox(key=f"sched::alias::{case_id}").set_value(alias).run()
     text = _page_text(at)
-    assert "揭示一审判断" not in text
-    assert "揭示模型诊断" not in text
+    assert "Reveal first-pass judgment" not in text
+    assert "Reveal model diagnostics" not in text
     at.button(key=f"save::{case_id}").click().run()
     history = (fresh_run01 / "review_history.jsonl").read_text()
     assert history.count('"event": "second_pass_save"') >= 1
@@ -210,9 +211,9 @@ def test_blind_save_writes_history_then_allows_reveal(at: AppTest, fresh_run01):
     assert row["first_pass_hidden"] is True
     assert row["selected_candidate_key"]
     text = _page_text(at)
-    assert "盲审判断已存盘" in text
-    assert "揭示一审判断" in text
-    assert "揭示模型诊断" in text
+    assert "Blind judgment saved" in text
+    assert "Reveal first-pass judgment" in text
+    assert "Reveal model diagnostics" in text
 
 
 def test_interaction_logging_is_honest(at: AppTest, fresh_run01):

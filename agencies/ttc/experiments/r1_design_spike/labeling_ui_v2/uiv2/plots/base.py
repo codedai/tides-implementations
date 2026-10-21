@@ -164,8 +164,8 @@ class TimeAxis:
                 y=1.08,
                 showarrow=False,
                 text=(
-                    "⚠ 本窗口内时钟发生变更 —— 横轴显示的是真实经过时间；"
-                    "悬停可查看当地时刻"
+                    "⚠ A clock change occurs within this window — the x-axis "
+                    "shows true elapsed time; hover to see local time"
                 ),
                 font=dict(size=11, color="#b26a00"),
             )
@@ -176,7 +176,7 @@ def add_current_window(
     axis: TimeAxis,
     chunk: ChunkWindow | None,
     *,
-    label: str = "当前标注窗口",
+    label: str = "Current labeling window",
 ) -> None:
     """Shade the current labeling window (the critical visual contract)."""
     if chunk is None or chunk.start_epoch is None or chunk.end_epoch is None:
@@ -202,7 +202,7 @@ def add_context_note(fig: go.Figure) -> None:
         y=1.14,
         xanchor="right",
         showarrow=False,
-        text=("阴影区 = 当前标注窗口 · 灰色/虚线 = 相邻上下文"),
+        text=("Shaded = current labeling window · grey/dashed = adjacent context"),
         font=dict(size=10, color="#666666"),
     )
 

@@ -1,15 +1,23 @@
-"""粒度优先表单，以及六个任务专用的判断表单。
+"""Grain-first form, plus the six task-specific judgment forms.
 
-此处强制的契约要点（store 会在存盘时全部重新校验）：
+Contract points enforced here (the store re-validates all of them at save
+time):
 
-- 粒度问题排在最前，没有预选答案，回答之前不显示任何审计建议；
-- 计划班次的空选项始终可见，任何时候都不强迫给出匹配；
-- 置信度 4-5 同时要求结构化理由和自由文字理由；
-- 时区标签由时间戳推导，绝不采信审阅人输入的文字；
-- 提议的切分若落在显示窗口之外，会给出显著警告。
+- the grain question comes first, has no preselected answer, and no audit
+  suggestion is shown before it is answered;
+- the null option for the scheduled trip is always visible; a match is never
+  forced at any point;
+- confidence 4-5 requires both a structured rationale and a free-text
+  rationale;
+- the timezone label is derived from the timestamp; text typed by the
+  reviewer is never trusted;
+- a proposed split that falls outside the displayed window gets a prominent
+  warning.
 
-界面文字为中文，但**存储值一律保持英文原样**：所有下拉/单选的 options
-都是入库的枚举值，中文只出现在 ``format_func`` 的显示层。
+Display labels are UI-only, and **stored values are always kept as the raw
+enum values**: every select/radio ``options`` list holds the enum values that
+go into the store; human-readable labels appear only in the ``format_func``
+display layer.
 """
 
 from __future__ import annotations
@@ -23,14 +31,17 @@ from ..parsing import fmt_duration_s
 from .candidates import alias_selector
 
 GRAIN_OPTIONS: list[tuple[str, str]] = [
-    ("single_trip_candidate", "一个可评的、trip 尺度的 chunk"),
-    ("multi_trip_chunk", "包含多个 trip —— 需要切分"),
-    ("local_fragment", "局部片段（不是一个完整 trip）"),
-    ("boundary_spanning", "跨边界的 APC / 事件记录"),
-    ("turnaround_or_idle", "周转 / 怠速 / 非营运活动"),
-    ("data_quality_invalid", "源数据、时间或轨迹表征无效"),
-    ("coverage_censored", "上下文不足 / 覆盖被截断"),
-    ("unknown", "无法判断"),
+    ("single_trip_candidate", "A reviewable, trip-scale chunk"),
+    ("multi_trip_chunk", "Contains multiple trips — needs splitting"),
+    ("local_fragment", "Local fragment (not a complete trip)"),
+    ("boundary_spanning", "Boundary-spanning APC / event record"),
+    ("turnaround_or_idle", "Turnaround / idle / non-revenue activity"),
+    (
+        "data_quality_invalid",
+        "Source data, time, or trajectory representation is invalid",
+    ),
+    ("coverage_censored", "Insufficient context / coverage censored"),
+    ("unknown", "Cannot determine"),
 ]
 
 REVIEWABILITY_BY_GRAIN: dict[str, list[str]] = {
@@ -51,33 +62,33 @@ REVIEWABILITY_BY_GRAIN: dict[str, list[str]] = {
 }
 
 REVIEWABILITY_LABELS = {
-    "reviewable_for_schedule_match": "可以进行计划班次匹配评审",
-    "insufficient_context": "上下文不足，无法评审",
-    "requires_segmentation_adjudication": "需要分段裁决",
-    "requires_boundary_adjudication": "需要边界裁决",
-    "not_reviewable_at_current_grain": "在当前粒度下不可评审",
-    "invalid_source_state": "源数据状态无效",
+    "reviewable_for_schedule_match": "Reviewable for scheduled-trip match",
+    "insufficient_context": "Insufficient context; cannot review",
+    "requires_segmentation_adjudication": "Requires segmentation adjudication",
+    "requires_boundary_adjudication": "Requires boundary adjudication",
+    "not_reviewable_at_current_grain": "Not reviewable at the current grain",
+    "invalid_source_state": "Invalid source state",
 }
 
 EVIDENCE_FAMILY_LABELS = {
-    "interval_time_fit": "时间区间 / 起点 / 终点吻合度",
-    "stop_sequence_fit": "停站序列吻合度",
-    "spatial_shape_fit": "空间线形吻合度",
-    "terminal_behavior": "终点站行为",
-    "apc_signal": "APC 上下客信号",
-    "direction_or_polarity": "方向 / 极性",
-    "schedule_headway_separation": "与竞争班次的班距分离度",
-    "adjacent_context": "相邻上下文",
-    "data_quality_signal": "数据质量信号",
+    "interval_time_fit": "Time interval / start / end fit",
+    "stop_sequence_fit": "Stop sequence fit",
+    "spatial_shape_fit": "Spatial shape fit",
+    "terminal_behavior": "Terminal behavior",
+    "apc_signal": "APC boarding/alighting signal",
+    "direction_or_polarity": "Direction / polarity",
+    "schedule_headway_separation": "Headway separation from competing scheduled trips",
+    "adjacent_context": "Adjacent context",
+    "data_quality_signal": "Data quality signal",
 }
 
 TRISTATE_OPTIONS = ["true", "false", "ambiguous", "not_applicable"]
 
 TRISTATE_LABELS = {
-    "true": "是",
-    "false": "否",
-    "ambiguous": "无法判断",
-    "not_applicable": "不适用",
+    "true": "Yes",
+    "false": "No",
+    "ambiguous": "Cannot determine",
+    "not_applicable": "Not applicable",
 }
 
 SCHEDULED_JUDGMENT_OPTIONS = [
@@ -88,10 +99,10 @@ SCHEDULED_JUDGMENT_OPTIONS = [
 ]
 
 SCHEDULED_JUDGMENT_LABELS = {
-    "matched": "匹配到某个计划班次",
-    "no_scheduled_match": "没有对应的计划班次（空选项）",
-    "ambiguous_candidates": "候选之间无法区分",
-    "insufficient_evidence": "证据不足，无法判断",
+    "matched": "Matched to a scheduled trip",
+    "no_scheduled_match": "No corresponding scheduled trip (null option)",
+    "ambiguous_candidates": "Cannot distinguish between candidates",
+    "insufficient_evidence": "Insufficient evidence to judge",
 }
 
 ACTIVITY_OPTIONS = [
@@ -105,13 +116,13 @@ ACTIVITY_OPTIONS = [
 ]
 
 ACTIVITY_LABELS = {
-    "revenue_trip_candidate": "疑似营运班次",
-    "terminal_turnaround": "终点站周转",
-    "idling": "怠速停放",
-    "deadhead_or_nonrevenue_unconfirmed": "空驶 / 非营运（未确认）",
-    "pullin_or_pullout_unconfirmed": "回场 / 出场（未确认）",
-    "coverage_censored": "覆盖被截断",
-    "unknown": "无法判断",
+    "revenue_trip_candidate": "Suspected revenue trip",
+    "terminal_turnaround": "Terminal turnaround",
+    "idling": "Idling",
+    "deadhead_or_nonrevenue_unconfirmed": "Deadhead / non-revenue (unconfirmed)",
+    "pullin_or_pullout_unconfirmed": "Pull-in / pull-out (unconfirmed)",
+    "coverage_censored": "Coverage censored",
+    "unknown": "Cannot determine",
 }
 
 QUALITY_FLAG_OPTIONS = [
@@ -127,15 +138,15 @@ QUALITY_FLAG_OPTIONS = [
 ]
 
 QUALITY_FLAG_LABELS = {
-    "simultaneous_positions": "同一时刻出现多个位置",
-    "impossible_speed": "速度不可能达到",
-    "unresolved_dst_fold": "夏令时回拨重叠小时未能消歧",
-    "trajectory_not_split": "轨迹本该切分却未切分",
-    "missing_avl_coverage": "AVL 覆盖缺失",
-    "spatial_temporal_conflict": "时空信息互相矛盾",
-    "candidate_universe_incomplete": "候选全集不完整",
-    "timezone_text_inconsistent": "时区文字前后不一致",
-    "other": "其他",
+    "simultaneous_positions": "Multiple positions at the same instant",
+    "impossible_speed": "Impossible speed",
+    "unresolved_dst_fold": "Unresolved DST fall-back overlap hour",
+    "trajectory_not_split": "Trajectory should have been split but was not",
+    "missing_avl_coverage": "Missing AVL coverage",
+    "spatial_temporal_conflict": "Spatial and temporal information conflict",
+    "candidate_universe_incomplete": "Candidate universe incomplete",
+    "timezone_text_inconsistent": "Timezone text inconsistent",
+    "other": "Other",
 }
 
 FRAGMENT_ROLE_OPTIONS = [
@@ -150,52 +161,54 @@ FRAGMENT_ROLE_OPTIONS = [
 ]
 
 FRAGMENT_ROLE_LABELS = {
-    "trip_core": "trip 主体（这实际上是一整趟的核心部分）",
-    "arrival_fragment": "到达片段（一趟车的尾段）",
-    "departure_fragment": "出发片段（一趟车的首段）",
-    "turnaround": "周转",
-    "stitch_previous": "应与前一个对象缝合",
-    "stitch_next": "应与后一个对象缝合",
-    "independent_short_trip": "独立的短程 trip",
-    "ambiguous_fragment": "无法判断角色的片段",
+    "trip_core": "Trip core (this is actually the core of a complete trip)",
+    "arrival_fragment": "Arrival fragment (the tail of a trip)",
+    "departure_fragment": "Departure fragment (the head of a trip)",
+    "turnaround": "Turnaround",
+    "stitch_previous": "Should be stitched to the previous object",
+    "stitch_next": "Should be stitched to the next object",
+    "independent_short_trip": "Independent short trip",
+    "ambiguous_fragment": "Fragment whose role cannot be determined",
 }
 
 ARRIVAL_ROLE_LABELS = {
-    "unresolved": "未解决",
-    "trip_end": "某趟车的终点",
-    "terminal_arrival": "终点站到达",
+    "unresolved": "Unresolved",
+    "trip_end": "End of a trip",
+    "terminal_arrival": "Terminal arrival",
 }
 
 DEPARTURE_ROLE_LABELS = {
-    "unresolved": "未解决",
-    "trip_start": "某趟车的起点",
-    "terminal_departure": "终点站发车",
+    "unresolved": "Unresolved",
+    "trip_start": "Start of a trip",
+    "terminal_departure": "Terminal departure",
 }
 
 COMPLETE_TRIP_LABELS = {
-    "not_applicable": "不适用（这不是一整趟车）",
-    "insufficient_evidence": "证据不足",
-    "ambiguous_candidates": "候选之间无法区分",
+    "not_applicable": "Not applicable (this is not a complete trip)",
+    "insufficient_evidence": "Insufficient evidence",
+    "ambiguous_candidates": "Cannot distinguish between candidates",
 }
 
 
 def _labeler(mapping: dict[str, str]):
-    """显示层翻译；未收录的值原样显示，绝不改变存储值。"""
+    """Display-layer labels; unlisted values are shown as-is, and stored
+    values are never changed."""
 
     return lambda value: mapping.get(value, value)
 
 
 def render_grain_form(bundle: CaseBundleV2) -> tuple[str | None, str | None]:
-    """必答的第一个问题。返回 (grain, reviewability)。"""
+    """The mandatory first question. Returns (grain, reviewability)."""
 
-    st.markdown("### 1 · 当前这个对象代表什么？")
+    st.markdown("### 1 · What does this object represent?")
     st.caption(
-        "请只依据上方的证据作答。回答之前不会显示任何建议；无论这个案例"
-        "当初被排进哪条队列，你都可以选择任意粒度。"
+        "Answer using only the evidence above. No suggestion is shown before you "
+        "answer; whichever queue this case was originally routed to, you may "
+        "choose any grain."
     )
     labels = [label for _, label in GRAIN_OPTIONS]
     picked = st.radio(
-        "案例粒度",
+        "Case grain",
         labels,
         index=None,
         key=f"grain::{bundle.case_id}",
@@ -205,7 +218,7 @@ def render_grain_form(bundle: CaseBundleV2) -> tuple[str | None, str | None]:
     grain = next(value for value, label in GRAIN_OPTIONS if label == picked)
     choices = REVIEWABILITY_BY_GRAIN[grain]
     reviewability = st.selectbox(
-        "在这个粒度下的可评性",
+        "Reviewability at this grain",
         choices,
         format_func=_labeler(REVIEWABILITY_LABELS),
         key=f"reviewability::{bundle.case_id}",
@@ -214,17 +227,17 @@ def render_grain_form(bundle: CaseBundleV2) -> tuple[str | None, str | None]:
 
 
 def confidence_block(
-    case_id: str, *, include_match: bool, match_label: str = "匹配置信度"
+    case_id: str, *, include_match: bool, match_label: str = "Match confidence"
 ) -> dict[str, Any]:
     columns = st.columns(3 if include_match else 2)
     grain_confidence = columns[0].select_slider(
-        "粒度置信度",
+        "Grain confidence",
         options=[1, 2, 3, 4, 5],
         value=3,
         key=f"gc::{case_id}",
     )
     evidence_quality = columns[1].select_slider(
-        "证据质量",
+        "Evidence quality",
         options=[1, 2, 3, 4, 5],
         value=3,
         key=f"eq::{case_id}",
@@ -245,33 +258,35 @@ def confidence_block(
 
 def rationale_block(case_id: str, *, for_match: bool) -> dict[str, Any]:
     flags = st.multiselect(
-        "结构化理由 —— 哪些证据族支持这个判断？（置信度 4-5 时必填"
-        + ("；一个匹配通常需要两个证据族）" if for_match else "）"),
+        "Structured rationale — which evidence families support this judgment? "
+        "(required at confidence 4-5"
+        + ("; a match normally requires two evidence families)" if for_match else ")"),
         list(EVIDENCE_FAMILY_LABELS),
         format_func=_labeler(EVIDENCE_FAMILY_LABELS),
-        placeholder="选择支持你判断的证据族",
+        placeholder="Select the evidence families that support your judgment",
         key=f"flags::{case_id}",
     )
     single = False
     single_family = None
     if for_match:
         single = st.checkbox(
-            "单一决定性依据 —— 只有一个证据族，但它本身就足以定论",
+            "Single decisive anchor — only one evidence family, but it is "
+            "sufficient on its own",
             key=f"single::{case_id}",
         )
         if single:
             single_family = st.selectbox(
-                "哪一个证据族起决定作用？",
+                "Which evidence family is decisive?",
                 list(EVIDENCE_FAMILY_LABELS),
                 format_func=_labeler(EVIDENCE_FAMILY_LABELS),
                 key=f"singlefam::{case_id}",
             )
     rationale_text = st.text_area(
-        "自由文字理由（置信度 4-5 时必填）",
+        "Free-text rationale (required at confidence 4-5)",
         key=f"rat::{case_id}",
         height=80,
     )
-    notes = st.text_area("备注（选填）", key=f"notes::{case_id}", height=80)
+    notes = st.text_area("Notes (optional)", key=f"notes::{case_id}", height=80)
     result: dict[str, Any] = {
         "evidence_flags": list(flags) + (["single_decisive_anchor"] if single else []),
         "rationale_text": rationale_text,
@@ -287,16 +302,17 @@ def render_scheduled_form(
 ) -> dict[str, Any] | None:
     case_id = bundle.case_id
     prefix = key_prefix or "sched"
-    st.markdown("### 2 · 计划班次判断")
+    st.markdown("### 2 · Scheduled-trip judgment")
     judgment = st.radio(
-        "判断",
+        "Judgment",
         SCHEDULED_JUDGMENT_OPTIONS,
         index=None,
         format_func=_labeler(SCHEDULED_JUDGMENT_LABELS),
         key=f"{prefix}::judgment::{case_id}",
         help=(
-            "空选项（没有对应的计划班次）始终可选。任何时候都不要求必须给出"
-            "匹配，即使候选只显示了一个也是如此。"
+            "The null option (no corresponding scheduled trip) is always "
+            "available. A match is never required, even when only one "
+            "candidate is displayed."
         ),
     )
     alias = None
@@ -305,12 +321,12 @@ def render_scheduled_form(
             bundle,
             visible,
             key=f"{prefix}::alias::{case_id}",
-            label="匹配到的候选（从上方候选全集中选择）",
+            label="Matched candidate (choose from the candidate universe above)",
             allow_none=True,
-            none_label="— 请选择一个候选 —",
+            none_label="— select a candidate —",
         )
         if alias is None:
-            st.info("选定匹配的候选后才能存盘")
+            st.info("Select the matched candidate before saving")
     if judgment is None:
         return None
     record: dict[str, Any] = {"scheduled_judgment": judgment}
@@ -327,16 +343,17 @@ def render_multi_trip_form(
     bundle: CaseBundleV2, visible: list
 ) -> dict[str, Any] | None:
     case_id = bundle.case_id
-    st.markdown("### 2 · 多 trip 分段")
+    st.markdown("### 2 · Multi-trip segmentation")
     st.caption(
-        "只描述你能站得住脚的子行程。边界填的是**相对 chunk 起点的秒数区间**，"
-        "不要求给出精确的瞬时时刻。每个子行程另有子案例可供单独评审；"
-        "这里不会复制任何此前的备注。"
+        "Describe only the subtrips you can defend. Boundaries are entered as "
+        "**second intervals relative to the chunk start**; an exact instant is "
+        "not required. Each subtrip has its own child case for separate review; "
+        "no earlier notes are copied here."
     )
     duration = bundle.chunk.duration_s or 0
     count = int(
         st.number_input(
-            "运营子行程的数量",
+            "Number of operating subtrips",
             min_value=1,
             max_value=8,
             value=2,
@@ -349,7 +366,7 @@ def render_multi_trip_form(
             bundle,
             visible,
             key=f"mt::sub{index}::{case_id}",
-            label=f"第 {index + 1} 个子行程对应的候选（或选择无 / 未解决）",
+            label=f"Candidate for subtrip {index + 1} (or choose none / unresolved)",
         )
         sequence.append(bundle.by_alias(alias).candidate_key if alias else None)
     intervals: list[list[int]] = []
@@ -357,7 +374,7 @@ def render_multi_trip_form(
         columns = st.columns(2)
         low = int(
             columns[0].number_input(
-                f"边界 {index + 1} —— 最早（chunk 起点后第几秒）",
+                f"Boundary {index + 1} — earliest (seconds after chunk start)",
                 min_value=-86400,
                 max_value=2 * 86400,
                 value=0,
@@ -366,7 +383,7 @@ def render_multi_trip_form(
         )
         high = int(
             columns[1].number_input(
-                f"边界 {index + 1} —— 最晚（chunk 起点后第几秒）",
+                f"Boundary {index + 1} — latest (seconds after chunk start)",
                 min_value=-86400,
                 max_value=2 * 86400,
                 value=min(duration, max(0, low)),
@@ -374,18 +391,18 @@ def render_multi_trip_form(
             )
         )
         if high < low:
-            st.error("边界区间的终点早于起点")
+            st.error("Boundary interval ends before it starts")
             return None
         if low < 0 or (duration and high > duration):
             st.warning(
-                f"边界区间 {index + 1} 落在所显示的 chunk 之外"
-                f"（0 … {fmt_duration_s(duration)}）—— 存盘时会附带一条"
-                "明确的越界警告"
+                f"Boundary interval {index + 1} falls outside the displayed chunk "
+                f"(0 … {fmt_duration_s(duration)}) — the save will carry an "
+                "explicit out-of-window warning"
             )
         intervals.append([low, high])
     unresolved = int(
         st.number_input(
-            "无法归属的子段数量",
+            "Number of subsegments that cannot be attributed",
             min_value=0,
             max_value=8,
             value=0,
@@ -393,7 +410,7 @@ def render_multi_trip_form(
         )
     )
     split_confidence = st.select_slider(
-        "切分置信度",
+        "Split confidence",
         options=[1, 2, 3, 4, 5],
         value=3,
         key=f"mt::sc::{case_id}",
@@ -414,32 +431,33 @@ def render_boundary_form(
     bundle: CaseBundleV2, visible: list, *, derived_tz_preview
 ) -> dict[str, Any] | None:
     case_id = bundle.case_id
-    st.markdown("### 2 · 跨边界双角色判断")
+    st.markdown("### 2 · Boundary-spanning dual-role judgment")
     st.caption(
-        "进站侧和出站侧是相互独立的：两侧可以选不同的候选，任意一侧也都可以"
-        "保持未解决。这条记录不会被强行归给某一个唯一的归属者。"
+        "The inbound side and the outbound side are independent: the two sides "
+        "may select different candidates, and either side may remain unresolved. "
+        "This record is never forced onto a single unique owner."
     )
     inbound = alias_selector(
         bundle,
         visible,
         key=f"bd::in::{case_id}",
-        label="进站侧（到达方向）的候选",
+        label="Inbound-side (arrival direction) candidate",
     )
     outbound = alias_selector(
         bundle,
         visible,
         key=f"bd::out::{case_id}",
-        label="出站侧（发车方向）的候选",
+        label="Outbound-side (departure direction) candidate",
     )
     stop_hypothesis = st.text_input(
-        "边界所在停站的假设（填 stop code，选填）",
+        "Boundary stop hypothesis (stop code; optional)",
         key=f"bd::stop::{case_id}",
     )
     duration = bundle.chunk.duration_s or 0
     columns = st.columns(2)
     low = int(
         columns[0].number_input(
-            "边界区间 —— 最早（chunk 起点后第几秒）",
+            "Boundary interval — earliest (seconds after chunk start)",
             min_value=-86400,
             max_value=2 * 86400,
             value=0,
@@ -448,7 +466,7 @@ def render_boundary_form(
     )
     high = int(
         columns[1].number_input(
-            "边界区间 —— 最晚（chunk 起点后第几秒）",
+            "Boundary interval — latest (seconds after chunk start)",
             min_value=-86400,
             max_value=2 * 86400,
             value=duration,
@@ -456,35 +474,36 @@ def render_boundary_form(
         )
     )
     if high < low:
-        st.error("边界区间的终点早于起点")
+        st.error("Boundary interval ends before it starts")
         return None
     if low < 0 or (duration and high > duration):
         st.warning(
-            "提议的边界落在所显示的 chunk **之外**"
-            f"（0 … {fmt_duration_s(duration)}）；存盘时会附带一条明确的"
-            "越界警告 —— 请先查看相邻上下文"
+            "The proposed boundary falls **outside** the displayed chunk "
+            f"(0 … {fmt_duration_s(duration)}); the save will carry an explicit "
+            "out-of-window warning — check the adjacent context first"
         )
     tz_label = derived_tz_preview((low + high) // 2)
     if tz_label:
         st.caption(
-            f"该边界处推导出的时区为 **{tz_label}** "
-            "（由时间戳推导 —— 审阅人手写的 EDT/EST 文字一律不采信）"
+            f"Derived timezone at this boundary: **{tz_label}** "
+            "(derived from the timestamp — reviewer-typed EDT/EST text is never "
+            "trusted)"
         )
     columns = st.columns(3)
     arrival_role = columns[0].selectbox(
-        "到达侧的角色",
+        "Arrival-side role",
         ["unresolved", "trip_end", "terminal_arrival"],
         format_func=_labeler(ARRIVAL_ROLE_LABELS),
         key=f"bd::ar::{case_id}",
     )
     departure_role = columns[1].selectbox(
-        "出发侧的角色",
+        "Departure-side role",
         ["unresolved", "trip_start", "terminal_departure"],
         format_func=_labeler(DEPARTURE_ROLE_LABELS),
         key=f"bd::dr::{case_id}",
     )
     dual_role = columns[2].checkbox(
-        "这条记录需要双重归属",
+        "This record needs dual attribution",
         value=True,
         key=f"bd::dual::{case_id}",
     )
@@ -508,13 +527,14 @@ def render_boundary_form(
 
 def render_fragment_form(bundle: CaseBundleV2, visible: list) -> dict[str, Any] | None:
     case_id = bundle.case_id
-    st.markdown("### 2 · 片段角色与缝合")
+    st.markdown("### 2 · Fragment role and stitching")
     st.caption(
-        "局部的计划班次上下文**不等于**执行班次身份：指出这个片段落在哪个"
-        "班次的时刻表范围内，并不表示这个片段就是那一整趟车。"
+        "Local scheduled-trip context is **not** executed-trip identity: pointing "
+        "out which scheduled trip's timetable window this fragment falls within "
+        "does not mean the fragment is that complete trip."
     )
     role = st.radio(
-        "片段角色",
+        "Fragment role",
         FRAGMENT_ROLE_OPTIONS,
         index=None,
         format_func=_labeler(FRAGMENT_ROLE_LABELS),
@@ -524,14 +544,14 @@ def render_fragment_form(bundle: CaseBundleV2, visible: list) -> dict[str, Any] 
         return None
     columns = st.columns(2)
     stitch_previous = columns[0].selectbox(
-        "应与前一个对象缝合吗？",
+        "Stitch to the previous object?",
         TRISTATE_OPTIONS,
         index=3,
         format_func=_labeler(TRISTATE_LABELS),
         key=f"fr::sp::{case_id}",
     )
     stitch_next = columns[1].selectbox(
-        "应与后一个对象缝合吗？",
+        "Stitch to the next object?",
         TRISTATE_OPTIONS,
         index=3,
         format_func=_labeler(TRISTATE_LABELS),
@@ -541,20 +561,23 @@ def render_fragment_form(bundle: CaseBundleV2, visible: list) -> dict[str, Any] 
         bundle,
         visible,
         key=f"fr::local::{case_id}",
-        label="局部计划**上下文**候选（选填；这不是一个班次匹配）",
+        label=(
+            "Local scheduled **context** candidate (optional; this is not a trip match)"
+        ),
     )
     complete_trip = st.selectbox(
-        "在当前粒度下，对「完整执行班次」的判断",
+        "Judgment on 'complete executed trip' at the current grain",
         ["not_applicable", "insufficient_evidence", "ambiguous_candidates"],
         format_func=_labeler(COMPLETE_TRIP_LABELS),
         key=f"fr::ct::{case_id}",
         help=(
-            "片段在这里不能被提升为一个完整班次的匹配；如果你确信它其实就是"
-            "一整趟车，请回到上面去修改案例粒度。"
+            "A fragment cannot be promoted to a complete-trip match here; if you "
+            "are confident it is actually a complete trip, go back up and change "
+            "the case grain."
         ),
     )
     fragment_confidence = st.select_slider(
-        "片段角色置信度",
+        "Fragment role confidence",
         options=[1, 2, 3, 4, 5],
         value=3,
         key=f"fr::fc::{case_id}",
@@ -576,28 +599,30 @@ def render_fragment_form(bundle: CaseBundleV2, visible: list) -> dict[str, Any] 
 
 def render_quality_form(bundle: CaseBundleV2) -> dict[str, Any] | None:
     case_id = bundle.case_id
-    st.markdown("### 2 · 源数据 / 时间质量判断")
+    st.markdown("### 2 · Source data / time quality judgment")
     st.caption(
-        "当轨迹表征本身无效时，不会要求你做计划班次选择 —— 质量问题不是候选之间的歧义。"
+        "When the trajectory representation itself is invalid, you are not asked "
+        "to choose a scheduled trip — a quality problem is not ambiguity between "
+        "candidates."
     )
     flags = st.multiselect(
-        "质量标记（所有适用项）",
+        "Quality flags (all that apply)",
         QUALITY_FLAG_OPTIONS,
         format_func=_labeler(QUALITY_FLAG_LABELS),
-        placeholder="选择所有适用的质量标记",
+        placeholder="Select all applicable quality flags",
         key=f"q::flags::{case_id}",
     )
     if not flags:
-        st.info("请至少选择一个质量标记")
+        st.info("Select at least one quality flag")
         return None
     dominant = st.selectbox(
-        "占主导的质量状态",
+        "Dominant quality state",
         flags,
         format_func=_labeler(QUALITY_FLAG_LABELS),
         key=f"q::state::{case_id}",
     )
     applicable = st.checkbox(
-        "尽管存在上述问题，计划班次判断仍然适用",
+        "A scheduled-trip judgment still applies despite the problems above",
         value=False,
         key=f"q::app::{case_id}",
     )
@@ -613,14 +638,14 @@ def render_quality_form(bundle: CaseBundleV2) -> dict[str, Any] | None:
 
 def render_activity_form(bundle: CaseBundleV2) -> dict[str, Any] | None:
     case_id = bundle.case_id
-    st.markdown("### 2 · 活动状态判断")
+    st.markdown("### 2 · Activity state judgment")
     st.caption(
-        "长时间停留并不自动等于站务停歇、回场/出场或空驶 —— 这些语义尚未"
-        "确定（未决事项 D-11）；带 *_unconfirmed 的状态用于记录这个假设，"
-        "但不声称它成立。"
+        "A long dwell does not automatically mean a layover, pull-in/pull-out, or "
+        "deadhead — these semantics are not yet settled (open decision D-11); "
+        "the *_unconfirmed states record the hypothesis without claiming it holds."
     )
     activity = st.radio(
-        "活动状态",
+        "Activity state",
         ACTIVITY_OPTIONS,
         index=None,
         format_func=_labeler(ACTIVITY_LABELS),
@@ -629,12 +654,12 @@ def render_activity_form(bundle: CaseBundleV2) -> dict[str, Any] | None:
     if activity is None:
         return None
     applicable = st.checkbox(
-        "对这个对象而言，计划班次判断是适用的",
+        "A scheduled-trip judgment applies to this object",
         value=False,
         key=f"act::app::{case_id}",
     )
     no_match_confidence = st.select_slider(
-        "「无计划班次匹配」的置信度",
+        "Confidence in 'no scheduled-trip match'",
         options=[1, 2, 3, 4, 5],
         value=3,
         key=f"act::nm::{case_id}",

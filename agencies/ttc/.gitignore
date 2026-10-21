@@ -17,3 +17,6 @@ __pycache__/
 
 # Local editor and operating-system files.
 .DS_Store
+
+# Experiment 05 run outputs: large, regenerable, never committed.
+outputs/

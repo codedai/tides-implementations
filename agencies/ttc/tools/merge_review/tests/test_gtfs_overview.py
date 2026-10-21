@@ -185,7 +185,7 @@ def test_legacy_global_is_preserved_and_partial_fails_explicitly():
     del artifact["matching_modes"]
     assert mode_entry(artifact)["result"] is artifact["result"]
     assert mode_entry(artifact)["selection"]["status"] == "LEGACY_GLOBAL"
-    with pytest.raises(ValueError, match="历史版本"):
+    with pytest.raises(ValueError, match="historical version"):
         mode_entry(artifact, "early")
 
 

@@ -412,18 +412,18 @@ To make the intended methodology fully reproducible while preserving its basic d
 
 | File | Relevance |
 |---|---|
-| [`data/data_preprocess.py`](../data/data_preprocess.py) | Active shape densification, AVL filtering/snapping, and AVL–APC as-of join |
-| [`utils/interpolate.py`](../utils/interpolate.py) | Geodesic distances, route densification, KD-tree snap, optional AVL temporal interpolation |
-| [`utils/read_gtfs.py`](../utils/read_gtfs.py) | Generic GTFS ingestion, schedule-time correction, stop and shape reference builders |
-| [`utils/read_avl_and_apc.py`](../utils/read_avl_and_apc.py) | Generic raw AVL/APC ingestion and service-day logic |
-| [`main.py`](../main.py) | Incomplete generic driver; does not perform the final integration |
-| [`plot_motion.py`](../plot_motion.py) | Visual consumers of `dis`, `pc`, vehicle, and time fields |
-| [`datainterpolate.ipynb`](../datainterpolate.ipynb) | Primary exploratory driver of the active workflow |
+| `data/data_preprocess.py` | Active shape densification, AVL filtering/snapping, and AVL–APC as-of join |
+| `utils/interpolate.py` | Geodesic distances, route densification, KD-tree snap, optional AVL temporal interpolation |
+| `utils/read_gtfs.py` | Generic GTFS ingestion, schedule-time correction, stop and shape reference builders |
+| `utils/read_avl_and_apc.py` | Generic raw AVL/APC ingestion and service-day logic |
+| `../main.py` | Incomplete generic driver; does not perform the final integration |
+| `../plot_motion.py` | Visual consumers of `dis`, `pc`, vehicle, and time fields |
+| `../datainterpolate.ipynb` | Primary exploratory driver of the active workflow |
 | [`datainterpolate copy.ipynb`](<../datainterpolate copy.ipynb>) | Shorter duplicate visualization workflow |
-| [`data/README.md`](../data/README.md) | Data catalog and a concise as-of join example; some schema semantics differ from artifacts |
-| [`intro.md`](../intro.md) | Intended/narrative methodology; includes steps not backed by executable source |
-| [`image.png`](../image.png) | Intended workflow diagram |
-| [`utils/align.py`](../utils/align.py) | Empty placeholder |
+| `data/README.md` | Data catalog and a concise as-of join example; some schema semantics differ from artifacts |
+| `../intro.md` | Intended/narrative methodology; includes steps not backed by executable source |
+| `../image.png` | Intended workflow diagram |
+| `utils/align.py` | Empty placeholder |
 
 ## 14. Compact pseudocode for the active integration
 

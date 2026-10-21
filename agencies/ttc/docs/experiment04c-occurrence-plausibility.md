@@ -1,108 +1,108 @@
-# 实验 04c：分离运营延误、班次混淆与检索
+# Experiment 04c: Separating Operational Delay, Occurrence Confusion, and Retrieval
 
-本实验直接基于 **04**，不是 04b。实验范围仍为 2023-11-06、route 29；
-原始观测、方向/30 分钟空档分割、canonical references、100 米投影门控和四种决策
-切片沿用 04 已固定的输入。原有 03d、04、04b 结果不覆盖。
+This experiment builds directly on **04**, not 04b. The scope remains 2023-11-06, route 29;
+the raw observations, direction / 30-minute gap segmentation, canonical references, 100-meter projection gate, and the four decision
+slices reuse the inputs already fixed by 04. The existing 03d, 04, and 04b results are not overwritten.
 
-## 三个不同的问题
+## Three distinct questions
 
-1. **运营延误先验**：这种提前/晚点在运营上有多合理？使用物理秒尺度的非对称
-   routine/disruption 混合分布。所有竞争候选共用从观测得到的时间段、线路和方向
-   上下文；不再用每个候选自身的 headway 缩放先验。没有独立历史时，参数明确标为
-   工程假设，不是校准后的运营概率。
-2. **局部班次位移**：为解释观测，需要跨过多少个可混淆班次？在当前观测 s 范围内，
-   按几何和有序停站兼容性构建共同候选类；记录前后计划通过间隔、其来源和可信度。
-   单独计算跨过的竞争通过时刻数，以及超出相邻通过时刻中点所界定时间单元的距离。
-   精确 pattern ID 不同本身不应产生有利的延误分母。
-3. **高召回检索**：哪些候选值得计算？核心集合保留最近通过班次和直接前后邻居，
-   rescue 保留额外相邻班次以及有延误尾部/车辆序列证据支持的假设。进入 rescue
-   并不豁免前两项代价，也不代表与核心候选同等的先验概率。
+1. **Operational delay prior**: how operationally plausible is this amount of early/late running? Uses an asymmetric
+   routine/disruption mixture distribution on a physical seconds scale. All competing candidates share the time-of-day, route, and direction
+   context derived from the observations; the prior is no longer scaled by each candidate's own headway. Without independent history, the parameters are explicitly marked as
+   engineering assumptions, not calibrated operational probabilities.
+2. **Local occurrence displacement**: how many confusable occurrences must be crossed to explain the observations? Within the currently observed s range,
+   a common candidate class is built from geometric and ordered-stop compatibility; the preceding and following scheduled passage gaps, their source, and their confidence are recorded.
+   The number of competing passage times crossed, and the distance outside the time cell bounded by the midpoints between adjacent passage times, are computed separately.
+   A different exact pattern ID should not by itself produce a favorable delay denominator.
+3. **High-recall retrieval**: which candidates are worth computing? The core set retains the nearest passing occurrence and its immediate preceding and following neighbors; the
+   rescue set retains additional adjacent occurrences and hypotheses supported by delay-tail / vehicle-sequence evidence. Entering the rescue set
+   does not exempt a candidate from the first two costs and does not imply the same prior probability as core candidates.
 
-缺少局部邻居时使用层级统计回退，并暴露 `headway_source`、
-`headway_confidence`、`previous_headway_s`、`next_headway_s`。
-不能仅因狭窄 exact-pattern 分组内没有相邻班次而替换成 3,600 秒。
-跨 reference 的原始 s 坐标不能直接相减，必须先验证几何/进度映射。
+When local neighbors are missing, a hierarchical statistical fallback is used, and `headway_source`,
+`headway_confidence`, `previous_headway_s`, and `next_headway_s` are exposed.
+A value must not be replaced with 3,600 seconds merely because a narrow exact-pattern group has no adjacent occurrence.
+Raw s coordinates across references cannot be subtracted directly; the geometric/progress mapping must be validated first.
 
-局部集合以**观测**到的有序停站约束为共同条件，不以每个候选自身的完整 stop
-pattern 建立私有邻域。可靠 APC 必须同时落在当前 AVL 的时空覆盖内才能作为
-硬子序列约束；覆盖外或低可信度 APC 仍保留为 APC 证据，不因此丢弃。
-没有实际停站证据区分的计划停站顺序冲突，应作为未消除的模式歧义报告。
-active feed pool 中的前一 service day 跨午夜尾班按原始绝对时间参与竞争；
-若调用者显式指定 service_date，则检索和整趟评估使用同一个限定集合。
+The local set is conditioned on the **observed** ordered-stop constraints shared by all candidates, rather than building a private neighborhood from each candidate's own complete stop
+pattern. Reliable APC can act as a hard subsequence constraint only when it also falls within the current AVL's space-time coverage;
+APC outside the coverage or with low confidence is still retained as APC evidence and is not discarded for that reason.
+Scheduled stop-order conflicts that cannot be distinguished by actual stop evidence should be reported as unresolved pattern ambiguity.
+Post-midnight trailing trips of the previous service day in the active feed pool compete at their original absolute times;
+if the caller explicitly specifies service_date, retrieval and whole-trip evaluation use the same restricted set.
 
-## 评分和身份保护
+## Scoring and identity guard
 
-`continuous_occurrence_model_enabled` 是新特性的开关，默认关闭，以保留旧实验语义。
-04c 显式开启；保持 04 的外层绝对延误权重 **1.0**、动态权重 **0.5**，
-另报告独立的 `occurrence_displacement_cost`（默认权重 1.0）。
-旧七项成本仍逐项保存，新模型共八项，原始成本 × 权重 = 加权贡献。
-未校准时不为了产生 MATCHED 而放宽质量门槛。
+`continuous_occurrence_model_enabled` is the switch for the new features and is off by default to preserve the semantics of earlier experiments.
+04c turns it on explicitly; it keeps 04's outer absolute delay weight of **1.0** and dynamics weight of **0.5**,
+and additionally reports an independent `occurrence_displacement_cost` (default weight 1.0).
+The old seven costs are still stored item by item; the new model has eight in total, with raw cost × weight = weighted contribution.
+Quality gates are not relaxed to produce MATCHED while uncalibrated.
 
-新运营先验的默认 routine 提前/晚点尺度为 120 / 300 秒，disruption 为
-600 / 1,800 秒，disruption 混合权重为 0.05，分量为非对称双侧 Student-t3。
-绝对延误成本为相对于分布众数的负对数密度差；这些是可配置的未校准假设，
-不是从本日匹配结果反推的历史规律。局部位移成本为
-`crossing_weight × crossed_occurrences + cell_weight × outside_cell_s / common_local_headway_s`；
-两个内部权重默认均为 1。缺少可信的班次位置证据不会被当成零成本。
+The new operational prior's default routine early/late scales are 120 / 300 seconds, disruption scales
+600 / 1,800 seconds, with a disruption mixture weight of 0.05; the components are asymmetric two-sided Student-t3.
+The absolute delay cost is the negative log-density difference relative to the distribution mode; these are configurable uncalibrated assumptions,
+not historical regularities inferred from this day's matching results. The local displacement cost is
+`crossing_weight × crossed_occurrences + cell_weight × outside_cell_s / common_local_headway_s`;
+both internal weights default to 1. Missing credible occurrence-position evidence is not treated as zero cost.
 
-延误状态的默认 atomic 时长为 60 秒、最小事件间隔为 15 秒；超过 90 秒的
-观测空档断开状态连接。投影距离、GTFS 端点 timepoint 属性及插值、停站、终点
-和观测间隔进入时间不确定性，动态成本不按 GPS ping 数累计。
+The delay state's default atomic duration is 60 seconds and the minimum event interval is 15 seconds; observation gaps longer than 90 seconds
+break the state link. Projection distance, GTFS endpoint timepoint attributes and interpolation, dwells, terminals,
+and observation intervals enter the temporal uncertainty, and the dynamics cost is not accumulated per GPS ping.
 
-共享延误仍对每个 performed-fragment/candidate 一次拟合，局部窗口不能自行平移。
-新动态项在不重叠的物理时间状态上计算，并纳入投影、计划插值、停站/终点和
-观测缺口的不确定性；保留逐观测回写结果和 fragment 分隔。
-APC 无真实坐标时仍仅为停站时间区间证据，AvgOTP 等上游计划派生字段不进入评分。
+The shared delay is still fitted once per performed-fragment/candidate pair, and local windows cannot shift on their own.
+The new dynamics term is computed over non-overlapping physical-time states and incorporates the uncertainty of projection, schedule interpolation, dwells/terminals, and
+observation gaps; per-observation write-back results and fragment separation are retained.
+APC without real coordinates remains stop-time interval evidence only, and upstream schedule-derived fields such as AvgOTP do not enter the scoring.
 
-跨过至少一个局部可混淆班次的候选，不能仅因平移后拟合好获得 MATCHED。
-身份保护要求明确、可验证且没有进入延误拟合的独立班次证据；普通 APC 时间拟合、
-终点接近或未验证的车辆序列软分数不能自动豁免。诊断候选仍可展示，不能伪装为
-最终已确认班次。保护诊断和位移统计与候选分项一起保存。
+A candidate that crosses at least one locally confusable occurrence cannot obtain MATCHED merely because it fits well after a shift.
+The identity guard requires explicit, verifiable, independent occurrence evidence that did not enter the delay fit; ordinary APC time fit,
+terminal proximity, or unverified vehicle-sequence soft scores cannot grant an automatic exemption. Diagnostic candidates can still be displayed but cannot be presented as
+final confirmed occurrences. The guard diagnostics and displacement statistics are stored together with the candidate components.
 
-## 运行与复核
+## Running and verification
 
-从 `agencies/ttc` 对指定 **04** 结果重新匹配，复用已校验投影，重算四种模式：
+From `agencies/ttc`, rematch the specified **04** results, reusing the validated projections, and recompute the four modes:
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   -m tools.merge_review.gtfs_matching.multimode \
   --source run-20231106-20260910T030622-57e42718b0c1 \
   --occurrence-model --workers 8 \
-  --label '实验 04c · 运营延误先验与局部班次位移'
+  --label 'Experiment 04c · operational delay prior and local occurrence displacement'
 ```
 
-输出为新的 append-only run，包含配置、输入/代码哈希、逐点延误、候选分项、
-检索来源、四模式全天总览和 shadow reports。所有阈值与权重来自
-`continuous/config.py::defaults()` 及其加载模块，完整写入运行配置。
-冻结包可以保存独立 04c profile；已有旧冻结包不修改。
+The output is a new append-only run containing the configuration, input/code hashes, per-point delay, candidate components,
+retrieval provenance, four-mode day overviews, and shadow reports. All thresholds and weights come from
+`continuous/config.py::defaults()` and the modules it loads, and are written in full to the run configuration.
+The frozen release can store an independent 04c profile; existing older frozen releases are not modified.
 
-### 本次已完成的重算
+### Completed recomputation
 
-- 输入 04：`run-20231106-20260910T030622-57e42718b0c1`。
-- 输出 04c：`run-20231106-20260910T063603-e4bf6bc60823`。
-- 306 个片段 × global / early / middle / late，8 workers，批处理耗时
-  605.634 秒。该时间是复用 04 投影后的匹配重算，不是从原始 CSV 开始的耗时。
-- 完成记录及 421 个输出 SHA-256 pins 已通过工作台加载检查。
-- 本次评分代码保存在
-  `releases/workbench-04c-20260910T065019-6915fbec`。
-  此后仅修复离线评价对旧版本 `occurrence_displacement: null` 的兼容性，
-  并将本文加入冻结包；这些改动没有重写或重算本次候选分数。
-  最终启动版本由 `config/workbench-release.json` 指定，旧快照保留。
+- Input 04: `run-20231106-20260910T030622-57e42718b0c1`.
+- Output 04c: `run-20231106-20260910T063603-e4bf6bc60823`.
+- 306 segments × global / early / middle / late, 8 workers, batch processing took
+  605.634 seconds. This time is the matching recomputation after reusing the 04 projections, not the time from the raw CSVs.
+- The completion record and the 421 output SHA-256 pins passed the workbench load check.
+- The scoring code for this run is stored in
+  `releases/workbench-04c-20260910T065019-6915fbec`.
+  Since then, the only changes were a compatibility fix in the offline evaluation for older versions' `occurrence_displacement: null`
+  and adding this document to the frozen release; these changes did not rewrite or recompute this run's candidate scores.
+  The final startup version is specified by `config/workbench-release.json`, and the old snapshots are retained.
 
-逐模式 shadow 报告在输出 run 的 `shadow/` 下；进一步独立检查和浏览器验收
-报告在 `artifacts/merge-debug-20231106/experiment04c-validation/` 下。
-正式 scheduled-occurrence 结果没有被强制升级为 MATCHED：缺少校准时仍保留
-PATTERN_ONLY 等状态，工作台展示明确标注的诊断候选供人工复核。
+Per-mode shadow reports are under `shadow/` in the output run; further independent checks and the browser acceptance
+report are under `artifacts/merge-debug-20231106/experiment04c-validation/`.
+Formal scheduled-occurrence results were not force-promoted to MATCHED: without calibration, statuses such as
+PATTERN_ONLY are retained, and the workbench shows explicitly labelled diagnostic candidates for human review.
 
-## 校准限制
+## Calibration limits
 
-当前工作区没有满足本次要求的独立 trip 标签。旧 labeling UI 中的少量选择没有
-独立性、验证和 episode/split 绑定，不能自动转成 ground truth。
-单一 route/day 也不能支持跨 route **且**跨 service day 的留出验证。
+The current workspace has no independent trip labels that meet this experiment's requirements. The small number of selections in the old labeling UI lack
+independence, verification, and episode/split binding, and cannot be converted automatically into ground truth.
+A single route/day also cannot support held-out validation across routes **and** across service days.
 
-评价流程要求 route、service_date 和 operating episode 在 train / validation /
-test 之间分别不重叠；训练运营先验、选择超参数与最终测试不得共用运行片段。
-按 headway regime 分别报告 exact-trip accuracy、adjacent-occurrence confusion、
-retrieval recall、top-3 coverage、non-abstained precision、abstention rate 和 ECE。
-没有独立标签的指标为 null；无标签的排名变化、候选数和运行时间仅是描述性结果，
-不能宣称算法准确率提高。概率仍保持未校准，不强迫输出 top-1。
+The evaluation procedure requires route, service_date, and operating episode to be disjoint across train / validation /
+test; training the operational prior, selecting hyperparameters, and the final test must not share run fragments.
+Exact-trip accuracy, adjacent-occurrence confusion, retrieval recall, top-3 coverage, non-abstained precision, abstention rate, and ECE are reported
+separately by headway regime.
+Metrics without independent labels are null; unlabeled ranking changes, candidate counts, and runtime are descriptive results only
+and cannot be claimed as improved algorithm accuracy. Probabilities remain uncalibrated, and a top-1 output is not forced.

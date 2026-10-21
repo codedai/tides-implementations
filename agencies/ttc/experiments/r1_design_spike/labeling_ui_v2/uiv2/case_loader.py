@@ -218,7 +218,9 @@ def _resolve_vehicle(
     vehicle = _vehicle_from_avl_window(store, chunk)
     if vehicle is not None:
         return vehicle, "avl-window"
-    availability["vehicle"] = "无法从 anchor 证据或 AVL 窗口中还原出车辆"
+    availability["vehicle"] = (
+        "Could not recover the vehicle from the anchor evidence or the AVL window"
+    )
     return None, "unavailable"
 
 
@@ -367,7 +369,9 @@ def build_bundle(
         if neighbor is not None:
             _attach_pings(store, neighbor, vehicle_id)
     if chunk.pings is None:
-        availability.setdefault("pings", "该 chunk 窗口没有还原出任何 AVL ping")
+        availability.setdefault(
+            "pings", "No AVL pings were recovered for this chunk window"
+        )
     apc_events = _attach_apc(store, chunk, vehicle_id)
     route_labels: list[str] = []
     if chunk.pings is not None and "route_label" in chunk.pings.columns:

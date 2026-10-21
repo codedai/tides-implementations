@@ -24,12 +24,12 @@ from .scoring import fragments
 from .windows import observation_key, usable
 
 MATCHING_MODES = ("global", "early", "middle", "late")
-MODE_LABELS = {"global": "全局", "early": "前期", "middle": "中期", "late": "后期"}
+MODE_LABELS = {"global": "Global", "early": "Early", "middle": "Middle", "late": "Late"}
 
 
 def validate_matching_mode(mode):
     if not isinstance(mode, str) or mode not in MATCHING_MODES:
-        raise ValueError("matching_mode 必须是 global、early、middle 或 late")
+        raise ValueError("matching_mode must be global, early, middle, or late")
     return mode
 
 
@@ -40,11 +40,14 @@ def mode_entry(artifact, matching_mode="global"):
     if matching_mode in modes:
         entry = modes[matching_mode]
         if not isinstance(entry, dict) or not isinstance(entry.get("result"), dict):
-            raise ValueError("已保存的匹配模式结果格式不完整")
+            raise ValueError(
+                "The saved matching-mode results have an incomplete format"
+            )
         return entry
     if matching_mode != "global":
         raise ValueError(
-            f"此历史版本没有计算 {matching_mode} 匹配模式；请选择四模式版本"
+            f"This historical version did not compute the {matching_mode} "
+            "matching mode; select a four-mode version"
         )
     return {
         "result": artifact["result"],
@@ -367,7 +370,9 @@ def build_day_overview(
         ),
         "trip_identity_confirmed": False,
         "warning": (
-            "全天总览仅展示一个候选；通过门槛不等于唯一或已确认的班次。"
-            "虚线 fallback 未过门槛。不同 reference 分面显示，APC 仅为站点时间区间。"
+            "The day overview shows only one candidate. Passing the gates does not "
+            "mean a unique or confirmed trip. Dashed fallback candidates are below "
+            "threshold. Different references are shown in separate facets; APC is "
+            "represented only by stop-time intervals."
         ),
     }

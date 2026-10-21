@@ -122,8 +122,11 @@ UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   -m tools.merge_review.gtfs_matching.multimode \
   --source run-20231106-20260909T170835-6cb6e4feb48a --workers 8 \
   --score-delay-prior-weight 1.0 \
-  --label '实验 03d · Route 29 · 加强时间偏移惩罚（权重 1.0）'
+  --label 'Experiment 03d · Route 29 · Stronger time-shift penalty (weight 1.0)'
 ```
+
+The persisted 03d run (`run-20231106-20260909T183705-d67ffa30723d`) recorded
+its label in Chinese at run time; the English label above is its translation.
 
 The workbench switches persisted modes with no matching recomputation or review
 write. `/api/case`, `/api/catalog` and `/api/day-overview` accept the validated

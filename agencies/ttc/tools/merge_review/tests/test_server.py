@@ -71,7 +71,7 @@ def review(**kwargs):
         "vehicle": "vehicle",
         "case_id": "case",
         "verdict": "uncertain",
-        "notes": "源记录粒度待确认",
+        "notes": "Source record granularity to be confirmed",
         "revision": 0,
         **kwargs,
     }
@@ -94,7 +94,7 @@ def test_notes_are_independent_persisted_and_exported_with_audit(site):
     detail = request(site, "/api/case?method=avl_context&vehicle=vehicle&case_id=case")[
         1
     ]
-    assert detail["review"]["notes"] == "源记录粒度待确认"
+    assert detail["review"]["notes"] == "Source record granularity to be confirmed"
     exported = request(site, "/api/reviews/export")
     assert exported[0] == 200
     assert exported[1]["ground_truth"] is False
@@ -135,13 +135,11 @@ def test_unknown_paths_cannot_read_source_files(site):
 @pytest.mark.parametrize(
     "name,mime",
     [
-        ("i18n.js", "text/javascript"),
-        ("i18n-static.js", "text/javascript"),
-        ("i18n-dynamic.js", "text/javascript"),
-        ("i18n.css", "text/css"),
+        ("app.js", "text/javascript"),
+        ("styles.css", "text/css"),
     ],
 )
-def test_language_assets_are_local_read_only_allowlisted_files(site, name, mime):
+def test_static_assets_are_local_read_only_allowlisted_files(site, name, mime):
     status, body, headers = request(site, "/" + name)
     assert status == 200 and body
     assert headers["Content-Type"].startswith(mime)
@@ -208,5 +206,5 @@ def test_unknown_numbers_remain_null_not_zero():
 
 
 def test_non_loopback_listener_forbidden(tmp_path):
-    with pytest.raises(ValueError, match="回环"):
+    with pytest.raises(ValueError, match="loopback"):
         ReviewServer(("0.0.0.0", 0), FakeData(), ReviewStore(tmp_path, "fixture"))

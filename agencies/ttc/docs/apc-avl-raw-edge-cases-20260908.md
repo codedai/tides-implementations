@@ -1,146 +1,146 @@
-# APC–AVL 原始数据边界情况审计（2026-09-08）
+# APC–AVL raw-data edge-case audit (2026-09-08)
 
-本次重新读取两份原始 CSV，覆盖 AVL **6,202,996 行**、APC **573,596 行**，未使用 GTFS，也未修改原始数据或已有人工标签。结果表明，覆盖范围不一致确实存在；重复导出、夏令时重复小时、终点交接、APC 记录粒度和提取窗口截断，都会影响对这种不一致的解释。
+This audit re-read both raw CSV files, covering **6,202,996 AVL rows** and **573,596 APC rows**, without using GTFS and without modifying the raw data or existing human labels. The results show that coverage inconsistency does exist; duplicate exports, the repeated DST hour, terminal handovers, APC record grain and extraction-window truncation all affect how that inconsistency should be interpreted.
 
-这是已实现检查的完整清单，不意味着已经穷尽所有可能的异常，也不能据此判定某一种趟次分割或融合架构胜出。这里的阈值用于发现和分层检查样本，尚未校准为可直接接受关联的标准。
+This is the complete inventory of implemented checks; it does not mean every possible anomaly has been exhausted, nor can it be used to declare any particular trip segmentation or merge architecture the winner. The thresholds here are used to discover and stratify inspection samples; they have not been calibrated as criteria for directly accepting associations.
 
-## 证据与计数口径
+## Evidence and counting conventions
 
-- 可复现入口：[raw_audit.py](../experiments/apc_avl_coverage_study/raw_audit.py)。本次完整运行成功；五个合成测试覆盖 DST 分类、无损保留、嵌套区间重叠、重复与碰撞的区别、两源首尾不一致。代码检查通过。
-- 本地受限证据：[inventory.json](../artifacts/apc-avl-coverage-study-20260908/raw_audit/inventory.json)，记录文件 SHA-256、原始列名、解析类型、统计和最多五条示例。它是 git 忽略的本地制品，不随本报告发布。
-- [avl.parquet](../artifacts/apc-avl-coverage-study-20260908/raw_audit/avl.parquet) 和 [apc.parquet](../artifacts/apc-avl-coverage-study-20260908/raw_audit/apc.parquet) 保留每一行；原始文件哈希和行号构成稳定行标识。没有去重、求和、舍入、补造记录或选择 DST fold。制品目录权限为 `0700`，文件为 `0600`。
-- 表中“行”默认分别以全部 AVL 行或全部 APC 行为分母。条件检查统计满足所列条件的行数；多个条件可以覆盖同一行，不能相加得到异常总行数。
-- AVL 按车辆和本地时间排序后的相邻对共 **6,202,840** 对，其中正时间间隔 **5,131,261** 对；重复时间没有被自动合并。APC 相邻对按车辆、到达、离开、源行号排序，分母 **573,448** 对。间隔包含跨日、跨工作时段和缺失记录的情况，不能直接解释为行车时间。
-- “车辆×自然日”使用 AVL 消息日期、APC 到达日期分组；跨午夜 APC 的离开时间仍可延伸到次日。这是观测诊断分区，**不是服务日、实际趟次或连续覆盖区间**。
-- 所有时刻保持未附时区的本地墙上时间；仅按 `America/Toronto` 标出歧义小时和不存在小时。两源时钟同步、固定偏移和漂移均未得到验证。
+- Reproducible entry point: [raw_audit.py](../experiments/apc_avl_coverage_study/raw_audit.py). The full run completed successfully; five synthetic tests cover DST classification, lossless retention, nested interval overlap, the distinction between duplicates and collisions, and first/last inconsistency between the two sources. Code checks passed.
+- Local access-restricted evidence: [inventory.json](../artifacts/apc-avl-coverage-study-20260908/raw_audit/inventory.json), recording file SHA-256 digests, raw column names, parsed types, statistics and at most five examples per check. It is a gitignored local artifact and is not published with this report.
+- [avl.parquet](../artifacts/apc-avl-coverage-study-20260908/raw_audit/avl.parquet) and [apc.parquet](../artifacts/apc-avl-coverage-study-20260908/raw_audit/apc.parquet) retain every row; the raw file hash and row number form a stable row identity. There is no deduplication, summation, rounding, fabricated records or DST fold selection. Artifact directory permissions are `0700` and files are `0600`.
+- "Rows" in the tables use all AVL rows or all APC rows, respectively, as the default denominator. Conditional checks count rows meeting the listed condition; multiple conditions can cover the same row, so they cannot be summed into a total anomaly row count.
+- AVL adjacent pairs after sorting by vehicle and local time total **6,202,840**, of which **5,131,261** have a positive time gap; repeated timestamps were not automatically merged. APC adjacent pairs are sorted by vehicle, arrival, departure and source row number, with a denominator of **573,448** pairs. Gaps include cross-day, cross-shift and missing-record cases and cannot be directly interpreted as travel time.
+- "Vehicle × calendar day" groups by AVL message date and APC arrival date; the departure time of a cross-midnight APC row can still extend into the next day. This is an observational diagnostic partition, **not a service date, an actual trip or a continuous coverage interval**.
+- All timestamps remain timezone-naive local wall-clock time; only the ambiguous and nonexistent hours are flagged according to `America/Toronto`. Clock synchronization, fixed offset and drift between the two sources have not been verified.
 
-## 格式、缺失、重复及身份
+## Format, missing values, duplicates and identity
 
-| 检查 | 本次结果 | 状态与解释 |
+| Check | Result | Status and interpretation |
 |---|---:|---|
-| 原始列数 | AVL 13；APC 23（含导出索引） | 已记录完整 schema；标识先保留为字符串 |
-| 原始缺失或空白字段 | APC 的一个街道说明字段 21,119 行；其他列 0 | 已观察；非必需文字缺失不同于时空键缺失 |
-| 时间解析失败或缺失 | 两源均 0 | 本样本未观察到 |
-| 数值解析失败、非有限数 | 所检查数值字段均 0 | 本样本未观察到；未对坏值静默填零 |
-| `invalid` 结构性标志 | 两源均 0 | 包含关键身份/时间、全球坐标域等检查；不代表可直接匹配或发布 |
-| 完全相同载荷的重复成员行 | AVL 2,118,605；APC 0 | **包含每个重复组的全部副本**；APC 比较时忽略导出索引 |
-| 完全相同载荷的额外副本行 | AVL 1,071,525；APC 0 | 总行数减去不同载荷数；与上一行不是同一个指标 |
-| 同车、同时间的 AVL 多行组 | 1,047,123 组 | 组数不同于重复行数 |
-| 同车、同时间的 AVL 载荷冲突／位置冲突 | 各 54 组 | 全部落在 DST 歧义小时；歧义小时之外均为 0 |
-| APC 停站键多行组／冲突组 | 各 450 组 | 键为车辆、线路、站码、到达、离开；不同方向或其他字段仍可能不同 |
-| APC 同车、同到达时刻的多站码／多位置组 | 各 1,377 组 | 需要检查站点邻近、终点角色、重复小时；不能直接相加或求和客流 |
-| 车辆集合 | AVL 156；APC 148；共同 147 | AVL 独有 9；APC 独有 1；名称一致尚不证明设备映射长期正确 |
-| 线路标签集合 | AVL 4 类；APC 2 类 | AVL 另两类非数字标签合计 295,801 行；其运营角色需核实 |
-| AVL 原始行序中同车时间回退 | 2,952,022 行 | 导出未按车辆时间排序；不是车辆倒行证据 |
-| 源 `tatripId` 值数 | 3,133 个 | 不能直接当作实际趟次主键 |
-| 源 `tatripId` 跨车辆／自然日／线路复用 | 2,410／2,420／469 个值 | 三项分别以 3,133 个不同值为分母，集合可以重叠 |
-| `Date_Key` 解析及与消息日期关系 | 解析失败 0；全部等于消息自然日 | 本样本未发现差异；这不能证明它代表运营服务日 |
+| Raw column count | AVL 13; APC 23 (including the export index) | Full schema recorded; identifiers initially retained as strings |
+| Raw missing or blank fields | One APC street-description field, 21,119 rows; all other columns 0 | Observed; missing optional text differs from missing spatiotemporal keys |
+| Timestamp parse failures or missing | 0 in both sources | Not observed in this sample |
+| Numeric parse failures, non-finite values | 0 in all checked numeric fields | Not observed in this sample; bad values were not silently zero-filled |
+| `invalid` structural flag | 0 in both sources | Covers key identity/time, global coordinate domain and similar checks; does not imply direct matchability or publishability |
+| Rows that are members of an identical-payload duplicate group | AVL 2,118,605; APC 0 | **Includes every copy in each duplicate group**; the export index is ignored when comparing APC |
+| Extra identical-payload copy rows | AVL 1,071,525; APC 0 | Total rows minus distinct payloads; not the same metric as the previous row |
+| AVL multi-row groups with the same vehicle and timestamp | 1,047,123 groups | Group count differs from duplicate row count |
+| Same-vehicle, same-timestamp AVL payload conflicts / position conflicts | 54 groups each | All fall within the DST-ambiguous hour; 0 outside the ambiguous hour |
+| APC stop-key multi-row groups / conflict groups | 450 groups each | Key is vehicle, route, stop code, arrival, departure; direction or other fields may still differ |
+| APC same-vehicle, same-arrival-time multi-stop-code / multi-position groups | 1,377 groups each | Requires checking stop proximity, terminal role and the repeated hour; passenger counts cannot be directly added or summed |
+| Vehicle sets | AVL 156; APC 148; shared 147 | AVL-only 9; APC-only 1; matching names do not yet prove the device mapping is correct over time |
+| Route label sets | AVL 4 kinds; APC 2 kinds | The two additional non-numeric AVL labels total 295,801 rows; their operational role needs verification |
+| Same-vehicle time regressions in raw AVL row order | 2,952,022 rows | The export is not sorted by vehicle time; this is not evidence of vehicles moving backwards |
+| Distinct source `tatripId` values | 3,133 | Cannot be used directly as an actual trip primary key |
+| Source `tatripId` reused across vehicles / calendar days / routes | 2,410 / 2,420 / 469 values | Each of the three uses the 3,133 distinct values as denominator; the sets can overlap |
+| `Date_Key` parsing and relation to message date | 0 parse failures; all equal the message calendar day | No differences found in this sample; this does not prove it represents the operational service date |
 
-同一秒中的不同位置本来可能触发“不可能同时出现”的检查，但这里全部处于重复小时：排序后的墙上时间并不唯一对应真实瞬间。应保留歧义，不能直接选择一条位置，或把全部冲突标成坏 GPS。
+Different positions within the same second could in principle trigger a "cannot be in two places at once" check, but here they all fall within the repeated hour: sorted wall-clock time does not map uniquely to a real instant. The ambiguity should be retained; one position must not simply be chosen, nor all conflicts flagged as bad GPS.
 
-## 时间、空间、采样与运营上下文
+## Time, space, sampling and operational context
 
-| 检查 | 本次结果 | 状态与解释 |
+| Check | Result | Status and interpretation |
 |---|---:|---|
-| DST 歧义小时记录 | AVL 3,831；APC 428 行 | APC 任一端落入歧义小时即计入；不选择 fold |
-| DST 不存在小时记录 | 两源均 0 | 本窗口未观察到；不是对其他月份的结论 |
-| AVL 15 分钟内跨午夜相邻对 | 279 对 | 按自然日截断可能切开连续活动 |
-| APC 到达、离开跨自然日 | 76 行 | 跨午夜不能自动判错或强制改日期 |
-| 零坐标／诊断区域外坐标 | AVL 各 431 行；APC 均 0 | 二者本次计数相同；全球合法坐标不等于运营上可用坐标 |
-| AVL 正采样间隔 | 中位数 10 秒；P95 20 秒；P99 24 秒 | 使用全部正间隔相邻对；不同场景仍需单独检查 |
-| AVL 间隔超过 60／90／120 秒 | 1,804／1,705／1,484 对 | 累计阈值，不能相加 |
-| AVL 间隔超过 300／900／1,800／3,600 秒 | 1,341／1,254／1,203／1,184 对 | 包含跨工作时段和跨日；不是全都发生在同一趟次内部 |
-| AVL 短间隔推算速度超过 130 km/h | 初筛 159 对；两端区域内且两端非 DST 歧义后 41 对 | 间隔在 0–120 秒内且大于零；仍是跳点候选，不是真实速度结论 |
-| AVL 上报速度超过 130 km/h、负速度、方向角越界 | 均 0 行 | 上报速度与位置差分速度是不同信号 |
-| AVL 未识别布尔标记 | 两个布尔字段均 0 行 | 本样本未观察到 |
-| AVL 相邻位移小于 3 米且时间递增 | 1,991,947 对 | 包含停车、GPS 量化、重复上报位置等解释 |
-| 坐标完全不变、相邻间隔不超过 90 秒的序列 | 持续至少 5 分钟 11,405 段；至少 15 分钟 1,064 段 | 从全部 3,222,592 个坐标序列中计数；不是已确认终点停站 |
-| AVL 线路／运行编号／目的地／源趟次标签变化 | 3,999／1,171／17,817／16,385 次 | 全部同车相邻对；边界证据需要持续性和其他信息 |
-| 上述变化且相邻间隔不超过 120 秒 | 2,862／27／17,344／15,130 次 | 排除长间隔仍存在大量上下文切换 |
-| 单条 A→B→A 标签跳变，前后间隔均不超过 60 秒 | 线路 595；运行编号 0；目的地 883；源趟次 721 次 | 按原始保留行排序诊断；去重后数量可能变化 |
-| APC 同车上下文变化 | 线路 567；方向 15,214；支线 914 次 | 这些是源标签变化，尚不是经验证的折返点 |
-| APC 正的站间观测间隔 | 中位数 46 秒；P95 195 秒；P99 538 秒 | 分母为 562,405 个正间隔相邻对 |
-| APC 间隔超过 300／900／1,800／3,600 秒 | 13,212／3,015／1,327／1,199 对 | 包含跨日、缺失停站、停车及下一趟次 |
-| APC 短间隔推算速度超过 130 km/h | 64 对 | 前条离开到本条到达间隔 1–300 秒，本条非 DST 歧义；候选需核对 |
-| 同一 APC 站码出现多个坐标／坐标包围范围超过 100 米 | 均 0 个站码 | 本样本坐标一致；不证明站码等同于 GTFS 站点身份 |
+| Records in the DST-ambiguous hour | AVL 3,831; APC 428 rows | An APC row counts if either endpoint falls in the ambiguous hour; no fold is selected |
+| Records in the DST-nonexistent hour | 0 in both sources | Not observed in this window; not a conclusion about other months |
+| AVL cross-midnight adjacent pairs within 15 minutes | 279 pairs | Truncating by calendar day may split continuous activity |
+| APC arrival and departure on different calendar days | 76 rows | Crossing midnight cannot automatically be judged an error or have its date forcibly changed |
+| Zero coordinates / coordinates outside the diagnostic region | AVL 431 rows each; APC 0 for both | The two counts coincide in this sample; globally valid coordinates are not the same as operationally usable coordinates |
+| AVL positive sampling interval | Median 10 s; P95 20 s; P99 24 s | Uses all positive-gap adjacent pairs; different scenarios still need separate checking |
+| AVL gaps over 60 / 90 / 120 s | 1,804 / 1,705 / 1,484 pairs | Cumulative thresholds; cannot be summed |
+| AVL gaps over 300 / 900 / 1,800 / 3,600 s | 1,341 / 1,254 / 1,203 / 1,184 pairs | Includes cross-shift and cross-day cases; not all occur within a single trip |
+| AVL short-gap implied speed over 130 km/h | 159 pairs on initial screen; 41 pairs after requiring both ends in-region and non-DST-ambiguous | Gap within 0–120 s and greater than zero; still jump-point candidates, not a real speed conclusion |
+| AVL reported speed over 130 km/h, negative speed, heading out of range | 0 rows each | Reported speed and position-difference speed are different signals |
+| AVL unrecognized boolean flags | 0 rows in both boolean fields | Not observed in this sample |
+| AVL adjacent displacement under 3 m with increasing time | 1,991,947 pairs | Includes explanations such as stopped vehicles, GPS quantization and repeated reported positions |
+| Runs of identical coordinates with adjacent gaps of at most 90 s | At least 5 min: 11,405 runs; at least 15 min: 1,064 runs | Counted from all 3,222,592 coordinate runs; not confirmed terminal layovers |
+| AVL route / run number / destination / source trip label changes | 3,999 / 1,171 / 17,817 / 16,385 changes | All same-vehicle adjacent pairs; boundary evidence requires persistence and other information |
+| The above changes with an adjacent gap of at most 120 s | 2,862 / 27 / 17,344 / 15,130 changes | Many context switches remain after excluding long gaps |
+| Single-row A→B→A label flips with both adjacent gaps of at most 60 s | Route 595; run number 0; destination 883; source trip 721 | Diagnosed on the sorted raw retained rows; counts may change after deduplication |
+| APC same-vehicle context changes | Route 567; direction 15,214; branch 914 | These are source label changes, not yet verified turnaround points |
+| APC positive inter-stop observation gap | Median 46 s; P95 195 s; P99 538 s | Denominator is 562,405 positive-gap adjacent pairs |
+| APC gaps over 300 / 900 / 1,800 / 3,600 s | 13,212 / 3,015 / 1,327 / 1,199 pairs | Includes cross-day cases, missing stops, layovers and the next trip |
+| APC short-gap implied speed over 130 km/h | 64 pairs | Gap of 1–300 s from the previous departure to this arrival, with this row non-DST-ambiguous; candidates need verification |
+| Same APC stop code with multiple coordinates / coordinate bounding extent over 100 m | 0 stop codes for both | Coordinates are consistent in this sample; this does not prove stop codes equal GTFS stop identity |
 
-源上下文的瞬时切换说明，“标签变了就切一趟”需要被作为可失败的假设测试。长时间静止也不能单独定义终点：上述检查没有区分终点等待、堵车、车场活动、设备冻结和 GPS 位置量化。
+The momentary switching of source context shows that "split a trip whenever a label changes" needs to be tested as a falsifiable hypothesis. A long stationary period also cannot define a terminal on its own: the checks above do not distinguish terminal layover, traffic congestion, garage activity, device freeze and GPS position quantization.
 
-## APC 粒度、载荷与区间关系
+## APC grain, load and interval relationships
 
-| 检查 | 本次结果 | 状态与解释 |
+| Check | Result | Status and interpretation |
 |---|---:|---|
-| `AvgSample` 分布 | 1：528,370 行；2：45,020 行；4：206 行 | 存在显式多样本信号；字段含义尚未核实 |
-| `NoTrips` 分布 | 全部 573,596 行为 1 | 不能独立证明“一行等于一次实际停站” |
-| `grain_uncertain` 显式信号 | 45,226 行 | `AvgSample` 或 `NoTrips` 非 1，或上下车/载荷有小数；未触发也没有获得粒度确认 |
-| 分数上下车数／到站载荷／离站载荷 | 0／23／24 行 | 没有舍入；分数载荷与整数人数的发布语义待确认 |
-| `AvgSample`、`NoTrips` 分数或非正数 | 均 0 行 | 本样本未观察到 |
-| 负上下车数或负载荷 | 各字段均 0 行 | 本样本未观察到 |
-| 上下车数均为零 | 203,391 行 | 零活动不能作为删除停站的理由 |
-| 上下车数及到离站载荷均为零 | 24,808 行 | 缺少 APC 的区间不能据此填成零客流 |
-| 离站载荷−到站载荷−上车数＋下车数的绝对值超过 10⁻⁶ | 5,969 行 | 单行平衡检查；未归因于设备故障或自动修正 |
-| 同线路、同方向、间隔 0–300 秒，当前到站与上一离站载荷差超过 1 | 23,032 行 | 是条件筛选后的计数；粒度、缺失和边界都可能影响连续性 |
-| 到离站区间反向 | 0 行 | 本样本未观察到 |
-| 到离站区间为零 | 112,898 行 | 不能要求每个 APC 区间都包含正时长 AVL 序列 |
-| 到离站区间超过 5／30 分钟 | 10,530／47 行 | 大区间可能跨终点等待或其他语义，不宜用整个区间接受所有 GPS 点 |
-| 到离站时长与 `AvgDwell` 差超过 1 秒 | 0 行 | 只证明未检出超过容差的差异；不能作为独立证据重复计权 |
-| 与任一更早到达记录的区间重叠 | 10,213 行 | 使用此前离开时间的累计最大值，能够发现嵌套长区间 |
-| 与紧邻前条记录的区间重叠 | 10,039 行 | 仅比前一条会少发现 174 行 |
-| 上述紧邻重叠：同站、不同方向 | 8,043 行 | 与终点交接或同一位置不同运营角色相容；尚未人工确认 |
-| 上述紧邻重叠：不同站、相距不超过 100 米 | 1,984 行 | 邻站/站台/终点编码可能性；不是自动矛盾 |
-| 上述紧邻重叠：不同站、相距超过 100 米 | 10 行 | 更需检查的冲突候选；尚未证明“不可能同时服务” |
-| 上述紧邻重叠：本条有粒度信号／位于 DST 歧义小时 | 672／5 行 | 与距离、方向分类有交集，不能相加 |
-| 15 分钟内连续再次出现同一站码 | 1,332 行 | 可能是同站重复事件、交接、等待或折返，需要区分 |
+| `AvgSample` distribution | 1: 528,370 rows; 2: 45,020 rows; 4: 206 rows | An explicit multi-sample signal exists; the field's meaning has not been verified |
+| `NoTrips` distribution | All 573,596 rows are 1 | Cannot independently prove that "one row equals one actual stop visit" |
+| `grain_uncertain` explicit signal | 45,226 rows | `AvgSample` or `NoTrips` not equal to 1, or fractional boardings/alightings/load; rows not triggering it have not obtained grain confirmation either |
+| Fractional boardings-alightings / arrival load / departure load | 0 / 23 / 24 rows | No rounding; the publication semantics of fractional loads versus integer passenger counts remain to be confirmed |
+| Fractional or non-positive `AvgSample`, `NoTrips` | 0 rows each | Not observed in this sample |
+| Negative boardings/alightings or negative load | 0 rows in every field | Not observed in this sample |
+| Boardings and alightings both zero | 203,391 rows | Zero activity is not grounds for deleting a stop visit |
+| Boardings, alightings and arrival/departure loads all zero | 24,808 rows | Intervals lacking APC cannot be filled with zero ridership on this basis |
+| Absolute value of departure load - arrival load - boardings + alightings over 10⁻⁶ | 5,969 rows | Single-row balance check; not attributed to device fault or automatically corrected |
+| Same route, same direction, 0–300 s gap, current arrival load differs from previous departure load by more than 1 | 23,032 rows | A count after conditional filtering; grain, missing records and boundaries can all affect continuity |
+| Reversed arrival/departure interval | 0 rows | Not observed in this sample |
+| Zero-length arrival/departure interval | 112,898 rows | Every APC interval cannot be required to contain a positive-duration AVL sequence |
+| Arrival/departure interval over 5 / 30 min | 10,530 / 47 rows | Large intervals may span terminal layovers or other semantics; the whole interval should not be used to accept all GPS points |
+| Arrival-to-departure duration differs from `AvgDwell` by more than 1 s | 0 rows | Only shows that no difference beyond tolerance was detected; cannot be double-weighted as independent evidence |
+| Interval overlaps with any earlier-arriving record | 10,213 rows | Uses the running maximum of prior departure times, which detects nested long intervals |
+| Interval overlaps with the immediately preceding record | 10,039 rows | Comparing only with the previous row finds 174 fewer rows |
+| Adjacent overlap above: same stop, different direction | 8,043 rows | Consistent with terminal handover or different operational roles at the same location; not yet manually confirmed |
+| Adjacent overlap above: different stops, at most 100 m apart | 1,984 rows | Possible neighboring stop/platform/terminal coding; not an automatic contradiction |
+| Adjacent overlap above: different stops, more than 100 m apart | 10 rows | Conflict candidates requiring closer inspection; "cannot be served simultaneously" has not been proven |
+| Adjacent overlap above: this row has a grain signal / lies in the DST-ambiguous hour | 672 / 5 rows | Overlaps with the distance and direction categories; cannot be summed |
+| Same stop code reappearing consecutively within 15 minutes | 1,332 rows | May be a repeated same-stop event, handover, layover or turnaround; needs to be distinguished |
 
-最重要的区分是“区间重叠”与“相互排斥的真实停站”之间还有证据缺口。大多数紧邻重叠发生在同站不同方向或相邻站码，支持优先核查终点两种运营角色的表达方式。把全部重叠行当作错误会大量排除有合理解释的观测；把它们全部合并计数同样缺少依据。
+The most important distinction is that there is still an evidence gap between "interval overlap" and "mutually exclusive real stop visits". Most adjacent overlaps occur at the same stop in different directions or at neighboring stop codes, which supports prioritizing a review of how the two operational roles at a terminal are represented. Treating all overlapping rows as errors would exclude many observations with reasonable explanations; merging and summing them all is equally unsupported.
 
-`grain_uncertain=false` 只表示未检测到上述显式信号。**全部 APC 行的事件粒度仍未获独立证实**，不应因为 `NoTrips=1` 或上下车数为整数就解除这一限制。
+`grain_uncertain=false` only means that none of the explicit signals above was detected. **The event grain of all APC rows remains independently unconfirmed**, and this limitation should not be lifted because `NoTrips=1` or because boardings/alightings are integers.
 
-## 两源覆盖不一致
+## Coverage inconsistency between the two sources
 
-共有 **1,401 个车辆×自然日**：两源都有 1,347 个，仅 AVL 35 个，仅 APC 19 个。两源都有的分区中，1 个的首末观测时间范围完全不相交。这里的首末范围是外包区间；内部仍然可以有长缺口。
+There are **1,401 vehicle × calendar-day** partitions in total: 1,347 present in both sources, 35 AVL-only and 19 APC-only. Among the partitions present in both sources, 1 has first/last observation time ranges that do not intersect at all. The first/last range here is the outer envelope; long gaps can still exist inside it.
 
-以下每列均以 1,347 个两源都有的分区为分母；条件为“超过”对应阈值，列与列之间可以重叠。
+Each column below uses the 1,347 partitions present in both sources as the denominator; the condition is "exceeds" the corresponding threshold, and columns can overlap.
 
-| 首尾差值阈值 | APC 比 AVL 更早开始 | AVL 比 APC 更早开始 | APC 比 AVL 更晚结束 | AVL 比 APC 更晚结束 | AVL 更早开始且 APC 更晚结束 |
+| First/last difference threshold | APC starts earlier than AVL | AVL starts earlier than APC | APC ends later than AVL | AVL ends later than APC | AVL starts earlier and APC ends later |
 |---|---:|---:|---:|---:|---:|
-| 大于 0 秒 | 72 | 1,271 | 183 | 1,158 | 173 |
-| 大于 60 秒 | 45 | 1,086 | 85 | 993 | 68 |
-| 大于 300 秒 | 40 | 1,009 | 37 | 923 | 29 |
-| 大于 900 秒 | 36 | 949 | 19 | 796 | 13 |
+| Over 0 s | 72 | 1,271 | 183 | 1,158 | 173 |
+| Over 60 s | 45 | 1,086 | 85 | 993 | 68 |
+| Over 300 s | 40 | 1,009 | 37 | 923 | 29 |
+| Over 900 s | 36 | 949 | 19 | 796 | 13 |
 
-以全部 APC 行为分母，还观察到：
+Using all APC rows as the denominator, the following were also observed:
 
-| 检查 | 结果 | 解释 |
+| Check | Result | Interpretation |
 |---|---:|---|
-| APC 所在车辆×自然日没有 AVL | 1,892 行 | 与全月没有该车辆、同车其他日期有数据是不同情况 |
-| APC 到达早于同日首个 AVL | 4,150 行 | 不应外推 GPS 以覆盖头部 |
-| APC 到达晚于同日最后一个 AVL | 337 行 | 单来源尾段需要单独的归属证据 |
-| APC 离开晚于同日最后一个 AVL | 460 行 | 包括区间内部失去 AVL 支持的情况，与上一行有交集 |
-| 按同车全窗口寻找，到达前／后没有任何 AVL | 43／1,406 行 | 前后搜索跨自然日；与同日覆盖统计口径不同 |
-| 到达时刻有前后 AVL，跨度超过 90 秒 | 6,430 行 | 不允许把长缺口伪装成密集轨迹支持 |
-| 前后 AVL 距到达各不超过 60 秒 | 565,765 行 | **仅有时间条件**；尚未验证空间、线路、时钟或候选唯一性 |
-| 严格落在前后 AVL 间隔大于 300／900 秒的内部 | 6,130／6,022 行 | 按全窗口括定，可能跨自然日或工作时段；不等于同趟次内设备掉线 |
+| APC in a vehicle × calendar day with no AVL | 1,892 rows | Differs from the vehicle being absent for the whole month or having data on other days |
+| APC arrival earlier than the first AVL of the same day | 4,150 rows | GPS should not be extrapolated to cover the head |
+| APC arrival later than the last AVL of the same day | 337 rows | Single-source tails need separate attribution evidence |
+| APC departure later than the last AVL of the same day | 460 rows | Includes cases that lose AVL support within the interval; overlaps with the previous row |
+| Searching the vehicle's full window, no AVL at all before / after arrival | 43 / 1,406 rows | The before/after search spans calendar days; a different convention from the same-day coverage statistics |
+| Bracketing AVL exists at arrival time, with span over 90 s | 6,430 rows | A long gap must not be disguised as dense-trajectory support |
+| Bracketing AVL each within 60 s of arrival | 565,765 rows | **Time condition only**; space, route, clock and candidate uniqueness have not been verified |
+| Strictly inside a bracketing AVL gap over 300 / 900 s | 6,130 / 6,022 rows | Bracketed over the full window, possibly across calendar days or shifts; not equivalent to a device dropout within the same trip |
 
-有前后 AVL 的 APC 到达共 572,181 行，其前后跨度中位数 13 秒、P95 23 秒、P99 3,091 秒。长尾说明总体采样频率不能替代每次关联的局部支持检查。这里没有用这两个点进行插值或认定任何关联成立。
+APC arrivals with bracketing AVL total 572,181 rows, with a bracketing span median of 13 s, P95 of 23 s and P99 of 3,091 s. The long tail shows that overall sampling frequency cannot replace a local support check for each association. These two points were not used here to interpolate or to establish any association.
 
-提取窗口也存在截断：AVL 恰好止于月末自然日边界，APC 延伸到次月凌晨。因而部分尾段差异可能由提取范围造成。即便同一车辆×自然日首尾不齐，也不能断言是同一实际趟次中的传感器提前停止；需要先检查工作时段、趟次边界、提取窗口和可用停站序列。
+The extraction window is also truncated: AVL stops exactly at the month-end calendar-day boundary, while APC extends into the early hours of the next month. Some tail differences may therefore be caused by the extraction range. Even when first/last times are misaligned within the same vehicle × calendar day, it cannot be asserted that a sensor stopped early within the same actual trip; shifts, trip boundaries, the extraction window and the available stop sequence must be checked first.
 
-## 尚未知或未测量的项目
+## Unknown or unmeasured items
 
-| 项目 | 本次状态 | 对后续比较的影响 |
+| Item | Current status | Impact on subsequent comparison |
 |---|---|---|
-| APC 单行是否代表独立停站；采样、平均、载荷字段的生成方式 | 语义未知 | 保留原值和来源；不能把未触发粒度信号等同于已确认 |
-| 两源时钟的固定偏差、漂移、重置 | 未估计、未验证 | 不能从首末时间差直接校正时钟；需要共同停站的独立证据 |
-| DST 两个真实时刻的对应关系 | 已标歧义，未消解 | 时序和空间冲突检查必须保留可行解释 |
-| 车辆号与实际车辆、设备及设备更换的对应关系 | 只比较字符串集合 | 同名匹配假设需要设备或运营记录支持 |
-| 真实趟次起终点、短线折返、换线、车场和非载客运行 | 未建立真值 | 上下文变化、静止和长缺口只能提供候选边界 |
-| 源线路、运行编号、目的地及源趟次标签的权威性和更新时机 | 语义未确认；已量化变化及复用 | 不应自动作为可靠趟次主键或每次分割条件 |
-| 同站不同方向的长停站是否是同一物理事件的两种角色 | 已有大量相容观测，未人工确认 | 不能把重叠自动当作冲突，也不能直接求和 |
-| GPS 量化、设备冻结、真实停车与交通拥堵 | 仅测量相同位置序列 | 静止阈值不能独立证明终点或停运 |
-| 同站码内部一致性以外的站码别名、相邻站点及方向站台关系 | 未建立站点关系真值 | 空间接近不等于同一停站身份 |
-| 停站缺失、客流漏报、重复记数及设备真实精度 | 未建立人工或独立设备真值 | 覆盖率、方程一致性都不能直接解释为准确率 |
-| GTFS 站点、计划班次、服务日和计划偏差 | 本次有意不使用 | 本报告不评价计划匹配正确性或准点率 |
-| 其他月份、线路、设备、春季 DST 和不同导出格式 | 未测量 | 观察到零的检查不能外推为普遍不存在 |
+| Whether a single APC row represents an independent stop visit; how the sampling, averaging and load fields are generated | Semantics unknown | Retain raw values and provenance; an untriggered grain signal cannot be equated with confirmation |
+| Fixed offset, drift and resets between the two sources' clocks | Not estimated, not verified | Clocks cannot be corrected directly from first/last time differences; independent evidence from shared stop visits is needed |
+| Mapping to the two real instants during DST | Flagged ambiguous, not resolved | Chronology and spatial conflict checks must retain the feasible interpretations |
+| Mapping from vehicle number to actual vehicle, device and device replacement | Only string sets compared | The same-name matching assumption needs device or operational records to support it |
+| Real trip start/end, short-turns, route changes, garage and non-revenue runs | No ground truth established | Context changes, stationary periods and long gaps can only provide candidate boundaries |
+| Authority and update timing of source route, run number, destination and source trip labels | Semantics unconfirmed; changes and reuse quantified | Should not automatically serve as a reliable trip primary key or a per-change segmentation condition |
+| Whether a long stop at the same stop in different directions is two roles of one physical event | Many consistent observations, not manually confirmed | Overlap cannot automatically be treated as conflict, nor directly summed |
+| GPS quantization, device freeze, real stops and traffic congestion | Only identical-position runs measured | A stationary threshold cannot independently prove a terminal or an out-of-service period |
+| Stop-code aliases, neighboring stops and directional platform relationships beyond within-stop-code consistency | No stop-relationship ground truth established | Spatial proximity does not equal the same stop identity |
+| Missing stop visits, under-reported ridership, double counting and true device accuracy | No manual or independent-device ground truth established | Neither coverage nor balance-equation consistency can be directly interpreted as accuracy |
+| GTFS stops, scheduled trips, service dates and schedule deviation | Deliberately not used in this audit | This report does not evaluate schedule-matching correctness or on-time performance |
+| Other months, routes, devices, spring DST and different export formats | Not measured | Checks observed at zero cannot be extrapolated to general absence |
 
-这些限制并不妨碍比较分割和融合方法，但要求分开报告结构有效性、时空支持、来源覆盖、记录粒度、边界证据与未解决比例。任何“准确率”结论还需要独立样本；本审计提供的是可复现的风险清单和验证分层依据。
+These limitations do not prevent comparing segmentation and merge methods, but they require structural validity, spatiotemporal support, source coverage, record grain, boundary evidence and unresolved proportions to be reported separately. Any "accuracy" conclusion still requires independent samples; what this audit provides is a reproducible risk inventory and a basis for validation stratification.

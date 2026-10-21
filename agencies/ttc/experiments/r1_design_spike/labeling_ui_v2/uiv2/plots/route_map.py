@@ -85,8 +85,8 @@ def fig_map(
     fig.update_layout(
         height=520,
         margin=dict(l=10, r=10, t=10, b=10),
-        yaxis=dict(scaleanchor="x", scaleratio=ratio, title="纬度"),
-        xaxis=dict(title="经度"),
+        yaxis=dict(scaleanchor="x", scaleratio=ratio, title="Latitude"),
+        xaxis=dict(title="Longitude"),
         legend=dict(orientation="h", yanchor="bottom", y=1.01),
         dragmode="pan",
     )
@@ -108,19 +108,19 @@ def _add_current_chunk(fig: go.Figure, cur: pl.DataFrame) -> None:
                 colorscale="Viridis",
                 showscale=True,
                 colorbar=dict(
-                    title="时间 →",
+                    title="Time →",
                     tickvals=[0, n - 1],
-                    ticktext=["起", "止"],
+                    ticktext=["start", "end"],
                 ),
             ),
-            name="当前 chunk 的 AVL",
+            name="Current chunk AVL",
             text=hover_times(cur),
-            hovertemplate="%{text}<extra>当前 chunk 的 AVL</extra>",
+            hovertemplate="%{text}<extra>Current chunk AVL</extra>",
         )
     )
     ends = [
-        (0, "起点", "circle-open", "#00a000"),
-        (n - 1, "终点", "square", "#d00000"),
+        (0, "Start", "circle-open", "#00a000"),
+        (n - 1, "End", "square", "#d00000"),
     ]
     for idx, label, symbol, color in ends:
         fig.add_trace(
@@ -150,7 +150,7 @@ def _add_current_chunk(fig: go.Figure, cur: pl.DataFrame) -> None:
             arrowhead=3,
             arrowwidth=1.5,
             arrowcolor="#00a000",
-            text="时间 →",
+            text="Time →",
             font=dict(size=10, color="#00a000"),
         )
 
@@ -179,7 +179,7 @@ def _add_apc(fig: go.Figure, apc_events: pl.DataFrame | None) -> None:
             y=apc["latitude"],
             mode="markers",
             marker=dict(size=9, symbol="x-thin", line=dict(width=2, color=APC_COLOR)),
-            name="APC 事件（±30 分钟）",
+            name="APC events (±30 min)",
             text=hover,
             hovertemplate="%{text}<extra>APC</extra>",
         )
@@ -204,7 +204,7 @@ def _add_candidate_geometry(
                 mode="lines",
                 line=dict(color=color, width=3),
                 opacity=0.35,
-                name=f"候选 {alias} 的线形",
+                name=f"Candidate {alias} shape",
                 hoverinfo="skip",
             )
         )
@@ -231,7 +231,7 @@ def _add_candidate_geometry(
                 y=s["stop_lat"],
                 mode="markers",
                 marker=dict(size=5, color=color, opacity=0.5),
-                name=f"候选 {alias} 的停站",
+                name=f"Candidate {alias} stops",
                 text=hover,
                 hovertemplate="%{text}<extra></extra>",
             )
@@ -243,7 +243,7 @@ def _add_candidate_geometry(
                 y=[s["stop_lat"][0], s["stop_lat"][-1]],
                 mode="markers",
                 marker=dict(size=13, symbol="star", color=color, opacity=0.8),
-                name=f"候选 {alias} 的终点站",
+                name=f"Candidate {alias} terminal",
                 showlegend=False,
                 hovertemplate=f"terminal (cand {alias})<extra></extra>",
             )

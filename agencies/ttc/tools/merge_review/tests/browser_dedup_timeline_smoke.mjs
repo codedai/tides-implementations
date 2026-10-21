@@ -77,8 +77,8 @@ async function runChecks() {
     await value('debug-method', 'vehicle_only_dedup');
     assert(await cdp.evaluate("[...document.querySelectorAll('#debug-segmentation-parameters input,#debug-merge-parameters input')].every(e=>e.disabled)"), 'dedup mode disables trip and matching parameters');
     await value('debug-label', 'Disposable exact AVL dedup + timeline pan'); await click('debug-submit');
-    await waitFor("document.querySelector('#debug-job-title').textContent.includes('重跑完成') || document.querySelector('#debug-job-title').textContent.includes('重跑失败')", 240000);
-    assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('重跑完成')"), 'actual UI dedup job completed');
+    await waitFor("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete') || document.querySelector('#debug-job-title').textContent.includes('Reprocessing failed')", 240000);
+    assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete')"), 'actual UI dedup job completed');
     await waitFor("document.querySelector('#method-select').value==='vehicle_only_dedup' && document.querySelector('#case-loading').hidden"); await ready();
   }
   const run = await cdp.evaluate("document.querySelector('#debug-run-select').value");

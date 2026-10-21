@@ -479,7 +479,7 @@ def test_orphan_window_gps_is_visible_context_not_accepted_membership(run):
     )
     assert summary["avl_count"] == summary["avl_member_count"] == 0
     assert summary["window_avl_count"] == summary["context_avl_count"] == 1
-    assert "不表示没有 GPS" in summary["title"]
+    assert "does not imply no GPS" in summary["title"]
     assert summary["apc_rids"] == ["p2"]
     detail = data.case("avl_context", "V-test", summary["id"], context_s=180)
     gps = next(r for r in detail["avl"] if r["rid"] == "a1")

@@ -189,8 +189,8 @@ async function runChecks() {
   const radius = await numericChange('merge', 'radius_m', 30);
   await click('#debug-submit');
   await waitFor("!document.querySelector('#debug-job').hidden");
-  await waitFor("document.querySelector('#debug-job-title').textContent.includes('重跑完成') || document.querySelector('#debug-job-title').textContent.includes('重跑失败')", 600000);
-  assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('重跑完成')"), 'parameter change executes a real completed one-day experiment');
+  await waitFor("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete') || document.querySelector('#debug-job-title').textContent.includes('Reprocessing failed')", 600000);
+  assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete')"), 'parameter change executes a real completed one-day experiment');
   await waitFor("!document.querySelector('#debug-load-ready').hidden");
   assert(await currentRun() === baseline, 'completed experiment does not silently replace dirty baseline review');
   assert(await cdp.evaluate("document.querySelector('#review-notes').value") === baselineNote, 'unsaved note survives background computation');
@@ -212,7 +212,7 @@ async function runChecks() {
   assert(diff.summary.changed_rows > 0, 'edited thresholds produce actual source-row decision differences');
   assert(diff.summary.boundaries_added + diff.summary.boundaries_removed > 0, 'edited segmentation produces actual boundary differences');
   await waitFor("document.querySelector('#debug-boundary-svg').childElementCount>3 && document.querySelector('#debug-diff-list [data-apc-rid]')");
-  assert(await cdp.evaluate("document.querySelector('#debug-diff-summary').textContent.includes('状态变化')"), 'UI renders decision and boundary comparison counts');
+  assert(await cdp.evaluate("document.querySelector('#debug-diff-summary').textContent.includes('Status changes')"), 'UI renders decision and boundary comparison counts');
   await screenshot('rerun-diff-desktop.png');
   await cdp.evaluate("document.querySelector('#debug-diff').scrollIntoView({block:'start'})"); await screenshot('source-rid-boundary-diff.png');
   await cdp.evaluate("document.querySelector('.timeline-panel').scrollIntoView({block:'start'})"); await screenshot('rerun-timeline-progress.png');
@@ -252,15 +252,15 @@ async function runReadOnlyChecks() {
   const baseId = base.id || base.run_id;
   await setValue('#debug-base-select', baseId);
   await waitFor(`(() => { try { const d=JSON.parse(document.querySelector('#debug-diff-json').textContent); return d.base_run_id===${JSON.stringify(baseId)} && d.run_id===${JSON.stringify(run)}; } catch { return false; } })()`);
-  await waitFor("['基线移除','当前新增','理由变化'].every(s=>document.querySelector('#debug-boundary-svg').textContent.includes(s))");
+  await waitFor("['Removed from baseline','Added in current','Reason changed'].every(s=>document.querySelector('#debug-boundary-svg').textContent.includes(s))");
   assert(true, 'all three boundary comparison lanes render, including reason changes');
-  assert(await cdp.evaluate("document.querySelector('#debug-diff-summary').textContent.includes('判定细节变化') && document.querySelector('#debug-diff-summary').textContent.includes('边界理由变化')"), 'decision detail and boundary reason counts are visible');
+  assert(await cdp.evaluate("document.querySelector('#debug-diff-summary').textContent.includes('Decision-detail changes') && document.querySelector('#debug-diff-summary').textContent.includes('Boundary-reason changes')"), 'decision detail and boundary reason counts are visible');
   assert(await cdp.evaluate("[...document.querySelectorAll('svg *')].every(e=>[...e.attributes].every(a=>! /\\b(NaN|Infinity)\\b/.test(a.value)))"), 'latest SVG geometry is finite');
   await cdp.evaluate("document.querySelector('#debug-diff').scrollIntoView({block:'start'})");
   await screenshot('three-lane-boundary-diff.png');
   await cdp.send('Page.reload', { ignoreCache: true }); await ready();
   await setValue('#debug-base-select', baseId);
-  await waitFor("document.querySelector('#debug-boundary-svg').textContent.includes('理由变化')");
+  await waitFor("document.querySelector('#debug-boundary-svg').textContent.includes('Reason changed')");
   assert(await currentRun() === run, 'read-only reload retains latest existing run');
   await cdp.evaluate("document.querySelector('#debug-diff').scrollIntoView({block:'start'})");
   await screenshot('three-lane-after-reload.png');

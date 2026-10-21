@@ -56,11 +56,13 @@ def parameters():
                 spec.update(min=1, max=1000, step=10)
             if key == "score_delay_prior_weight":
                 spec.update(
-                    label="绝对时间偏移权重（每小时）",
+                    label="Absolute time-offset weight (per hour)",
                     description=(
-                        "惩罚 = 权重 × |模型时移秒数| / 3600；提前与晚点对称。"
-                        "同时用于延误拟合、整趟评分及边界模型。"
-                        "实验 03c 为 0.05，实验 03d 为 1.0；修改后需新运行。"
+                        "Penalty = weight × |modeled time offset in seconds| / 3600; "
+                        "early and late offsets are treated symmetrically. "
+                        "Used in delay fitting, whole-trip scoring, and the boundary "
+                        "model. Experiment 03c uses 0.05 and 03d uses 1.0; "
+                        "changes require a new run."
                     ),
                 )
             if key == "segmentation_joint_gap_s":
@@ -68,7 +70,10 @@ def parameters():
                     min=1,
                     max=86400,
                     step=1,
-                    label="APC + AVL 联合观测空白切分阈值（秒，严格大于）",
+                    label=(
+                        "Joint APC + AVL observation-gap split threshold "
+                        "(seconds; strictly greater than)"
+                    ),
                 )
             if any(
                 token in key

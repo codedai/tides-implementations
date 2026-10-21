@@ -1,11 +1,14 @@
-"""盲审二审标注界面 —— 人工标注协议 v2，run01。
+"""Blind second-pass labeling UI — human labeling protocol v2, run01.
 
-粒度优先、任务专用、全程盲审：一审标签与模型诊断在盲审判断存盘之前
-始终隐藏；候选全集以中性顺序完整呈现；每一次揭示与筛选都会被记录。
-真正的强制约束位于 ``r1spike.labeling_v2_store`` —— 本应用只是它之上
-一层诚实的薄壳。
+Grain-first, task-specific, blind throughout: first-pass labels and model
+diagnostics stay hidden until the blind judgment is saved; the candidate
+universe is presented complete and in neutral order; every reveal and every
+filter is logged. The real enforcement lives in
+``r1spike.labeling_v2_store`` — this app is only an honest thin shell on top
+of it.
 
-界面文字为中文，但存储值一律保持英文原样。
+Display labels are UI-only; stored values are always kept as the raw enum
+values.
 """
 
 from __future__ import annotations
@@ -67,13 +70,13 @@ CHILD_GRAIN_BY_TASK = {
 }
 
 TASK_LABELS = {
-    "scheduled_trip_second_pass": "计划班次盲审二审",
-    "segmentation_multi_trip": "多 trip 分段评审",
-    "boundary_spanning_dual_role": "跨边界双角色评审",
-    "fragment_role_and_stitching": "片段角色与缝合评审",
-    "insufficient_context": "上下文不足片段评审",
-    "source_time_quality": "源数据 / 时间质量评审",
-    "no_match_activity": "无匹配活动评审",
+    "scheduled_trip_second_pass": "Scheduled-trip blind second pass",
+    "segmentation_multi_trip": "Multi-trip segmentation review",
+    "boundary_spanning_dual_role": "Boundary-spanning dual-role review",
+    "fragment_role_and_stitching": "Fragment role and stitching review",
+    "insufficient_context": "Insufficient-context fragment review",
+    "source_time_quality": "Source data / time quality review",
+    "no_match_activity": "No-match activity review",
 }
 
 
@@ -91,12 +94,12 @@ def get_context() -> StoreContext | None:
     for note in config.notes:
         st.warning(note)
     reviewer = st.sidebar.text_input(
-        "审阅人 ID（假名）",
+        "Reviewer ID (pseudonym)",
         value=config.reviewer,
         key="reviewer_id",
     ).strip()
     if not reviewer:
-        st.sidebar.info("填入一个假名审阅人 ID 后开始")
+        st.sidebar.info("Enter a pseudonymous reviewer ID to begin")
         return None
     context_key = f"v2_ctx::{config.run_dir}::{reviewer}"
     if context_key not in st.session_state:
@@ -113,7 +116,7 @@ def get_context() -> StoreContext | None:
                 reviewer_id=reviewer,
             )
         except (BlindProtocolViolation, OSError) as error:
-            st.error(f"无法打开 run 目录：{error}")
+            st.error(f"Could not open the run directory: {error}")
             return None
         st.session_state[context_key] = StoreContext(
             config=config,
@@ -136,7 +139,7 @@ def get_bundle(ctx: StoreContext, case_id: str) -> CaseBundleV2:
                 review.children["child_case_id"] == case_id
             )
             child_row = child_rows.row(0, named=True)
-        with st.spinner("正在汇集案例证据…"):
+        with st.spinner("Assembling case evidence…"):
             st.session_state[cache_key] = build_bundle(
                 ctx.artifact_store,
                 case_id,
@@ -160,11 +163,11 @@ def render_sidebar(ctx: StoreContext) -> str | None:
     review = ctx.review_store
     states = review.all_states()
     order = review.blind_order["case_order"]
-    st.sidebar.markdown("### 盲审队列")
-    st.sidebar.caption("由种子确定的固定顺序 —— 不按任何既有标签分组")
+    st.sidebar.markdown("### Blind queue")
+    st.sidebar.caption("Fixed seeded order — not grouped by any existing label")
     parents_saved = sum(1 for c in order if states[c].second_pass_saved)
     st.sidebar.progress(parents_saved / len(order))
-    st.sidebar.caption(f"父案例已存盘 {parents_saved}/{len(order)}")
+    st.sidebar.caption(f"Parent cases saved {parents_saved}/{len(order)}")
     options: list[str] = []
     labels: dict[str, str] = {}
     for position, case_id in enumerate(order, start=1):
@@ -181,7 +184,7 @@ def render_sidebar(ctx: StoreContext) -> str | None:
                 options.append(child_id)
                 labels[child_id] = f"  {child_icon} └ {child_id.split('::')[1]}"
     selected = st.sidebar.radio(
-        "案例",
+        "Case",
         options,
         format_func=lambda value: labels[value],
         key="case_select",
@@ -197,17 +200,18 @@ def render_sidebar(ctx: StoreContext) -> str | None:
     prev_col, next_col = st.sidebar.columns(2)
     index = options.index(selected) if selected in options else 0
     prev_col.button(
-        "◀ 上一个", key="nav_prev", disabled=index == 0, on_click=_nav, args=(-1,)
+        "◀ Previous", key="nav_prev", disabled=index == 0, on_click=_nav, args=(-1,)
     )
     next_col.button(
-        "下一个 ▶",
+        "Next ▶",
         key="nav_next",
         disabled=index >= len(options) - 1,
         on_click=_nav,
         args=(1,),
     )
     st.sidebar.caption(
-        "子案例在其父案例盲审存盘后解锁；每个案例都始终保留空选项和完整的候选全集"
+        "Child cases unlock after their parent's blind save; every case always "
+        "keeps the null option and the complete candidate universe"
     )
     return selected
 
@@ -257,8 +261,8 @@ def render_task_form(
         return forms.render_quality_form(bundle)
     if grain == "turnaround_or_idle":
         return forms.render_activity_form(bundle)
-    st.markdown("### 2 · 最简判断")
-    st.caption("这个粒度没有专用表单；请记录置信度与理由。")
+    st.markdown("### 2 · Minimal judgment")
+    st.caption("This grain has no dedicated form; record confidence and rationale.")
     record: dict = {}
     record.update(forms.confidence_block(bundle.case_id, include_match=False))
     record.update(forms.rationale_block(bundle.case_id, for_match=False))
@@ -279,9 +283,10 @@ def render_child_seeds(bundle: CaseBundleV2) -> None:
     }
     if seeds:
         st.info(
-            "未经核实的、由备注派生的上下文（仅因父案例已完成盲审存盘才显示；"
-            "其中的卡片字母指的是**旧版 v1** 的显示编号，不是本页的别名）："
-            + "；".join(f"{key}={value}" for key, value in seeds.items())
+            "Unverified, note-derived context (shown only because the parent's "
+            "blind save exists; card letters in it refer to the **legacy v1** "
+            "display numbering, not the aliases on this page): "
+            + "; ".join(f"{key}={value}" for key, value in seeds.items())
         )
 
 
@@ -298,7 +303,7 @@ def render_case(ctx: StoreContext, case_id: str) -> None:
         or case_state.second_pass_saved
     )
     if bundle.is_child:
-        task_label = f"子案例 · {task}"
+        task_label = f"Child case · {task}"
     elif grain_answered:
         task_label = TASK_LABELS.get(task, task)
     else:
@@ -307,15 +312,18 @@ def render_case(ctx: StoreContext, case_id: str) -> None:
     if bundle.is_child:
         parent_state = review.case_state(bundle.parent_case_id)
         if not parent_state.second_pass_saved:
-            st.warning("这个子案例要等父案例完成盲审存盘后才解锁")
+            st.warning(
+                "This child case unlocks only after the parent's blind save is complete"
+            )
             return
         render_child_seeds(bundle)
 
     started_at = state.note_review_started(case_id, utc_now_iso())
     detail_aliases = st.multiselect(
-        "加载候选的详细证据（GTFS 时刻表 + 线形；较重，建议每次选几个）",
+        "Load detailed candidate evidence (GTFS timetable + shape; heavy, so "
+        "pick a few at a time)",
         [c.alias for c in bundle.real_candidates],
-        placeholder="选择一个或多个候选别名",
+        placeholder="Select one or more candidate aliases",
         key=f"details::{case_id}",
         max_selections=6,
     )
@@ -335,23 +343,30 @@ def render_case(ctx: StoreContext, case_id: str) -> None:
     if bundle.is_child:
         grain = CHILD_GRAIN_BY_TASK.get(task, "unknown")
         reviewability = None
-        st.markdown(f"子案例任务粒度：`{grain}`（由子案例清单固定，不可更改）")
+        st.markdown(
+            f"Child-case task grain: `{grain}` (fixed by the child-case manifest; "
+            "cannot be changed)"
+        )
     else:
         grain, reviewability = forms.render_grain_form(bundle)
         if grain is None:
-            st.info("回答上面的粒度问题后，才会展开对应的任务表单")
+            st.info(
+                "The task form opens only after you answer the grain question above"
+            )
             return
         baseline = _grain_baseline(ctx, bundle)
         if baseline is not None and grain != baseline:
             st.caption(
-                "你选的粒度与队列基线不同 —— 存盘时这会作为一条 "
-                "routing_change 判断单独记录；该案例并未被重新标注"
+                "Your chosen grain differs from the queue baseline — at save time "
+                "this is recorded separately as a routing_change judgment; the "
+                "case is not relabeled"
             )
     record = render_task_form(bundle, grain, browser["visible"])
     if record is None:
         return
     adjacent_declared = st.checkbox(
-        "我的判断依赖了相邻上下文（前一个/后一个 chunk，或窗口外的 APC）",
+        "My judgment relied on adjacent context (previous/next chunk, or "
+        "out-of-window APC)",
         value=state.adjacent_context_viewed(case_id),
         key=f"adjdecl::{case_id}",
     )
@@ -377,7 +392,7 @@ def render_case(ctx: StoreContext, case_id: str) -> None:
     )
     st.divider()
     if st.button(
-        "💾 存盘（盲审判断，不可修改）",
+        "💾 Save (blind judgment; immutable)",
         key=f"save::{case_id}",
         type="primary",
     ):
@@ -396,38 +411,39 @@ def render_case(ctx: StoreContext, case_id: str) -> None:
             )
         outcome = (saved.get("comparison") or {}).get("outcome")
         st.success(
-            "盲审判断已存盘" + (f" —— 与一审的比对结果：{outcome}" if outcome else "")
+            "Blind judgment saved"
+            + (f" — comparison with the first pass: {outcome}" if outcome else "")
         )
         st.rerun()
 
 
 def main() -> None:
-    st.set_page_config(page_title="标注 v2 —— 盲审二审", layout="wide")
-    st.title("scheduled_trip 标注 —— 协议 v2 盲审二审")
+    st.set_page_config(page_title="Labeling v2 — blind second pass", layout="wide")
+    st.title("scheduled_trip labeling — protocol v2 blind second pass")
     ctx = get_context()
     if ctx is None:
         return
     review = ctx.review_store
     st.caption(
-        f"协议 v{review.protocol_version} · 冻结哈希 "
-        f"{review.protocol_sha256[:12]}… · 审阅人 "
-        f"{review.reviewer_id} · 一审标签在各案例盲审存盘前保持隐藏 · "
-        "因子实验仍为 NO-GO"
+        f"Protocol v{review.protocol_version} · frozen hash "
+        f"{review.protocol_sha256[:12]}… · reviewer "
+        f"{review.reviewer_id} · first-pass labels stay hidden until each case's "
+        "blind save · factorial remains NO-GO"
     )
     case_id = render_sidebar(ctx)
     if case_id is None:
-        st.info("请从左侧盲审队列中选择一个案例")
+        st.info("Select a case from the blind queue on the left")
         return
     render_case(ctx, case_id)
-    with st.expander("运行状态（实时产物）"):
+    with st.expander("Run status (live artifacts)"):
         rows = [
             {
-                "案例": row["case_id"],
-                "队列序号": row["queue_rank"],
-                "初始路由": row["initial_task_route"],
-                "已存盘": row["second_pass_saved"],
-                "比对结果": row["comparison_outcome"],
-                "需裁决": row["requires_adjudication"],
+                "Case": row["case_id"],
+                "Queue rank": row["queue_rank"],
+                "Initial route": row["initial_task_route"],
+                "Saved": row["second_pass_saved"],
+                "Comparison outcome": row["comparison_outcome"],
+                "Requires adjudication": row["requires_adjudication"],
             }
             for row in review.queue_rows()
         ]

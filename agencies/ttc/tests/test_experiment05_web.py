@@ -4,6 +4,7 @@ import hashlib
 import http.client
 import io
 import json
+import re
 import threading
 import time
 import zipfile
@@ -467,9 +468,10 @@ def test_unsupported_methods_and_nonlocal_binding_are_rejected(web):
         create_server(host="0.0.0.0", root=web[2], pipeline_module=web[1])
 
 
-def test_assets_cover_modes_force_progress_downloads_and_bilingual_ui():
+def test_assets_cover_modes_force_progress_downloads_and_english_ui():
     html = (STATIC / "index.html").read_text()
     script = (STATIC / "app.js").read_text()
+    viz = (STATIC / "viz.js").read_text()
     for mode in ("global", "early", "middle", "late", "all"):
         assert f'value="{mode}"' in html
     for identity in (
@@ -477,9 +479,10 @@ def test_assets_cover_modes_force_progress_downloads_and_bilingual_ui():
         "stage-progress",
         "validator-status",
         "download-filter",
-        "language-switch",
     ):
         assert f'id="{identity}"' in html
+    assert '<html lang="en">' in html and "language-switch" not in html
+    assert not re.search(r"[\u4e00-\u9fff]", html + script + viz)
     assert "run_pipeline" not in script and "innerHTML" not in script
     assert "matched_count" in script and "unmatched_reasons" in script
-    assert "localStorage" in script and "tides_validation_passed" in script
+    assert "localStorage" not in script and "tides_validation_passed" in script

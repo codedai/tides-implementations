@@ -1,36 +1,36 @@
-# 实验 04c：独立校准输入契约
+# Experiment 04c: Independent Calibration Input Contract
 
-当前没有满足以下要求的真实独立标签，也没有已训练的运营先验。本文只说明输入；
-算法和实验结果见 [04c 主说明](experiment04c-occurrence-plausibility.md)。
+There are currently no real independent labels that meet the requirements below, and no trained operational prior. This document describes only the inputs;
+the algorithm and experimental results are in the [04c main write-up](experiment04c-occurrence-plausibility.md).
 
-## 1. 候选排序概率校准的标签
+## 1. Labels for candidate-ranking probability calibration
 
-`continuous/train_calibration.py` 接受 JSON 数组、JSONL 或 CSV。
-每条记录表示一个独立 operating episode 的代表 case；同一 episode 的多个分割片段
-不能作为多个独立校准样本。真实标签必须来自独立核验，不能用当前 matcher 的第一名、
-旧工作台点击、AvgOTP 或上游已有 schedule assignment 自动生成。
+`continuous/train_calibration.py` accepts a JSON array, JSONL, or CSV.
+Each record represents the representative case of one independent operating episode; multiple split fragments of the same episode
+cannot serve as multiple independent calibration samples. Ground-truth labels must come from independent verification and must not be generated automatically from the current matcher's top result,
+clicks in the old workbench, AvgOTP, or an existing upstream schedule assignment.
 
-严格模式要求：
+Strict mode requires:
 
-- 身份：`feed_version`、`route_id`、`service_date`、`case_id`、`episode_id`；
-  `(feed_version, route_id, service_date, case_id)` 不得重复。
-- 证据：`label_id`、`evidence_id` 为非空字符串；`evidence_sha256` 为来源证据的
-  64 位小写十六进制 SHA-256；`verified: true`、`independent: true`。
-  `label_source` 只能为 `manual_verified`、`external_ground_truth` 或
-  `independent_validated`。`schedule_derived` 和 `uses_upstream_schedule_assignment`
-  不得为真，建议显式写 `false`。声明与哈希不能替代人工核验或证明来源真实性。
-- 真值二选一：非空 `true_trip_id`，或者 `no_scheduled_trip: true`。
-- 分割：`split` 为 `train`、`validation`、`test`，完整数据必须同时包含三者。
-  **route_id、service_date、episode_id 三个维度必须分别跨 split 不重叠**，
-  不只是组合键不重叠。因此只有 2023-11-06 / route 29 不能构造合格留出集。
-- 模型输入：非空 `candidates` 列表，稳定且唯一的 `candidate_id`（可用 `trip_id`
-  替代）、`trip_id` 和 `score`；应保留完整评分候选，不只保留已通过门槛的结果。
-  校准器按 score 排序，需要有效的有限数值候选特征。
-  每条标签的 `scorer_fingerprint` 必须与 CLI 参数及被评价评分版本一致。
-  CLI **不会**自动将 shadow 候选补到标签的 `candidates` 字段。
+- Identity: `feed_version`, `route_id`, `service_date`, `case_id`, `episode_id`;
+  `(feed_version, route_id, service_date, case_id)` must not repeat.
+- Evidence: `label_id` and `evidence_id` are non-empty strings; `evidence_sha256` is the
+  64-character lowercase hexadecimal SHA-256 of the source evidence; `verified: true`, `independent: true`.
+  `label_source` may only be `manual_verified`, `external_ground_truth`, or
+  `independent_validated`. `schedule_derived` and `uses_upstream_schedule_assignment`
+  must not be true; writing `false` explicitly is recommended. Declarations and hashes do not substitute for human verification or prove the authenticity of the source.
+- Ground truth, one of two: a non-empty `true_trip_id`, or `no_scheduled_trip: true`.
+- Splits: `split` is `train`, `validation`, or `test`, and the full dataset must contain all three.
+  **The route_id, service_date, and episode_id dimensions must each be disjoint across splits**,
+  not merely the combined key. Consequently, 2023-11-06 / route 29 alone cannot form a qualifying held-out set.
+- Model inputs: a non-empty `candidates` list with a stable, unique `candidate_id` (`trip_id`
+  may substitute), `trip_id`, and `score`; the complete set of scored candidates should be retained, not only those that passed the gates.
+  The calibrator sorts by score and requires valid finite numeric candidate features.
+  Each label's `scorer_fingerprint` must agree with the CLI argument and the scorer version being evaluated.
+  The CLI **does not** automatically fill shadow candidates into the label's `candidates` field.
 
-以下仅为**一条合成格式示例，不是真实标签，不足以训练，也不得激活**；虚构的
-`true` 声明、ID、分数和哈希均只展示格式：
+The following is **a single synthetic format example only; it is not a real label, is insufficient for training, and must not be activated**; the fictitious
+`true` declarations, IDs, scores, and hashes illustrate the format only:
 
 ```json
 [
@@ -51,21 +51,21 @@
 ]
 ```
 
-默认至少 60 个 train、40 个 validation episode；每个启用的特征 bin 在两者中
-分别至少有 15 个样本，test 必须非空。满足数量不保证通过校准，还要通过留出可靠性
-检查；test 不参与拟合和模型选择。模型的适用范围仍受评分 fingerprint、特征支持域
-及经过独立验证的 feed / route / service_date 限制。
+Defaults require at least 60 train and 40 validation episodes; each enabled feature bin must have at least 15 samples in each of the two,
+and test must be non-empty. Meeting the counts does not guarantee passing calibration; the held-out reliability
+check must also pass, and test does not participate in fitting or model selection. The model's domain of applicability remains limited by the scorer fingerprint, the feature support domain,
+and the independently validated feed / route / service_date.
 
-可选独立真值字段：`true_pattern_id`、`true_delay_s`、`adjacent_trip_ids`、
-`boundary_times_s`、`operating_regime`，分别支持对应评价。边界时刻必须与输出使用同一
-时间轴；没有独立 regime 标签时，不要把 `inferred_delay_regime` 当作真值。
-CSV 中布尔字段使用字面量 `true` / `false`，列表字段使用 JSON 字符串；推荐 JSON。
+Optional independent ground-truth fields: `true_pattern_id`, `true_delay_s`, `adjacent_trip_ids`,
+`boundary_times_s`, and `operating_regime`, each supporting the corresponding evaluation. Boundary times must use the same
+time axis as the output; without an independent regime label, do not treat `inferred_delay_regime` as ground truth.
+In CSV, boolean fields use the literals `true` / `false` and list fields use JSON strings; JSON is recommended.
 
-## 2. 实际离线命令与输出
+## 2. Actual offline command and output
 
-从 `agencies/ttc` 运行。`--old-results` / `--new-results` 都支持 episode 数组，
-也支持已有 `{ "old": [...], "new": [...], ... }` shadow envelope，分别读取对应侧。
-同一个文件可传给两个参数。输出目录须存在，输出文件必须是新文件。
+Run from `agencies/ttc`. Both `--old-results` / `--new-results` accept an episode array
+and also an existing `{ "old": [...], "new": [...], ... }` shadow envelope, reading the corresponding side from each.
+The same file may be passed to both arguments. The output directory must exist, and the output file must be a new file.
 
 ```sh
 CALIBRATION_SHADOW='artifacts/merge-debug-20231106/runs/run-20231106-20260910T063603-e4bf6bc60823/shadow/global-episodes.json'
@@ -75,38 +75,38 @@ UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   --output artifacts/merge-debug-20231106/experiment04c-validation/calibration-availability.json
 ```
 
-这条命令没有提供标签，预期为 `UNCALIBRATED`，不是训练成功。将来取得合格真实标签后，
-在同一命令增加 `--labels /path/to/verified-labels.json` 和
-`--scorer-fingerprint '与标签及实际评分结果一致的fingerprint'`。
-四种决策模式应分别使用对应 shadow 文件，并与标签中的候选/评分 fingerprint 对齐。
+This command provides no labels, so the expected result is `UNCALIBRATED`, not a successful training run. Once qualifying real labels are obtained,
+add `--labels /path/to/verified-labels.json` and
+`--scorer-fingerprint 'fingerprint consistent with the labels and the actual scoring results'` to the same command.
+The four decision modes should each use their corresponding shadow file, aligned with the candidate/scoring fingerprint in the labels.
 
-工具记录输入文件内容哈希；结果即使通过也仅为 `FITTED_NOT_ACTIVATED`，
-`activated` 始终为 `false`，不会修改工作台配置或重跑匹配。
-没有独立标签、所需真值字段、支持域或有效分母时，相应指标为 `null` 并附可用性原因；
-`null` 不等于 0。排名变化、候选数量、耗时、abstention 描述可计算，但不是准确率提升。
-缺少有效校准器时，候选概率保持未校准，不能据此宣称已确认 scheduled occurrence。
+The tool records the content hashes of the input files; even when a result passes it is only `FITTED_NOT_ACTIVATED`,
+`activated` is always `false`, and the workbench configuration is not modified nor is matching rerun.
+Without independent labels, the required ground-truth fields, a support domain, or a valid denominator, the corresponding metric is `null` with an availability reason;
+`null` does not mean 0. Ranking changes, candidate counts, elapsed time, and abstention descriptions can be computed, but they are not accuracy improvements.
+Without a valid calibrator, candidate probabilities remain uncalibrated and cannot be used to claim a confirmed scheduled occurrence.
 
-## 3. 运营延误先验是另一种 artifact
+## 3. The operational delay prior is a separate artifact
 
-上述 CLI **不训练运营先验**；输出固定注明
-`OPERATIONAL_PRIOR_NOT_TRAINED_BY_RANK_CALIBRATION_UTILITY`。
-`operational_prior.py` 只消费外部训练、独立验证过的
-`continuous_operational_prior_artifact` **JSON 对象**，不是文件路径。
+The CLI above **does not train the operational prior**; its output is fixed to note
+`OPERATIONAL_PRIOR_NOT_TRAINED_BY_RANK_CALIBRATION_UTILITY`.
+`operational_prior.py` consumes only an externally trained, independently validated
+`continuous_operational_prior_artifact` **JSON object**, not a file path.
 
-artifact 必须包含 `schema_version: operational-delay-prior-v1`、
-`independently_validated: true`、非空 `validation_artifact` 引用、完整
-`training_provenance` 和非空 `records`。provenance 要求：
+The artifact must include `schema_version: operational-delay-prior-v1`,
+`independently_validated: true`, a non-empty `validation_artifact` reference, complete
+`training_provenance`, and non-empty `records`. Provenance requirements:
 
-- `independent_verified: true`；`split_policy` 必须精确为
-  `route_id AND service_date AND episode_id disjoint`。
-- `labels_sha256` 是标签集合的规范化内容摘要；应使用
-  `evaluation.validate_independent_labels(..., require_complete_splits=True,
-  require_provenance=True)` 返回的 `training_provenance`，不能混用 CLI 的原始文件哈希。
-- `split_counts` 对三种 split 均为正整数；`split_groups` 在各 split 下包含非空、
-  无重复的 `route_id` / `service_date` / `episode_id` 字符串数组，各数组长度不能超过
-  对应样本数，且三个维度分别跨 split 不重叠。
+- `independent_verified: true`; `split_policy` must be exactly
+  `route_id AND service_date AND episode_id disjoint`.
+- `labels_sha256` is the canonical content digest of the label set; use the
+  `training_provenance` returned by `evaluation.validate_independent_labels(..., require_complete_splits=True,
+  require_provenance=True)`, and do not mix in the CLI's raw file hashes.
+- `split_counts` is a positive integer for all three splits; `split_groups` contains, under each split, non-empty,
+  duplicate-free string arrays of `route_id` / `service_date` / `episode_id`, each array no longer than
+  the corresponding sample count, with the three dimensions each disjoint across splits.
 
-以下是**合成 artifact 格式示例，不是训练产物；禁止复制为真实历史**：
+The following is a **synthetic artifact format example, not a training product; it must not be copied as real history**:
 
 ```json
 {
@@ -133,13 +133,13 @@ artifact 必须包含 `schema_version: operational-delay-prior-v1`、
 }
 ```
 
-每个 record 的 `sample_count` 必须为正整数，`centre_s` 为有限秒数，四个尺度为正秒数，
-disruption 同侧尺度不小于 routine，混合概率严格介于 0 和 1。每个 record 都要给齐参数。
-`context` 只能是层级前缀：`{}` → `feed_version` → 加 `route_id` → 加 `direction`
-→ 加 `observed_time_bucket`，同一 context 不得重复；选择最具体的匹配记录。
-候选 trip ID 和候选计划时刻不得进入 context。
+Each record's `sample_count` must be a positive integer, `centre_s` a finite number of seconds, and the four scales positive seconds;
+each disruption scale must be no smaller than the routine scale on the same side, and the mixture probability strictly between 0 and 1. Every record must provide all parameters.
+`context` may only be a hierarchical prefix: `{}` → `feed_version` → plus `route_id` → plus `direction`
+→ plus `observed_time_bucket`; the same context must not repeat, and the most specific matching record is selected.
+Candidate trip IDs and candidate scheduled times must not enter the context.
 
-API 接受整数小时桶 0–47；当前 04c 工作台从共同观测的本地墙钟小时生成 **0–23**，
-所以外部训练 artifact 必须采用同一约定，不能自行把凌晨 1 点写成 25。
-缺少匹配历史时使用明确标注 `uncalibrated_operational_defaults` 的工程参数，
-默认先验尾部不会被检索器称为已验证 empirical tail。
+The API accepts integer hour buckets 0–47; the current 04c workbench generates **0–23** from the local wall-clock hour of the joint observations,
+so an externally trained artifact must use the same convention and must not write 1 a.m. as 25 on its own.
+When no matching history exists, engineering parameters explicitly labelled `uncalibrated_operational_defaults` are used,
+and the default prior tails are not described by the retriever as a validated empirical tail.

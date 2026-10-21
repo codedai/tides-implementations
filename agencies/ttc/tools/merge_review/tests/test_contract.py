@@ -49,11 +49,11 @@ def test_three_views_have_accessible_names(document):
 
 def test_candidate_and_clock_limitations_are_explicit():
     text = (STATIC / "index.html").read_text()
-    assert "不是已确认的 trip performed" in text
-    assert "未校正两源时差" in text
-    assert any(phrase in text for phrase in ("不是行程完成率", "不等于计划行程完成率"))
-    assert "断点归零、不补线" in text
-    assert "不修改融合结果或源数据" in text
+    assert "not a confirmed performed trip" in text
+    assert "Inter-source clock offsets are not corrected" in text
+    assert "not scheduled-trip completion percentage" in text
+    assert "Distance resets at breaks" in text
+    assert "association results and source data are unchanged" in text
 
 
 def test_notes_length_matches_server_store_contract(document):

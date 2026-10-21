@@ -66,25 +66,31 @@ class DebugJobs:
             "label",
             "parent_run_id",
         }:
-            raise ValueError("实验请求需要 config，可选 label 和 parent_run_id")
+            raise ValueError(
+                "Experiment requests require config; label and parent_run_id "
+                "are optional"
+            )
         config = self.workspace.validate_config(body["config"])
         label = body.get("label", "")
         if not isinstance(label, str) or len(label) > 160:
-            raise ValueError("实验名称必须是最多 160 字符的文字")
+            raise ValueError("Experiment name must be text of at most 160 characters")
         parent = body.get("parent_run_id")
         if parent is not None:
             if not isinstance(parent, str):
-                raise ValueError("parent_run_id 必须是已完成的实验编号")
+                raise ValueError("parent_run_id must identify a completed experiment")
             self.workspace.get_run(parent)
         with self.lock:
             if any(j["state"] in {"queued", "running"} for j in self.jobs.values()):
-                raise DebugBusy("已有单日实验正在运行，请等待完成后再提交")
+                raise DebugBusy(
+                    "A one-day experiment is already running. "
+                    "Wait for it to finish before submitting another"
+                )
             job_id = uuid.uuid4().hex
             self.jobs[job_id] = {
                 "id": job_id,
                 "state": "queued",
                 "progress": 0,
-                "message": "已排队，只处理 2023-11-06",
+                "message": "Queued; processing 2023-11-06 only",
                 "run_id": None,
                 "error": None,
             }
@@ -106,13 +112,19 @@ class DebugJobs:
                 self.jobs[job_id].update(
                     state="running",
                     progress=min(99, max(0, 100 * done / total)) if total else 0,
-                    message=details.get("message") or details.get("stage") or "处理中",
+                    message=(
+                        details.get("message")
+                        or details.get("stage")
+                        or "Processing"
+                    ),
                     details=copy.deepcopy(details),
                     elapsed_s=round(time.monotonic() - started, 2),
                 )
 
         try:
-            progress({"stage": "准备当天输入", "completed": 0, "total": 1})
+            progress(
+                {"stage": "Preparing the day's inputs", "completed": 0, "total": 1}
+            )
             result = self.workspace.create_run(
                 config, label=label, parent_run_id=parent, progress=progress
             )
@@ -120,7 +132,7 @@ class DebugJobs:
                 self.jobs[job_id].update(
                     state="complete",
                     progress=100,
-                    message="单日实验完成",
+                    message="One-day experiment complete",
                     run_id=result.get("run_id") or result["id"],
                     result=result,
                     elapsed_s=round(time.monotonic() - started, 2),
@@ -129,7 +141,10 @@ class DebugJobs:
             with self.lock:
                 self.jobs[job_id].update(
                     state="failed",
-                    message="实验未完成，原有版本和审查记录未改变",
+                    message=(
+                        "Experiment incomplete; existing versions and reviews "
+                        "are unchanged"
+                    ),
                     error=str(exc),
                     elapsed_s=round(time.monotonic() - started, 2),
                 )
@@ -137,7 +152,10 @@ class DebugJobs:
     def get(self, job_id):
         with self.lock:
             if job_id not in self.jobs:
-                raise ValueError("未知实验任务；服务重启后请从已完成版本列表查看结果")
+                raise ValueError(
+                    "Unknown experiment job. After a server restart, check the "
+                    "completed-run list for results"
+                )
             return copy.deepcopy(self.jobs[job_id])
 
 
@@ -147,7 +165,9 @@ class ReviewServer(ThreadingHTTPServer):
 
     def __init__(self, address, data, store, workspace=None, debug_state_dir=None):
         if address[0] not in {"127.0.0.1", "localhost"}:
-            raise ValueError("该审查工具仅允许绑定本机回环地址")
+            raise ValueError(
+                "This review tool may bind only to a local loopback address"
+            )
         self.data = data
         self.store = store
         self.data_lock = threading.RLock()
@@ -164,12 +184,14 @@ class ReviewServer(ThreadingHTTPServer):
         """A request owns its explicit run; never mutate a shared active run."""
         if self.workspace is None:
             if run_id is not None:
-                raise ValueError("冻结审查模式不支持切换实验版本")
+                raise ValueError(
+                    "Frozen review mode does not support switching experiment versions"
+                )
             return self.data, self.store
         if run_id is None:
             runs = self.workspace.metadata()["runs"]
             if not runs:
-                raise ValueError("尚无已完成的单日实验")
+                raise ValueError("No completed one-day experiments yet")
             latest = max(
                 runs, key=lambda r: (r.get("created_at", ""), r.get("run_id", ""))
             )
@@ -238,7 +260,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
     def _required(query, key):
         values = query.get(key)
         if not values or len(values) != 1 or not values[0]:
-            raise ValueError(f"缺少或重复参数：{key}")
+            raise ValueError(f"Missing or repeated parameter: {key}")
         return values[0]
 
     @classmethod
@@ -250,7 +272,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
         run = cls._optional(query, "run")
         run_id = cls._optional(query, "run_id")
         if run is not None and run_id is not None and run != run_id:
-            raise ValueError("run 与 run_id 必须指向同一实验版本")
+            raise ValueError(
+                "run and run_id must refer to the same experiment version"
+            )
         return run if run is not None else run_id
 
     @classmethod
@@ -262,12 +286,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
         validate_matching_mode(mode)
         if not hasattr(data, "available_matching_modes"):
-            raise ValueError("此版本不支持 GTFS 匹配模式选择")
+            raise ValueError(
+                "This version does not support selecting a GTFS matching mode"
+            )
         return {"matching_mode": mode}
 
     def do_GET(self):  # noqa: N802
         if not self._trusted_host():
-            self._json({"error": "不受信任的 Host；请使用本机网址"}, 403)
+            self._json({"error": "Untrusted Host; use the local address"}, 403)
             return
         path = urlsplit(self.path)
         query = parse_qs(path.query, keep_blank_values=True)
@@ -284,11 +310,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     self._json({"enabled": True, **metadata})
             elif path.path == "/api/debug/jobs":
                 if self.server.jobs is None:
-                    raise ValueError("未启用单日调试模式")
+                    raise ValueError("One-day debug mode is not enabled")
                 self._json({"job": self.server.jobs.get(self._required(query, "id"))})
             elif path.path == "/api/debug/compare":
                 if self.server.workspace is None:
-                    raise ValueError("未启用单日调试模式")
+                    raise ValueError("One-day debug mode is not enabled")
                 self._json(
                     self.server.workspace.compare(
                         self._required(query, "base"),
@@ -337,7 +363,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 case_id = self._required(query, "case_id")
                 context_s = int(self._optional(query, "context_s") or "180")
                 if not 0 <= context_s <= 1800:
-                    raise ValueError("上下文窗口必须在 0–1800 秒之间")
+                    raise ValueError(
+                        "Context window must be between 0 and 1800 seconds"
+                    )
                 with self.server.data_lock:
                     data, store = self.server.resolve_run(self._run_id(query))
                     detail = dict(
@@ -364,7 +392,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     data, _ = self.server.resolve_run(self._run_id(query))
                     if not hasattr(data, "day_overview"):
                         raise ValueError(
-                            "此版本没有 GTFS 全天总览；请选择 GTFS 匹配实验"
+                            "This version has no GTFS day overview; "
+                            "select a GTFS matching experiment"
                         )
                     overview = data.day_overview(matching_mode=mode)
                 self._json(overview)
@@ -377,20 +406,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     "/": ("index.html", "text/html; charset=utf-8"),
                     "/index.html": ("index.html", "text/html; charset=utf-8"),
                     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-                    "/i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
-                    "/i18n-static.js": (
-                        "i18n-static.js",
-                        "text/javascript; charset=utf-8",
-                    ),
-                    "/i18n-dynamic.js": (
-                        "i18n-dynamic.js",
-                        "text/javascript; charset=utf-8",
-                    ),
-                    "/i18n.css": ("i18n.css", "text/css; charset=utf-8"),
                     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
                 }
                 if path.path not in assets:
-                    self._json({"error": "页面或接口不存在"}, 404)
+                    self._json({"error": "Page or endpoint not found"}, 404)
                     return
                 name, mime = assets[path.path]
                 self._send((STATIC / name).read_bytes(), mime)
@@ -400,11 +419,19 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return
         except Exception as exc:
             self.log_error("Request failed (%s)", type(exc).__name__)
-            self._json({"error": "读取本地证据失败，请检查终端和输入目录"}, 500)
+            self._json(
+                {
+                    "error": (
+                        "Failed to read local evidence; "
+                        "check the terminal and input directory"
+                    )
+                },
+                500,
+            )
 
     def do_POST(self):  # noqa: N802
         if not self._trusted_host():
-            self._json({"error": "不受信任的 Host"}, 403)
+            self._json({"error": "Untrusted Host"}, 403)
             return
         origin = self.headers.get("Origin")
         allowed_origins = {
@@ -415,42 +442,51 @@ class ReviewHandler(BaseHTTPRequestHandler):
         if (origin is not None and origin not in allowed_origins) or not (
             secrets.compare_digest(token, self.server.csrf_token)
         ):
-            self._json({"error": "保存请求验证失败，请刷新本地页面"}, 403)
+            self._json(
+                {"error": "Save-request validation failed; refresh the local page"}, 403
+            )
             return
         request_path = urlsplit(self.path)
         query = parse_qs(request_path.query, keep_blank_values=True)
         if request_path.path not in {"/api/reviews", "/api/debug/runs"}:
-            self._json({"error": "接口不存在"}, 404)
+            self._json({"error": "Endpoint not found"}, 404)
             return
         if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
-            self._json({"error": "需要 JSON 请求"}, 415)
+            self._json({"error": "A JSON request is required"}, 415)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= 65536:
-                raise ValueError("请求体为空或超出 64 KiB 限制")
+                raise ValueError("Request body is empty or exceeds the 64 KiB limit")
             body = json.loads(self.rfile.read(length))
             if request_path.path == "/api/debug/runs":
                 if self.server.jobs is None:
-                    raise ValueError("未启用单日调试模式")
+                    raise ValueError("One-day debug mode is not enabled")
                 self._json({"job": self.server.jobs.submit(body)}, 202)
                 return
             expected = {"method", "vehicle", "case_id", "verdict", "notes", "revision"}
             if self.server.workspace is not None:
                 expected.add("run_id")
             if not isinstance(body, dict) or set(body) != expected:
-                raise ValueError("审查字段不完整或包含未知字段")
+                raise ValueError(
+                    "Review fields are incomplete or contain unknown fields"
+                )
             if not all(isinstance(body[k], str) for k in expected - {"revision"}):
-                raise ValueError("审查字段格式不正确")
+                raise ValueError("Invalid review field format")
             run_id = body.pop("run_id", None)
             query_run = self._optional(query, "run")
             if query_run is not None and query_run != run_id:
-                raise ValueError("审查请求 URL 与正文的实验版本不一致")
+                raise ValueError(
+                    "The experiment version in the review request URL differs "
+                    "from the request body"
+                )
             with self.server.data_lock:
                 data, store = self.server.resolve_run(run_id)
                 exists = data.has_case(body["method"], body["vehicle"], body["case_id"])
             if not exists:
-                raise ValueError("审查对象不在指定结果版本中")
+                raise ValueError(
+                    "The review target is not in the specified result version"
+                )
             result = store.save(**body)
             self._json(result)
         except (RevisionConflict, DebugBusy) as exc:
@@ -461,7 +497,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
             return
         except Exception as exc:
             self.log_error("Save failed (%s)", type(exc).__name__)
-            self._json({"error": "保存失败；请保留备注并检查本地磁盘和终端"}, 500)
+            self._json(
+                {
+                    "error": (
+                        "Save failed; retain your notes and check the local disk "
+                        "and terminal"
+                    )
+                },
+                500,
+            )
 
 
 def main():
@@ -472,7 +516,12 @@ def main():
     parser.add_argument("--state-dir", type=Path)
     parser.add_argument("--port", type=int)
     parser.add_argument(
-        "--debug-date", choices=["2023-11-06"], help="只重跑指定自然日，不推广全量"
+        "--debug-date",
+        choices=["2023-11-06"],
+        help=(
+            "Re-run only the specified calendar day; "
+            "do not extend to the full dataset"
+        ),
     )
     parser.add_argument("--debug-dir", type=Path, default=DEFAULT_DEBUG)
     parser.add_argument("--audit", type=Path, default=DEFAULT_AUDIT)
@@ -497,7 +546,7 @@ def main():
                 print("Building first daily baseline…", flush=True)
                 record = workspace.create_run(
                     metadata["defaults"],
-                    label="初始基线 · 2023-11-06",
+                    label="Initial baseline · 2023-11-06",
                     progress=lambda value: print(
                         json.dumps(json_safe(value), ensure_ascii=False), flush=True
                     ),
@@ -522,7 +571,7 @@ def main():
             debug_state_dir=state_dir,
         )
     except (OSError, ValueError) as exc:
-        parser.exit(2, f"无法启动审查网站：{exc}\n")
+        parser.exit(2, f"Cannot start the review site: {exc}\n")
     print(f"Merge Review: http://127.0.0.1:{server.server_port}", flush=True)
     print(f"Read-only results: {run}", flush=True)
     print(f"Independent review notes: {store.path}", flush=True)

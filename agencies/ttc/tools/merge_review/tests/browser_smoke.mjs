@@ -226,7 +226,7 @@ async function runChecks() {
   assert(await cdp.evaluate("['map-svg','timeline-svg','progress-svg'].every(id => document.getElementById(id).childElementCount > 3)"),
     'map, timeline, and progress SVGs contain rendered evidence');
   assert(await cdp.evaluate("!document.querySelector('#global-error').textContent.trim()"), 'no visible startup error');
-  assert(await cdp.evaluate("document.querySelector('#map-mode').textContent.includes('离线')"), 'map starts in offline mode');
+  assert(await cdp.evaluate("document.querySelector('#map-mode').textContent.includes('Offline')"), 'map starts in offline mode');
   assert(await cdp.evaluate("!document.querySelector('#map-svg image')"), 'no map tiles created by default');
   await click('#map-basemap');
   await delay(150);
@@ -301,7 +301,7 @@ async function runChecks() {
     assert(await cdp.evaluate("document.querySelector('#window-label').textContent") === firstWindowLabel,
       'previous window restores exact time range');
     await click('#window-focus');
-    assert(await cdp.evaluate("document.querySelector('#window-label').textContent.includes('局部浏览')"),
+    assert(await cdp.evaluate("document.querySelector('#window-label').textContent.includes('Partial view')"),
       'APC focus provides a local evidence view');
     assert(JSON.stringify(await cdp.evaluate("['metric-avl','metric-apc','metric-support'].map(id=>document.getElementById(id).textContent)")) === JSON.stringify(sourceMetrics),
       'window browsing does not change full-case counts or segmentation');

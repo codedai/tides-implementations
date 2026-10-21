@@ -6,7 +6,7 @@ not modify the frozen first study, resegment vehicles, use GTFS, read old human
 judgments, correct source clocks, infer APC-only tails, or publish TIDES tables.
 The underlying month has already been examined and is not an untouched holdout.
 
-See the [Chinese optimization report](../../docs/apc-avl-direct-evidence-optimization-20260908.md)
+See the [optimization report](../../docs/apc-avl-direct-evidence-optimization-20260908.md)
 and [fixed-window robustness report](../../docs/apc-avl-direct-evidence-probes-20260908.md)
 for measured results and tradeoffs. The earlier
 [TIDES-based standard](../../docs/apc-avl-coverage-evaluation-standard.md) still

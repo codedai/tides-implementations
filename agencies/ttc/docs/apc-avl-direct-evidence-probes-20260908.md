@@ -1,134 +1,134 @@
-# APC–AVL 直接证据层 v2：冻结窗口扰动检查
+# APC–AVL Direct Evidence Layer v2: Frozen-Window Perturbation Checks
 
-日期：2026-09-08。此报告是观测关联方法的有限鲁棒性检查，不是独立准确率评测，也不确认 `trip performed`、实际停站角色或完整 trip 起终点。
+Date: 2026-09-08. This report is a bounded robustness check of the observational association method; it is not an independent accuracy evaluation, and it does not confirm `trip performed`, actual stop roles, or complete trip start and end points.
 
-最终结果采用 `artifacts/apc-avl-direct-evidence-20260908/probes02/`。初版 `probes01/` 完整保留，但已被本次重跑替代：最终 matcher 保留重复测量所有原始别名的 owner 上下文，并让近时刻的反证考虑车辆可行移动距离，避免正常驶入／驶离位置反过来否定精确近点。以下数值均重新测量，不沿用初版结果。
+The final results are taken from `artifacts/apc-avl-direct-evidence-20260908/probes02/`. The initial `probes01/` is fully retained but has been superseded by this rerun: the final matcher keeps the owner context of all raw aliases of a duplicate measurement, and makes contemporaneous counter-evidence account for the vehicle's feasible travel distance, so that normal approach/departure positions do not refute an exact near point. All figures below were re-measured; none are carried over from the initial run.
 
-## 结论
+## Conclusions
 
-v2 能把“有局部支持”“仅部分区间有支持”“存在竞争或矛盾”分开；完全重复的 AVL 测量和输入顺序变化不影响已测窗口的决策。保留实测 GPS 不变、仅细分分割上下文时，纯实测点支持也保持不变。
+v2 separates "has local support", "only part of the interval has support", and "competition or contradiction exists"; exact duplicate AVL measurements and changes in input order do not affect decisions in the measured windows. When the measured GPS is held fixed and only the segmentation context is refined, pure measured-point support also remains unchanged.
 
-但 v2 对时钟偏移非常敏感：这些窗口原有 1,413 条 `direct`，APC 整体平移 −60 / +60 秒后分别仅有 58 / 172 条仍输出 `direct`。这是更保守的时空一致性检查带来的覆盖损失，不能称为准确率提高，也不能据此认定真实时钟偏移就是一分钟。
+However, v2 is very sensitive to clock offset: these windows originally have 1,413 `direct` rows, and after shifting all APC by −60 / +60 s only 58 / 172 respectively still output `direct`. This is a coverage loss caused by the more conservative spatiotemporal consistency check; it cannot be called an accuracy improvement, nor can it be taken to mean that the true clock offset is one minute.
 
-## 冻结输入与范围
+## Frozen inputs and scope
 
-直接复用上次研究在方法运行前按原始数据特征选出的窗口，不根据 v2 输出重新选择：
+The windows selected in the previous study based on raw-data features before any method was run are reused directly, with no re-selection based on v2 output:
 
-- `artifacts/apc-avl-coverage-study-20260908/probes01/selection.json`：12 个一般窗口。
-- `artifacts/apc-avl-coverage-study-20260908/probes-edge02/selection.json`：8 个边界窗口，每类 2 个：共享站点相反方向重叠、DST 歧义小时、月底 APC 尾段、AVL 内部缺口。
-- 共 20 个两小时窗口，12,909 行 AVL、1,749 行 APC。窗口截断了前后历史，其边缘不是实际趟次起终点；窗口并非随机代表性样本，不应把汇总率推广到所有运营场景。
-- 独立核对各窗口源 ID 后，汇总行数与去重源行数恰好相同：AVL 均为 12,909，APC 均为 1,749，本次窗口之间没有重复计算同一源行。一般 12 窗口为 8,603 AVL / 1,011 APC，边界 8 窗口为 4,306 AVL / 738 APC；“没有跨窗口重复”不表示原始 AVL 内不存在内容完全重复但源 ID 不同的记录。
-- 两份选择文件的原路径与 SHA256、运行代码 SHA256 记录在新 `probes02/manifest.json`。原数据、原选择文件、历史实验输出均未修改。
-- 主检查先计算一次 `avl_context` 分割，随后冻结原 owner 归属。移除 GPS 时只投影剩余源记录并更新观测覆盖；复制 GPS 时副本继承原 owner。这样避免把旧分割算法的重复敏感性误算成 merge 方法自身变化。
-- `owner_refinement` 单独把每个实测时间戳作为不同 owner；这是刻意构造的上下文压力，不是 trip 分割建议。
+- `artifacts/apc-avl-coverage-study-20260908/probes01/selection.json`: 12 general windows.
+- `artifacts/apc-avl-coverage-study-20260908/probes-edge02/selection.json`: 8 edge windows, 2 per class: shared-stop opposite-direction overlap, DST-ambiguous hour, end-of-month APC tail, and internal AVL gap.
+- 20 two-hour windows in total, with 12,909 AVL rows and 1,749 APC rows. The windows truncate the preceding and following history, so their edges are not actual trip start and end points; the windows are not a random representative sample, and the aggregate rates should not be generalized to all operating scenarios.
+- After independently checking the source IDs in each window, the summed row counts and the deduplicated source row counts are exactly equal: 12,909 for AVL and 1,749 for APC in both cases, so no source row is double-counted across windows in this run. The 12 general windows contain 8,603 AVL / 1,011 APC rows and the 8 edge windows 4,306 AVL / 738 APC rows; "no cross-window duplication" does not mean the raw AVL contains no records that are identical in content but carry different source IDs.
+- The original paths and SHA256 of the two selection files and the SHA256 of the executing code are recorded in the new `probes02/manifest.json`. The raw data, original selection files, and historical experiment outputs were not modified.
+- The main check computes the `avl_context` segmentation once and then freezes the original owner assignment. When GPS is removed, only the remaining source records are projected and the observed coverage is updated; when GPS is duplicated, the copies inherit the original owner. This avoids misattributing the old segmentation algorithm's sensitivity to duplicates as a change in the merge method itself.
+- `owner_refinement` separately treats every measured timestamp as a distinct owner; this is a deliberately constructed context stress, not a trip segmentation recommendation.
 
-没有使用 GTFS、人工标签、时钟自动校正或尾段序列推断。基线是原 v1 默认时空约束关联，v2 是新默认直接证据方法；这两版 `direct` 的证据要求不同，不能仅凭数量评优。
+No GTFS, human labels, automatic clock correction, or tail sequence inference were used. The baseline is the original v1 default spatiotemporally constrained association, and v2 is the new default direct-evidence method; the two versions have different evidence requirements for `direct`, so they cannot be ranked by count alone.
 
-## 原始窗口结果
+## Original-window results
 
-| 窗口类型 | APC 行数 | v1 direct | v2 direct | v2 partial |
+| Window type | APC rows | v1 direct | v2 direct | v2 partial |
 |---|---:|---:|---:|---:|
-| 一般窗口（12 个） | 1,011 | 1,007 | 981 | 11 |
-| 共享站点相反方向重叠（2 个） | 145 | 92 | 91 | 2 |
-| DST 歧义小时（2 个） | 154 | 34 | 33 | 1 |
-| 月底 APC 尾段（2 个） | 251 | 125 | 123 | 2 |
-| AVL 内部缺口（2 个） | 188 | 187 | 185 | 2 |
-| 合计 | 1,749 | 1,445 | 1,413 | 18 |
+| General windows (12) | 1,011 | 1,007 | 981 | 11 |
+| Shared-stop opposite-direction overlap (2) | 145 | 92 | 91 | 2 |
+| DST-ambiguous hour (2) | 154 | 34 | 33 | 1 |
+| End-of-month APC tail (2) | 251 | 125 | 123 | 2 |
+| Internal AVL gap (2) | 188 | 187 | 185 | 2 |
+| Total | 1,749 | 1,445 | 1,413 | 18 |
 
-v2 其余结果为 17 条 `ambiguous`、181 条 `unmatched`、120 条 `ineligible`。`direct` 中 349 条为瞬时支持、1,064 条为有界区间支持；`partial` 中 10 条仅到达端、7 条仅离开端、1 条仅内部支持。
+The remaining v2 results are 17 `ambiguous`, 181 `unmatched`, and 120 `ineligible`. Of the `direct` rows, 349 have instant support and 1,064 have bounded-interval support; of the `partial` rows, 10 are arrival-only, 7 departure-only, and 1 interior-only.
 
-这里“有界区间”表示同一局部候选段支持相应区间端点，不证明车辆在整个区间持续停站，也不证明 APC 的供应商统计粒度已经确定。
+Here "bounded interval" means that the same local candidate episode supports the corresponding interval endpoints; it does not prove that the vehicle remained stopped throughout the interval, nor that the vendor's APC aggregation grain has been established.
 
-逐条对应 v1 原有的 1,445 条 `direct`：1,412 条在 v2 中仍为 `direct`；17 条降为 `partial`（10 到达端、6 离开端、1 内部）；6 条因同时段反证变为 `ambiguous`；9 条因分数不足变为 `ambiguous`；1 条不再有可接受局部候选。这里 9 条分数不足均只有一个候选且分数低于 650，其中 7 条同时低于与 null 候选的 60 分差；不能把合并原因码中的 “COMPETING_EPISODES” 当成这些真实记录已经出现多候选竞争的证据。另有 1 条 v1 `ambiguous` 成为 v2 `direct`、1 条成为 `partial`，故 v2 总数为 1,413 / 18。
+Tracing v1's original 1,445 `direct` rows one by one: 1,412 remain `direct` in v2; 17 are downgraded to `partial` (10 arrival-end, 6 departure-end, 1 interior); 6 become `ambiguous` due to contemporaneous counter-evidence; 9 become `ambiguous` due to insufficient score; and 1 no longer has an acceptable local candidate. The 9 insufficient-score rows each have only one candidate with a score below 650, and 7 of them also fall below the 60-point margin over the null candidate; the "COMPETING_EPISODES" in the combined reason code must not be taken as evidence that multi-candidate competition actually occurred for these real records. In addition, 1 v1 `ambiguous` row becomes v2 `direct` and 1 becomes `partial`, giving v2 totals of 1,413 / 18.
 
-## 遮挡与时钟扰动
+## Masking and clock perturbations
 
-每个窗口均执行原始输入、10 种既有扰动、输入重排和 owner 细分，共 13 个输入版本；两种方法合计 520 个“方法 × 输入版本 × 窗口”结果。
+Each window is run with the original input, the 10 existing perturbations, input reordering, and owner refinement, for 13 input versions in total; across the two methods this yields 520 "method × input version × window" results.
 
-| 扰动 | APC 分母 | v1 direct | v2 direct | v2 direct + partial |
+| Perturbation | APC denominator | v1 direct | v2 direct | v2 direct + partial |
 |---|---:|---:|---:|---:|
-| 原始输入 | 1,749 | 1,445 | 1,413 | 1,431 |
-| 移除中间 5 分钟 AVL | 1,749 | 1,399 | 1,362 | 1,384 |
-| APC 前 15 分钟与 AVL 后 13 分钟同时移除 | 1,539 | 1,037 | 1,015 | 1,026 |
-| APC 时间 −120 秒 | 1,749 | 48 | 10 | 17 |
-| APC 时间 −60 秒 | 1,749 | 993 | 58 | 93 |
-| APC 时间 +60 秒 | 1,749 | 1,176 | 172 | 226 |
-| APC 时间 +120 秒 | 1,749 | 164 | 39 | 45 |
+| Original input | 1,749 | 1,445 | 1,413 | 1,431 |
+| Remove middle 5 minutes of AVL | 1,749 | 1,399 | 1,362 | 1,384 |
+| Remove first 15 minutes of APC and last 13 minutes of AVL together | 1,539 | 1,037 | 1,015 | 1,026 |
+| APC time −120 s | 1,749 | 48 | 10 | 17 |
+| APC time −60 s | 1,749 | 993 | 58 | 93 |
+| APC time +60 s | 1,749 | 1,176 | 172 | 226 |
+| APC time +120 s | 1,749 | 164 | 39 | 45 |
 
-中间缺口下，v2 原来 `direct` 的记录有 6 条降为 `partial`，45 条转为未决／未匹配；另有 2 条原 `partial` 失去支持。它没有把缺口变成虚构的 GPS 观测。
+Under the middle gap, 6 of v2's originally `direct` records are downgraded to `partial` and 45 become ambiguous/unmatched; a further 2 originally `partial` records lose support. The method does not turn the gap into fabricated GPS observations.
 
-同时遮挡两端后，1,539 条保留 APC 在未遮挡参考结果中有 1,227 条 `direct`；其中 1,015 条仍为 `direct`、3 条降为 `partial`、209 条转为未匹配。参考输出只是同一算法在较完整输入上的结果，不是真实标签。
+After masking both ends together, the 1,539 retained APC rows have 1,227 `direct` in the unmasked reference result; of these, 1,015 remain `direct`, 3 are downgraded to `partial`, and 209 become unmatched. The reference output is merely the same algorithm's result on more complete input, not a ground-truth label.
 
-时钟平移是源时间的内存变换，重新标记平移进入 DST 歧义的时间；不写回源记录，不估计或校正真实时钟。如此明显的收缩意味着：若供应商时间同步还未确认，v2 的直接支持覆盖不能作为生产可行性已经满足的证据。需要把真实时钟一致性检查作为独立门槛，而不是为恢复关联率盲目放宽阈值。
+A clock shift is an in-memory transformation of source times that re-flags times shifted into the DST-ambiguous period; it is not written back to the source records and does not estimate or correct the true clock. Such a pronounced contraction means that, as long as vendor time synchronization is unconfirmed, v2's direct-support coverage cannot serve as evidence that production feasibility has been met. True clock consistency needs to be checked as an independent gate, rather than blindly loosening thresholds to recover the association rate.
 
-为避免一般窗口和困难窗口的混合掩盖差异，下表单独列出 v2 `direct / partial`。边界合计是下方四个边界分层之和，不是额外样本：
+To prevent the mixture of general and difficult windows from masking differences, the table below lists v2 `direct / partial` separately. The edge total is the sum of the four edge strata below it, not an additional sample:
 
-| 窗口层 | 原始 | −120 秒 | −60 秒 | +60 秒 | +120 秒 |
+| Window stratum | Original | −120 s | −60 s | +60 s | +120 s |
 |---|---:|---:|---:|---:|---:|
-| 一般 12 窗口，1,011 APC | 981 / 11 | 8 / 5 | 46 / 25 | 120 / 31 | 29 / 4 |
-| 边界 8 窗口合计，738 APC | 432 / 7 | 2 / 2 | 12 / 10 | 52 / 23 | 10 / 2 |
-| 共享站点重叠，145 APC | 91 / 2 | 1 / 1 | 5 / 4 | 12 / 10 | 0 / 1 |
-| DST 歧义小时，154 APC | 33 / 1 | 1 / 0 | 1 / 0 | 2 / 2 | 0 / 1 |
-| 月底 APC 尾段，251 APC | 123 / 2 | 0 / 1 | 2 / 0 | 11 / 4 | 2 / 0 |
-| AVL 内部缺口，188 APC | 185 / 2 | 0 / 0 | 4 / 6 | 27 / 7 | 8 / 0 |
+| 12 general windows, 1,011 APC | 981 / 11 | 8 / 5 | 46 / 25 | 120 / 31 | 29 / 4 |
+| 8 edge windows total, 738 APC | 432 / 7 | 2 / 2 | 12 / 10 | 52 / 23 | 10 / 2 |
+| Shared-stop overlap, 145 APC | 91 / 2 | 1 / 1 | 5 / 4 | 12 / 10 | 0 / 1 |
+| DST-ambiguous hour, 154 APC | 33 / 1 | 1 / 0 | 1 / 0 | 2 / 2 | 0 / 1 |
+| End-of-month APC tail, 251 APC | 123 / 2 | 0 / 1 | 2 / 0 | 11 / 4 | 2 / 0 |
+| Internal AVL gap, 188 APC | 185 / 2 | 0 / 0 | 4 / 6 | 27 / 7 | 8 / 0 |
 
-再只追踪原来 v2 `direct` 的 1,413 条，避免把扰动后新增直接关联混入“保留”计数：
+Tracking only the 1,413 originally v2 `direct` rows, so that direct associations newly gained after perturbation are not mixed into the "retained" count:
 
-| APC 时钟扰动 | 仍 direct | 端点／内部降级 partial | 同时段反证导致 ambiguous | 弱分数／分差不足 | 无局部支持 | 时间变为不合格 |
+| APC clock perturbation | Still direct | Downgraded to partial (endpoint/interior) | Ambiguous due to contemporaneous counter-evidence | Weak score/insufficient margin | No local support | Time became ineligible |
 |---|---:|---:|---:|---:|---:|---:|
-| −120 秒 | 9 | 5 | 1,365 | 0 | 34 | 0 |
-| −60 秒 | 51 | 30 | 1,223 | 1 | 108 | 0 |
-| +60 秒 | 162 | 50 | 1,059 | 6 | 134 | 2 |
-| +120 秒 | 37 | 4 | 1,313 | 0 | 55 | 4 |
+| −120 s | 9 | 5 | 1,365 | 0 | 34 | 0 |
+| −60 s | 51 | 30 | 1,223 | 1 | 108 | 0 |
+| +60 s | 162 | 50 | 1,059 | 6 | 134 | 2 |
+| +120 s | 37 | 4 | 1,313 | 0 | 55 | 4 |
 
-因此这一压力下的骤降主要来自观察到的同时段位置矛盾，而不是仅仅把接受分数阈值调高；原时间对应的近点并不能覆盖平移后时刻已经远离的实测位置。反证规则本身仍是未校准的工程假设，其保守性不等于已经确认原关联错误。
+The sharp drop under this stress therefore comes mainly from observed contemporaneous position contradictions, not merely from raising the acceptance score threshold; the near point at the original time cannot cover the measured position that has already moved away at the shifted instant. The counter-evidence rule itself remains an uncalibrated engineering assumption, and its conservatism does not mean the original associations have been confirmed wrong.
 
-最终版在检查实测近时刻反证时使用 `distance_m > max(200, 100 + (130 / 3.6) × 时间差秒数)`，并保留原同时段搜索约束；它给正常车辆移动留出余量，不再把任何 10 秒内超过 200 m 的点一概当成矛盾。修正后 +60 秒的 `direct` 从初版 165 增至 172、`partial` 从 32 增至 54，但严重时钟敏感性仍然存在。
+The final version checks measured contemporaneous counter-evidence using `distance_m > max(200, 100 + (130 / 3.6) × time_difference_s)` while keeping the original contemporaneous search constraint; this leaves room for normal vehicle motion and no longer treats every point more than 200 m away within 10 s as a contradiction. After the correction, `direct` at +60 s rises from 165 in the initial run to 172 and `partial` from 32 to 54, but the severe clock sensitivity remains.
 
-## 不变性与上下文解耦
+## Invariance and context decoupling
 
-640 项已实现的逐窗口检查全部通过，包括每条保留 APC 恰有一个结果、输入重排、AVL 完全复制，以及两源间隔 45 分钟时无局部支持。归一化决策检查不把重复源行本身当成独立证据。
+All 640 implemented per-window checks pass, including exactly one result per retained APC row, input reordering, full AVL duplication, and no local support when the two sources are 45 minutes apart. The normalized decision check does not treat duplicate source rows themselves as independent evidence.
 
-另对保存的 20 个窗口结果做了 40 次完整 v2 决策对象比较：原始输出与重排／复制输出在按 APC ID 排序后完全一致，包括候选、分数、正反证据和结果字段；此补充只读比较不是上述 640 项计数的一部分。
+In addition, 40 full v2 decision-object comparisons were made on the saved results of the 20 windows: after sorting by APC ID, the original output and the reordered/duplicated outputs are identical, including candidates, scores, positive and counter-evidence, and result fields; this supplementary read-only comparison is not part of the 640-check count above.
 
-在每个 AVL 时间戳都变成不同 owner 的人工压力下：
+Under the artificial stress in which every AVL timestamp becomes a distinct owner:
 
-- 原 v2 的 574 条纯实测点 `direct` 全部保持 `direct`；17 条纯实测点 `partial` 全部保持 `partial`。这 591 条的支持级别与实测 ping 引用也完全不变。
-- 原含插值的 839 条 `direct` 中，712 条仍为 `direct`、76 条转为 `partial`、42 条为 `ambiguous`、9 条为 `unmatched`。分割间插值被禁止，因此不能要求这类派生证据无条件保持不变。
-- v2 的全部 `direct` 从 1,413 变为 1,286；v1 从 1,445 变为 157。这里只说明两层耦合程度不同，不说明 v2 识别了更多真实 trip。
+- All 574 of v2's original pure measured-point `direct` rows remain `direct`; all 17 pure measured-point `partial` rows remain `partial`. The support level and measured-ping references of these 591 rows are also completely unchanged.
+- Of the 839 original `direct` rows that involve interpolation, 712 remain `direct`, 76 become `partial`, 42 `ambiguous`, and 9 `unmatched`. Interpolation across segments is prohibited, so this kind of derived evidence cannot be required to remain unconditionally unchanged.
+- v2's total `direct` goes from 1,413 to 1,286; v1's goes from 1,445 to 157. This shows only that the two layers differ in degree of coupling, not that v2 identifies more true trips.
 
-## 独立证据回放与构造反例
+## Independent evidence replay and constructed counterexamples
 
-260 次回放覆盖 10,921 次被接受的局部关联结果及其 27,487 条正支持 witness（20,014 条实测点、7,473 条插值），均未发现本检查范围内的失败。计数包含同一窗口／记录在不同扰动中的重复出现，不是 27,487 条独立观测。
+260 replays cover 10,921 accepted local association results and their 27,487 positive-support witnesses (20,014 measured points, 7,473 interpolations), with no failures found within the scope of this check. The counts include repeated appearances of the same window/record under different perturbations and are not 27,487 independent observations.
 
-回放不调用 matcher 的几何计算函数，使用独立球面距离实现，检查：真实源 ID、同一车辆、时间可用性、同一时刻冲突隔离、点坐标和时刻、相邻真实插值括号、间隔与速度上限、保存位置／距离／时间残差，以及目标位于 APC 区间内。它不验证乘客计数、真实停站、trip 归属或真实时钟误差。新增负证据 `counter_witnesses` 不在这份正支持回放的独立验证范围内。
+The replay does not call the matcher's geometry functions; it uses an independent spherical-distance implementation and checks: real source IDs, same vehicle, time availability, isolation of same-instant conflicts, point coordinates and instants, adjacent real interpolation brackets, gap and speed ceilings, stored position/distance/time residuals, and that the target lies within the APC interval. It does not verify passenger counts, actual stops, trip assignment, or true clock error. The newly added negative evidence in `counter_witnesses` is outside the independent validation scope of this positive-support replay.
 
-六类构造检查的结果如下；它们是预期行为契约，不是现场准确率标签：
+The results of the six constructed checks are as follows; they are expected-behavior contracts, not field accuracy labels:
 
-| 构造情景 | v1 | v2 |
+| Constructed scenario | v1 | v2 |
 |---|---|---|
-| 10 分钟区间仅一个偶然近点，其余明显远离 | direct | 同时段 GPS 矛盾，ambiguous |
-| 10 分钟区间持续有近点 | direct | bounded_interval direct |
-| 同一 chunk 内两次经过同站，APC 区间跨越两次 | direct | 竞争候选，ambiguous |
-| 同站、相反方向的两个重叠 APC 区间 | 两条 direct | 保留两条局部 direct，同时标记角色重叠 |
-| 附近没有实测点，但有合法短间隔插值 | direct | instant direct，明确 interpolation |
-| 10 分钟 GPS 缺口中的 APC 事件 | unmatched | unmatched |
+| 10-minute interval with a single incidental near point, all others clearly distant | direct | Contemporaneous GPS contradiction, ambiguous |
+| 10-minute interval with continuous near points | direct | bounded_interval direct |
+| Two passes of the same stop within one chunk, with the APC interval spanning both | direct | Competing candidates, ambiguous |
+| Two overlapping APC intervals at the same stop in opposite directions | Two direct | Both local direct retained, with role overlap flagged |
+| No measured point nearby, but a valid short-gap interpolation | direct | instant direct, explicitly marked interpolation |
+| APC event inside a 10-minute GPS gap | unmatched | unmatched |
 
-纯实测点在 owner 细分下保留、跨 owner 插值被撤回、六类构造输入复制／重排不变性等，共 22 项本模块回归测试通过。另有 2 项重复别名 owner 上下文回归测试通过：同一实测点的原始副本分属不同 owner 时保留局部直接观测，但不选单一 owner；含这种分歧的插值括号不能通过单一 owner 校验。构造共享终点检查明确要求 `trip_identity_verified=False`。
+22 regression tests in this module pass, covering retention of pure measured points under owner refinement, withdrawal of cross-owner interpolation, and duplication/reordering invariance for the six constructed inputs, among others. A further 2 duplicate-alias owner-context regression tests pass: when the raw aliases of the same measured point belong to different owners, the local direct observation is retained but no single owner is selected; an interpolation bracket containing such a divergence cannot pass the single-owner check. The constructed shared-terminal check explicitly requires `trip_identity_verified=False`.
 
-## 三条真实记录的有限定性核对
+## Bounded verification of three real records
 
-这部分不是上述冻结窗口评测，而是在最终 `full02` 已完成的结果中，固定前 32 个按散列文件名排序的车辆案例，再按 `SHA256(情景名 | APC 源 ID)` 选择说明性记录。它依赖输出选择情景，不能充当独立准确率样本。已逐条回查 canonical APC、实际 AVL 源记录、冻结 owner 和保存证据；以下只展示相对时间和距离，不展示车辆 ID、绝对时间或站点 ID。
+This section is not part of the frozen-window evaluation above. Instead, from the completed final `full02` results, the first 32 vehicle cases sorted by hashed file name were fixed, and illustrative records were then selected by `SHA256(scenario name | APC source ID)`. Because it depends on output-selected scenarios, it cannot serve as an independent accuracy sample. Each record was traced back to the canonical APC row, the actual AVL source records, the frozen owner, and the stored evidence; only relative times and distances are shown below, with no vehicle IDs, absolute times, or stop IDs.
 
-- 案例 A，`avl_context`：APC 区间长 401 秒。v1 用区间内部第 295 秒、距 APC 位置约 0.34 m 的点输出 `direct`。但到达端前 6 秒的实测位置相距约 470.05 m，离开端前 1 秒的实测位置相距约 322.05 m；对应短括号插值也分别相距约 433.58 m、323.65 m。v2 保留局部内部候选，却因端点反证输出 `ambiguous`。这是“一个近点不能证明整个 APC 区间”的真实说明；该记录只有一个局部候选，不应称为多候选竞争。
-- 案例 B，`avl_context`：APC 区间长 429 秒，到达端后 2 秒与离开端后 1 秒都有约 23.38 m 的实测近点，中间还有实测支持。冻结算法在区间内第 43 秒因持续源上下文变化切分 owner。v1 因两个 owner 的同等证据而 `ambiguous`；v2 保留纯实测点 `bounded_interval direct`，同时输出两个 owner、`segment_id=null`、`context_status=multiple_segments`，并保留混合线路标签标记。局部位置证据成立不要求先选定一个实际 trip。
-- 案例 C，`gap_only`：APC 区间长 10 秒，离开端由相对第 6 秒与第 16 秒的两个真实点构成 10 秒插值括号，估计残差约 16.30 m。两个括号端点确实使用不同原始线路标签。v2 保存两个标签并输出 `route_state=mixed`、`route_conflict=true`；v1 同条记录的冲突标记为 false。v2 仍在默认 flag 策略下保留局部直接证据，但没有把混合源标签静默变成“线路一致”，也没有解释特殊源标签的运营含义。
+- Case A, `avl_context`: the APC interval is 401 s long. v1 output `direct` using a point at second 295 inside the interval, about 0.34 m from the APC position. However, the measured position 6 s before the arrival end is about 470.05 m away, and the measured position 1 s before the departure end is about 322.05 m away; the corresponding short-bracket interpolations are about 433.58 m and 323.65 m away respectively. v2 retains the local interior candidate but outputs `ambiguous` because of endpoint counter-evidence. This is a real illustration that "one near point cannot prove the entire APC interval"; the record has only one local candidate and should not be described as multi-candidate competition.
+- Case B, `avl_context`: the APC interval is 429 s long, with measured near points about 23.38 m away both 2 s after the arrival end and 1 s after the departure end, plus measured support in between. The frozen algorithm splits the owner at second 43 inside the interval because of a sustained source-context change. v1 is `ambiguous` because the two owners have equal evidence; v2 retains a pure measured-point `bounded_interval direct` while outputting both owners, `segment_id=null`, and `context_status=multiple_segments`, and keeps the mixed route-label flag. Local position evidence can hold without first selecting an actual trip.
+- Case C, `gap_only`: the APC interval is 10 s long; the departure end is supported by a 10 s interpolation bracket formed by two real points at relative seconds 6 and 16, with an estimated residual of about 16.30 m. The two bracket endpoints do carry different raw route labels. v2 stores both labels and outputs `route_state=mixed` and `route_conflict=true`; v1's conflict flag for the same record is false. v2 still retains the local direct evidence under the default flag policy, but it neither silently turns the mixed source labels into "route concordant" nor interprets the operational meaning of the special source label.
 
-前 32 个 `avl_context` 案例文件中，第一类候选有 1,254 条、第二类有 10 条，未找到第三类已接受的混合线路插值；第三例因此明确改用同样 32 个文件的 `gap_only` 结果，其候选为 22 条。三例的源 ID、选择散列、完整结果／冻结输入文件 SHA256 和相对时间核对记录保存在私有产物 `probes02/real_case_audit.json`。回放未发现源引用、同车辆、可用时间、存储位置或距离错误；这些有限核对不证明 APC 统计粒度、真实运营角色、轨迹全程连续性或 trip 归属。
+Among the first 32 `avl_context` case files, there are 1,254 candidates for the first scenario and 10 for the second, and no accepted mixed-route interpolation of the third scenario was found; the third example therefore explicitly switched to the `gap_only` results of the same 32 files, which have 22 candidates. The source IDs, selection hashes, SHA256 of the full result/frozen input files, and relative-time verification records for the three examples are stored in the private artifact `probes02/real_case_audit.json`. The replay found no errors in source references, same-vehicle identity, time availability, stored position, or distance; these bounded checks do not prove APC aggregation grain, actual operational role, continuity of the full trajectory, or trip assignment.
 
-## 复现与产物
+## Reproduction and artifacts
 
-从 `agencies/ttc` 运行；选择一个不存在的新输出子目录，程序拒绝覆盖已有运行：
+Run from `agencies/ttc`; choose a new, non-existent output subdirectory, as the program refuses to overwrite an existing run:
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync \
@@ -140,4 +140,4 @@ UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync \
     artifacts/apc-avl-coverage-study-20260908/probes-edge02/selection.json
 ```
 
-本次最终结果目录为 `artifacts/apc-avl-direct-evidence-20260908/probes02/`，包括冻结清单、每窗口／扰动／方法的完整决策、汇总、640 项检查、正 witness 回放、构造案例与完成记录。执行耗时 7.62 秒；耗时不包括之前的全量原始数据审计和另行运行的全量方法比较。初版 `probes01/` 未删除或覆盖，不应与最终结果混用。
+The final result directory for this run is `artifacts/apc-avl-direct-evidence-20260908/probes02/`, containing the frozen manifest, the complete decisions per window/perturbation/method, summaries, the 640 checks, the positive-witness replay, the constructed cases, and the completion record. Execution took 7.62 s; this excludes the earlier full raw-data audit and the separately run full-data method comparison. The initial `probes01/` was neither deleted nor overwritten and should not be mixed with the final results.

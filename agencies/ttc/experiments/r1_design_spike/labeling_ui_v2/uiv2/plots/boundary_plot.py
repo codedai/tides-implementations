@@ -88,9 +88,9 @@ def fig_boundary(
             )
         )
     for ci, color, name in [
-        (bundle.prev_chunk, PREV_COLOR, "前一个 chunk（相邻上下文）"),
-        (bundle.chunk, CURRENT_COLOR, "当前标注窗口"),
-        (bundle.next_chunk, NEXT_COLOR, "后一个 chunk（相邻上下文）"),
+        (bundle.prev_chunk, PREV_COLOR, "Previous chunk (adjacent context)"),
+        (bundle.chunk, CURRENT_COLOR, "Current labeling window"),
+        (bundle.next_chunk, NEXT_COLOR, "Next chunk (adjacent context)"),
     ]:
         if ci is not None and ci.start_epoch is not None and ci.end_epoch is not None:
             note = f"{name}: {fmt_duration_s(ci.end_epoch - ci.start_epoch)}"
@@ -144,7 +144,7 @@ def fig_boundary(
             opacity=0.3,
             line_width=2,
             line_color=PROPOSED_EDGE,
-            annotation_text="提议的边界区间",
+            annotation_text="Proposed boundary interval",
             annotation_position="bottom left",
             annotation_font=dict(size=10, color=PROPOSED_EDGE),
         )
@@ -155,7 +155,7 @@ def fig_boundary(
                 x=0.5,
                 y=1.2,
                 showarrow=False,
-                text="⚠ 提议的边界落在所显示的 chunk 之外",
+                text="⚠ Proposed boundary falls outside the displayed chunk",
                 font=dict(size=12, color="#c00000"),
             )
 

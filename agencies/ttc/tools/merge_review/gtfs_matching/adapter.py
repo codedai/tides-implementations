@@ -378,7 +378,10 @@ class GTFSReviewData:
     def _matching_mode(self, mode):
         validate_matching_mode(mode)
         if mode not in self.available_matching_modes:
-            raise ValueError(f"此历史版本没有计算 {mode} 匹配模式；请选择四模式版本")
+            raise ValueError(
+                f"This historical version did not compute the {mode} matching mode; "
+                "select a four-mode version"
+            )
         return mode
 
     def _case_artifact(self, case_id):
@@ -653,7 +656,10 @@ class GTFSReviewData:
                     payload.get("matching_mode") != matching_mode
                     or payload.get("run_id") != self.run.name
                 ):
-                    raise ValueError("全天总览与指定实验版本或匹配模式不一致")
+                    raise ValueError(
+                        "The day overview does not match the specified experiment "
+                        "version or matching mode"
+                    )
                 self._overview_cache[matching_mode] = payload
         else:
             # Checking signatures on subsequent reads preserves tamper detection

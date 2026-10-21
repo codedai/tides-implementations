@@ -36,7 +36,7 @@ def show_table(data: pl.DataFrame | list[dict], *, max_rows: int | None = None) 
 
     rows = data.to_dicts() if isinstance(data, pl.DataFrame) else data
     if not rows:
-        st.caption("（空）")
+        st.caption("(empty)")
         return
     hidden = 0
     if max_rows is not None and len(rows) > max_rows:
@@ -50,4 +50,4 @@ def show_table(data: pl.DataFrame | list[dict], *, max_rows: int | None = None) 
     lines += ["| " + " | ".join(_cell(r.get(c)) for c in cols) + " |" for r in rows]
     st.markdown("\n".join(lines))
     if hidden:
-        st.caption(f"…… 另有 {hidden} 行未显示")
+        st.caption(f"… {hidden} more rows hidden")

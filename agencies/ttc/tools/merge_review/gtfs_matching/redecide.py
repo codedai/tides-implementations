@@ -245,7 +245,10 @@ def main():
     parser.add_argument("--source", required=True)
     parser.add_argument("--debug-dir", type=Path, default=DEFAULT_DEBUG)
     parser.add_argument("--audit", type=Path, default=DEFAULT_AUDIT)
-    parser.add_argument("--label", default="实验 03 · route 29 · 最终歧义保护版")
+    parser.add_argument(
+        "--label",
+        default="Experiment 03 · route 29 · final ambiguity-protected version",
+    )
     args = parser.parse_args()
     result = create_redecision(
         DebugWorkspace(args.debug_dir, args.audit),

@@ -59,11 +59,11 @@ class ReviewStore:
 
     def save(self, method, vehicle, case_id, verdict, notes, revision):
         if verdict not in VERDICTS:
-            raise ValueError("未知审查状态")
+            raise ValueError("Unknown review status")
         if not isinstance(notes, str) or len(notes) > 10000:
-            raise ValueError("备注必须是文字，且不超过 10000 字符")
+            raise ValueError("Notes must be text of at most 10000 characters")
         if type(revision) is not int or revision < 0:
-            raise ValueError("revision 必须是非负整数")
+            raise ValueError("revision must be a nonnegative integer")
         key = (self.run_key, method, vehicle, case_id)
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -74,7 +74,9 @@ class ReviewStore:
             ).fetchone()
             current_revision = previous["revision"] if previous else 0
             if current_revision != revision:
-                raise RevisionConflict("另一页面已更新此审查，请重新加载后再保存")
+                raise RevisionConflict(
+                    "Another page has updated this review; reload before saving again"
+                )
             saved = {
                 "run_key": self.run_key,
                 "method": method,
@@ -114,7 +116,10 @@ class ReviewStore:
             "exported_at": datetime.now(UTC).isoformat(),
             "unblinded": True,
             "ground_truth": False,
-            "warning": "展示模型诊断后的人工检查；不是独立真值，不改变原始 merge",
+            "warning": (
+                "Human review after viewing model diagnostics; not independent "
+                "ground truth, and the original association is unchanged"
+            ),
             "reviews": [dict(r) for r in reviews],
             "events": [json.loads(r["payload"]) for r in events],
         }

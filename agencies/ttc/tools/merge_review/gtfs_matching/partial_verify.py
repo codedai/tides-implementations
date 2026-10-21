@@ -17,21 +17,28 @@ from .partial_audit import _path, _read, _sha
 
 VERSION = "four-mode-audit-provenance-supplement-v1"
 
+# Exact string-literal lines of the wrapped overview warning (one per line).
+WARNING_PARTS = (
+    "The day overview shows only one candidate. Passing the gates does not ",
+    "mean a unique or confirmed trip. Dashed fallback candidates are below ",
+    "threshold. Different references are shown in separate facets; APC is ",
+    "represented only by stop-time intervals.",
+)
+
 
 def overview_format_proof(current_source, execution_sha256):
     """Reverse only the two documented wraps, then verify bytes AND Python AST."""
     policy = "lowest_cost_all_gates_pass_else_lowest_cost_genuine_gate_failure"
-    first = "全天总览仅展示一个候选；通过门槛不等于唯一或已确认的班次。"
-    second = "虚线 fallback 未过门槛。不同 reference 分面显示，APC 仅为站点时间区间。"
+    wrapped_warning = "".join(f'            "{part}"\n' for part in WARNING_PARTS)
+    warning = "".join(WARNING_PARTS)
     substitutions = [
         (
             f'        "candidate_policy": (\n            "{policy}"\n        ),',
             f'        "candidate_policy": "{policy}",',
         ),
         (
-            f'        "warning": (\n            "{first}"\n'
-            f'            "{second}"\n        ),',
-            f'        "warning": "{first}{second}",',
+            f'        "warning": (\n{wrapped_warning}        ),',
+            f'        "warning": "{warning}",',
         ),
     ]
     reconstructed = current_source

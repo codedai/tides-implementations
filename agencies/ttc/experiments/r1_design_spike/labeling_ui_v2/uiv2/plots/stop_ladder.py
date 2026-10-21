@@ -62,7 +62,7 @@ def fig_stop_ladder(bundle: CaseBundleV2, detail: CandidateDetail) -> go.Figure 
             mode="lines+markers",
             line=dict(color=color, width=1.5),
             marker=dict(size=5, color=color),
-            name=f"计划到达（候选 {detail.alias}）",
+            name=f"Scheduled arrival (candidate {detail.alias})",
             text=[local_str(e) for e in sched_arrs],
             hovertemplate="%{text}<extra>scheduled</extra>",
         )
@@ -97,7 +97,7 @@ def fig_stop_ladder(bundle: CaseBundleV2, detail: CandidateDetail) -> go.Figure 
                         y=obs_y,
                         mode="markers",
                         marker=dict(size=7, symbol="circle", color="#00a000"),
-                        name="AVL 经过该站（≤150 米）",
+                        name="AVL pass at stop (≤150 m)",
                         text=[local_str(e) for e in obs_e],
                         hovertemplate="%{text}<extra>AVL pass</extra>",
                     )
@@ -137,7 +137,7 @@ def fig_stop_ladder(bundle: CaseBundleV2, detail: CandidateDetail) -> go.Figure 
                         symbol="circle-open",
                         line=dict(width=2, color=APC_COLOR),
                     ),
-                    name="该 stop code 上的 APC 记录",
+                    name="APC records at this stop code",
                     text=[local_str(e) for e in arrs],
                     hovertemplate="%{text}<extra>APC</extra>",
                 )

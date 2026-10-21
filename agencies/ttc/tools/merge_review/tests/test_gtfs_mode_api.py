@@ -14,7 +14,9 @@ class ModeData(RunData):
 
     def _check(self, mode):
         if mode not in self.available_matching_modes:
-            raise ValueError("此历史版本没有计算指定模式")
+            raise ValueError(
+                "This historical version did not compute the specified mode"
+            )
 
     def metadata(self):
         return {

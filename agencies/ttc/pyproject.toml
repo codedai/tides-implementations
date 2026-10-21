@@ -33,6 +33,9 @@ addopts = "-ra"
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+# Frozen release snapshots under releases/ are hash-pinned historical copies.
+# Linting them is meaningless and writes caches into pinned directories.
+extend-exclude = ["releases"]
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "UP"]

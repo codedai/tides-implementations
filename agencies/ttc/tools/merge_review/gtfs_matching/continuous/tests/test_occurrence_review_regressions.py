@@ -147,7 +147,13 @@ def test_ui_prior_mapping_explicitly_recognizes_new_sources():
     static = Path(__file__).resolve().parents[3] / "static"
     app = (static / "app.js").read_text()
     for source, label in (
-        ("uncalibrated_operational_defaults", "非对称运营延误混合先验（未校准）"),
-        ("independently_validated_operational_hierarchy", "独立验证的分层运营延误先验"),
+        (
+            "uncalibrated_operational_defaults",
+            "Asymmetric operational delay mixture prior (uncalibrated)",
+        ),
+        (
+            "independently_validated_operational_hierarchy",
+            "Independently validated hierarchical operational delay prior",
+        ),
     ):
         assert f'{source}: "{label}"' in app

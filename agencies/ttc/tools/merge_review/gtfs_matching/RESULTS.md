@@ -1,150 +1,150 @@
-# 实验 03：Route 29 分层 GTFS 候选检查
+# Experiment 03: Route 29 layered GTFS candidate review
 
-最新版本：`run-20231106-20260909T183705-d67ffa30723d`。
-工作台：<http://127.0.0.1:8767>，选择「实验 03d · Route 29 · 加强时间偏移惩罚（权重 1.0）」。
+Latest version: `run-20231106-20260909T183705-d67ffa30723d`.
+Workbench: <http://127.0.0.1:8767>; select "Experiment 03d · Route 29 · Stronger time-shift penalty (weight 1.0)". The label persisted in that run's `run.json` was recorded in Chinese at run time; the English label here is its translation.
 
-## 实验 03d：加强绝对时间偏移惩罚
+## Experiment 03d: stronger absolute time-shift penalty
 
-以实验 03c `run-20231106-20260909T170835-6cb6e4feb48a` 为不可变来源，仅将 `score_delay_prior_weight` 从 **0.05 提高为 1.0**。最终评分的绝对时移项为 `weight × abs(estimated_delay_s) / 3600`：15 分钟偏移的惩罚由 0.0125 提高为 0.25，提前与晚点仍对称处理。历史默认值及已完成实验的配置、结果不覆盖。
+Experiment 03c `run-20231106-20260909T170835-6cb6e4feb48a` is the immutable source; only `score_delay_prior_weight` is raised from **0.05 to 1.0**. The absolute time-shift term of the final score is `weight × abs(estimated_delay_s) / 3600`: the penalty for a 15-minute offset rises from 0.0125 to 0.25, and early and late offsets are still treated symmetrically. The historical default and the configurations and results of completed experiments are not overwritten.
 
-该参数同时参与局部延误状态选择、整趟聚合和边界模型，因此本次不是只给旧总分加一个数：四种模式全部重新检索、拟合共享延误、计算局部／整段对齐与最终判定。原始 APC／AVL、分段、canonical references 和 projection 复用不变；仍为 2023-11-06、Route 29、31 辆车、306 个分段、92,143 AVL 与 13,862 APC。8 个本地进程用时 653.945 秒。新运行明确记录 global result 已重算，不能套用实验 03c 的“全局结果原样复用”审计条件。
+The same parameter also participates in local delay-state selection, whole-trip aggregation and the boundary model, so this is not simply adding a number to the old total score: all four modes re-run retrieval, refit the shared delay, recompute local / whole-segment alignment and make the final decision again. Raw APC / AVL, segmentation, canonical references and projection are reused unchanged; the scope is still 2023-11-06, Route 29, 31 vehicles, 306 segments, 92,143 AVL and 13,862 APC. 8 local processes took 653.945 seconds. The new run explicitly records that the global result was recomputed, so experiment 03c's "global result reused as-is" audit condition cannot be applied to it.
 
-成本门槛 3.0、projection-distance gate 100 m、覆盖率门槛 35% 与 ambiguity support margin 0.1 均未改变。权重更高可能减少成本门通过的候选；支持分仍是 `exp(-cost)`，既非概率，也不能用状态变化推断准确率提升。
+The cost threshold 3.0, projection-distance gate 100 m, coverage threshold 35% and ambiguity support margin 0.1 are all unchanged. A higher weight may reduce the number of candidates passing the cost gate; the support score is still `exp(-cost)`, which is neither a probability nor a basis for inferring an accuracy improvement from status changes.
 
-| 决策模式 | MATCHED | AMBIGUOUS | PATTERN_ONLY | UNMATCHED | BOUNDARY_UNCERTAIN |
+| Decision mode | MATCHED | AMBIGUOUS | PATTERN_ONLY | UNMATCHED | BOUNDARY_UNCERTAIN |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 全局 | 0 | 36 | 270 | 0 | 0 |
-| 前期 | 1 | 45 | 257 | 3 | 0 |
-| 中期 | 13 | 65 | 224 | 4 | 0 |
-| 后期 | 0 | 34 | 263 | 3 | 6 |
+| Global | 0 | 36 | 270 | 0 | 0 |
+| Early | 1 | 45 | 257 | 3 | 0 |
+| Middle | 13 | 65 | 224 | 4 | 0 |
+| Late | 0 | 34 | 263 | 3 | 6 |
 
-9021 / `direction:9021:0000` 的全局第一名由 `46413320` 变为 `46413314`：
+For 9021 / `direction:9021:0000`, the global top candidate changes from `46413320` to `46413314`:
 
-| 新排序 | GTFS trip | 成本 | 模型时移中位数 |
+| New rank | GTFS trip | Cost | Model time-shift median |
 | --- | --- | ---: | ---: |
 | 1 | 46413314 | 2.3906628381 | +90 s |
 | 2 | 46413320 | 2.5279463481 | −1530 s |
 | 3 | 46413319 | 2.9124250834 | −570 s |
 
-此例仍为 AMBIGUOUS，支持分差 0.0117461881。前期第一名仍是 `46413320`；中期、后期第一名仍是 `46413314`，没有为使四模式排序一致而另改参数。
+This case remains AMBIGUOUS, with a support-score difference of 0.0117461881. The early-mode top candidate is still `46413320`; the middle- and late-mode top candidates are still `46413314`; no further parameter was changed to make the rankings of the four modes agree.
 
-四种模式全天总览的单候选叠加分别为：全局 180 条通过门槛／120 条 fallback／6 段无候选；前期 230／70／6；中期 280／20／6；后期 154／145／7。四份总览均保留全部 306 个分段，计划曲线仍使用原始 GTFS 时刻。候选卡新增实际权重及其最终时移惩罚，参数面板说明单位和重算范围。
+The single-candidate overlays of the four modes' day overviews are: global 180 passing the gates / 120 fallback / 6 segments with no candidate; early 230 / 70 / 6; middle 280 / 20 / 6; late 154 / 145 / 7. All four overviews retain all 306 segments, and the schedule curves still use the raw GTFS times. Candidate cards now show the actual weight and its final time-shift penalty, and the parameter panel explains the unit and the recomputation scope.
 
-验证：823 项相关 Python 回归测试通过（`tests tools --ignore=tools/labeling_ui`）；新运行 99 项浏览器检查通过，原 03c 兼容检查 95 项通过，均无 POST、外网请求或浏览器错误。新运行浏览器报告为 `artifacts/merge-debug-20231106/time-weight-browser/experiment03d/browser-modes-results.json`。正式笔记库 SHA256 保持 `00bbe13be62749be4909b043c5438e0afff567e8fb8212a295e0984e94535e00`。独立的旧 `tools/labeling_ui` 应用不在本次改动范围；其测试存在同名测试包收集冲突，单独运行仍因缺少 numpy／streamlit 无法收集，未计入上述通过数量，也未为此安装依赖或修改旧应用。
+Verification: 823 relevant Python regression tests passed (`tests tools --ignore=tools/labeling_ui`); the new run passed 99 browser checks and the original 03c compatibility check passed 95, all with no POSTs, external requests or browser errors. The browser report for the new run is `artifacts/merge-debug-20231106/time-weight-browser/experiment03d/browser-modes-results.json`. The formal notes database SHA256 remains `00bbe13be62749be4909b043c5438e0afff567e8fb8212a295e0984e94535e00`. The standalone legacy `tools/labeling_ui` app is outside the scope of this change; its tests have a same-name test-package collection conflict, and when run separately they still fail to collect because numpy / streamlit are missing, so they are not counted in the pass counts above, and no dependencies were installed or legacy app modified for this.
 
-独立全量审计通过，零违规：核验 409 个新输出哈希、412 个来源 pin、65 个保持不变的原始／GTFS 文件，以及 306 个 case、1,224 个模式结果、1,224 个总览记录。8,993 个 aggregate candidates 的局部加权统计、最终评分算式、支持分及门控得到独立复核；没有重新计算所有 DTW 距离，因此这不是另一套 matcher 的精度验证。所有 projection／APC／分段边界／四模式 selection 与 03c 一致，运行配置唯一变更为时间偏移权重。报告为 `artifacts/merge-debug-20231106/time-weight-audit/persisted-audit.json`。
+The independent full audit passed with zero violations: it verified 409 new output hashes, 412 source pins, 65 unchanged raw / GTFS files, and 306 cases, 1,224 mode results and 1,224 overview records. The locally weighted statistics, final scoring formula, support scores and gating of the 8,993 aggregate candidates were independently re-checked; all DTW distances were not recomputed, so this is not an accuracy validation by a second matcher. All projection / APC / segment boundaries / four-mode selections are consistent with 03c, and the only change in the run configuration is the time-shift weight. The report is `artifacts/merge-debug-20231106/time-weight-audit/persisted-audit.json`.
 
-与 03c 相比，全局／前期／中期／后期首个正式候选发生变化的分段数分别为 50／21／23／25（含候选出现或消失），这是实际全量重算结果，不是固定旧拟合后的简单分数敏感性估计。8767 已设为新版本默认，正式只读 GET 核实四模式 9021 排序和四份 306 段全天总览，正式笔记库哈希仍不变。
+Compared with 03c, the number of segments whose first formal candidate changed in global / early / middle / late is 50 / 21 / 23 / 25 (including candidates appearing or disappearing); this is the actual full recomputation result, not a simple score-sensitivity estimate with the old fit held fixed. 8767 has been set to the new version by default; formal read-only GETs verified the four-mode 9021 rankings and the four 306-segment day overviews, and the formal notes database hash is still unchanged.
 
-以下保留实验 03c 及更早实验结果。
+Experiment 03c and earlier results are retained below.
 
-## 实验 03c：部分决策与全天总览
+## Experiment 03c: partial decisions and day overview
 
-只处理 2023-11-06、Route 29，沿用实验 03b 的 306 个分段。8 个本地进程用 317.336 秒完成三个额外模式及四份全天总览。原始 APC／AVL、分段边界、完整 projection 和全局匹配 result 保持原样；新的结果追加到独立运行，历史实验不覆盖。
+Only 2023-11-06, Route 29 is processed, keeping experiment 03b's 306 segments. 8 local processes completed the three additional modes and the four day overviews in 317.336 seconds. Raw APC / AVL, segment boundaries, the full projection and the global matching result remain as they were; the new results are appended to an independent run, and historical experiments are not overwritten.
 
-这里的“全局”指每个分段的整段决策，不是全天车辆联合优化。前期／中期／后期按成功投影的累计有效前进距离约三等分：不累计 OFF_REFERENCE、低质量点、GPS gap 或不同参考轴之间的跳跃，回退抖动不重复累计距离。切点落在真实 AVL 时间上，不插值制造轨迹点。所选时间范围内的被拒绝点仍进入覆盖损失分母；其他两部分不参与评分，但在图中保留为浅色上下文。
+"Global" here means the whole-segment decision for each segment, not a joint full-day vehicle optimization. Early / middle / late split the cumulative valid forward distance of successful projections into approximate thirds: OFF_REFERENCE, low-quality points, GPS gaps and jumps between different reference axes are not accumulated, and backward jitter does not accumulate distance repeatedly. Cut points fall on real AVL times; no trajectory points are interpolated. Rejected points within the selected time range still enter the coverage-loss denominator; the other two parts do not participate in scoring but remain in the charts as light-colored context.
 
-每个部分独立检索完整 GTFS pool、构造窗口、评分、拟合共享延误并执行整段（当前所选部分）门控。不复用全局候选 shortlist 或全局 delay。APC 时间区间只在派生 evidence 中裁剪，并保存原区间、裁剪端点和来源 ID；原始字段和上下客数不修改，不跨模式加总客流。
+Each part independently retrieves from the full GTFS pool, constructs windows, scores, fits a shared delay and applies whole-segment (currently selected part) gating. It does not reuse the global candidate shortlist or the global delay. APC time intervals are clipped only in the derived evidence, with the original interval, clipping endpoints and source ID saved; raw fields and boarding / alighting counts are not modified, and passenger counts are not summed across modes.
 
-| 决策模式 | MATCHED | AMBIGUOUS | PATTERN_ONLY | UNMATCHED | BOUNDARY_UNCERTAIN |
+| Decision mode | MATCHED | AMBIGUOUS | PATTERN_ONLY | UNMATCHED | BOUNDARY_UNCERTAIN |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 全局 | 1 | 18 | 287 | 0 | 0 |
-| 前期 | 5 | 23 | 275 | 3 | 0 |
-| 中期 | 8 | 26 | 268 | 4 | 0 |
-| 后期 | 1 | 15 | 281 | 3 | 6 |
+| Global | 1 | 18 | 287 | 0 | 0 |
+| Early | 5 | 23 | 275 | 3 | 0 |
+| Middle | 8 | 26 | 268 | 4 | 0 |
+| Late | 1 | 15 | 281 | 3 | 6 |
 
-以上为算法状态分布，不是准确率；部分证据更容易给出 MATCHED 不代表更正确。概率仍为 null。三个没有正向有效投影距离的分段不会被强行三等分；APC-only 记录保留，部分模式为 NO_EVIDENCE selection。
+The above is a distribution of algorithm statuses, not accuracy; partial evidence yielding MATCHED more readily does not mean it is more correct. Probability remains null. The three segments with no positive valid projected distance are not forced into thirds; APC-only records are retained, and their partial modes have NO_EVIDENCE selections.
 
-工作台顶部提供四种模式，以及「逐趟检查／全天总览」切换。总览集合展示 31 辆车全部 306 个分段，按 NORTH／SOUTH 和独立 canonical reference 分面，缺口不连线，APC 为停站区间。每段只叠加一个 GTFS candidate：优先采用全部候选门槛通过的最低成本候选，否则采用真正未过门槛的第一条已评分诊断候选，并用不同样式标明 fallback；没有已评分候选时不补造。计划时刻不按 estimated delay 平移。
+The top of the workbench offers the four modes and a "Trip review / Day overview" toggle. The overview shows all 306 segments of the 31 vehicles, faceted by NORTH / SOUTH and by independent canonical reference, with gaps left unconnected and APC drawn as stop intervals. Each segment overlays only one GTFS candidate: preferentially the lowest-cost candidate that passes all candidate gates, otherwise the first scored diagnostic candidate that genuinely failed the gates, marked as fallback with a distinct style; when there is no scored candidate, none is fabricated. Scheduled times are not shifted by the estimated delay.
 
-总览提供全日、可选窗口和横向平移；点击轨迹／片段卡进入同一模式的逐趟检查。历史版本没有计算的部分模式不可选。切换模式不触发重算、不提交笔记；原有笔记仍按运行／分段保存，不因模式切换被清空。
+The overview provides full-day and selectable windows with horizontal panning; clicking a trajectory / segment card opens trip review in the same mode. Partial modes that a historical version did not compute cannot be selected. Switching modes triggers no recomputation and submits no notes; existing notes are still stored per run / segment and are not cleared by mode switches.
 
-注意：这是**离线部分证据决策**，共同的 sequence projection 使用了完整分段，因此不是无未来信息的实时前期预测。运行／模式中间证据、分区来源、APC 裁剪及所有候选均保存在 case artifacts，四份 `overview/*.json` 也列入输出哈希。
+Note: this is an **offline partial-evidence decision**; the shared sequence projection used the complete segment, so it is not a real-time early prediction free of future information. Per-run / per-mode intermediate evidence, partition provenance, APC clipping and all candidates are saved in the case artifacts, and the four `overview/*.json` files are also included in the output hashes.
 
-示例 `direction:9028:0004`：总有效距离约 13,647.97 m；三部分内部有效距离约 4,537.53 / 4,444.39 / 4,473.08 m，差额来自不跨切点补造连接。全局／前期／中期／后期正式候选数为 0 / 3 / 3 / 0，但四种模式均为 PATTERN_ONLY，不能将“出现三张卡”理解为三个已确认班次。
+Example `direction:9028:0004`: total valid distance about 13,647.97 m; the internal valid distances of the three parts are about 4,537.53 / 4,444.39 / 4,473.08 m, the difference arising from not fabricating connections across cut points. The formal candidate counts in global / early / middle / late are 0 / 3 / 3 / 0, but all four modes are PATTERN_ONLY, so "three cards appear" must not be read as three confirmed trips.
 
-全天单一候选展示分别为：全局 189 条通过门槛／111 条 fallback／6 段无候选；前期 234／66／6；中期 281／19／6；后期 159／140／7。这与 MATCHED 数量不同：一条候选通过证据和成本门槛，不表示已排除其他近似班次。四个模式均未遗漏符合绘图质量要求的主投影点。
+The single-candidate day displays are: global 189 passing the gates / 111 fallback / 6 segments with no candidate; early 234 / 66 / 6; middle 281 / 19 / 6; late 159 / 140 / 7. These differ from the MATCHED counts: a candidate passing the evidence and cost gates does not mean that other similar trips have been ruled out. None of the four modes omitted a primary projected point that met the plotting quality requirements.
 
-989 项 Python 回归测试通过；最终新功能 91 项浏览器检查、旧 GTFS 99 项检查和 gap 78 项检查通过（共 268 项），零 POST、外网请求或浏览器错误。浏览器报告为 `artifacts/merge-debug-20231106/partial-modes-browser/verified-final/browser-modes-results.json`，同目录保存全天和中期决策截图。正式笔记库的文件哈希、reviews／review_events 数量保持不变。8767 已重启为新版默认运行，并用只读 GET 核验四种全天总览。
+989 Python regression tests passed; the final new-feature browser check passed 91, the legacy GTFS check 99 and the gap check 78 (268 in total), with zero POSTs, external requests or browser errors. The browser report is `artifacts/merge-debug-20231106/partial-modes-browser/verified-final/browser-modes-results.json`, and the same directory holds the day-overview and middle-mode decision screenshots. The formal notes database's file hash and its reviews / review_events counts are unchanged. 8767 was restarted with the new version as the default run, and the four day overviews were verified with read-only GETs.
 
-既有独立审计验证全局 306 cases、58,490 windows、3,735 次候选评估，零违规／未知 schema。新增独立审计验证 1,224 个模式结果及 1,224 个总览记录、409 个新输出哈希、408 个来源 pin、65 个保持不变的原始／GTFS 文件；没有数据、范围、APC 裁剪、时序、候选门槛或跨缺口连线违规。
+The existing independent audit verified the global 306 cases, 58,490 windows and 3,735 candidate evaluations with zero violations / unknown schemas. The new independent audit verified 1,224 mode results and 1,224 overview records, 409 new output hashes, 408 source pins and 65 unchanged raw / GTFS files; there were no data, scope, APC clipping, ordering, candidate gating or cross-gap connection violations.
 
-审计追溯说明：原报告 `artifacts/merge-debug-20231106/partial-modes-audit/persisted-audit.json` 保留 `validation_ok=false`，唯一标记是当前 `overview.py` 与运行时源码哈希不同。原因是运行完成后两处长字符串做了排版换行；没有覆盖执行时哈希或已完成结果，也不将这项当前工作区代码差异伪装成“所有哈希相同”。数据完整性与当前代码逐字节复现性是两个独立结论。
+Audit traceability note: the original report `artifacts/merge-debug-20231106/partial-modes-audit/persisted-audit.json` retains `validation_ok=false`; its only flag is that the current `overview.py` differs from the source hash recorded at run time. The cause is that two long strings were re-wrapped for formatting after the run completed; the execution-time hash and the completed results were not overwritten, and this current-workspace code difference is not disguised as "all hashes identical". Data integrity and byte-for-byte reproducibility from the current code are two separate conclusions.
 
-补充验证 `artifacts/merge-debug-20231106/partial-modes-audit/verification.json` 重新核验全部 409 个输出／408 个来源哈希，确认原审计证据未改变，`data_validation_ok=true`；同时保留 `current_checkout_matches_execution=false`。只逆转上述两处换行即可重建与执行时 SHA256 完全一致的源码，且两版 AST（不含行列位置）一致，因而这项差异得到机械验证，并非人工忽略。补充验证器另有 3 项测试通过，连同完整回归共 992 项 Python 测试通过。原审计报告未改写。
+The supplementary verification `artifacts/merge-debug-20231106/partial-modes-audit/verification.json` re-verified all 409 output / 408 source hashes, confirming that the original audit evidence is unchanged, `data_validation_ok=true`, while still retaining `current_checkout_matches_execution=false`. Reverting only the two line wraps above rebuilds source code whose SHA256 exactly matches the execution-time hash, and the ASTs of the two versions (ignoring line / column positions) are identical, so this difference is mechanically verified rather than manually waved through. The supplementary verifier adds 3 passing tests, for 992 passing Python tests together with the full regression suite. The original audit report was not rewritten.
 
-以下保留实验 03b 及更早版本结果，作为全局基线与历史追溯。
+Experiment 03b and earlier results are retained below as the global baseline and historical trace.
 
-## 实验 03b：联合观测空白分段
+## Experiment 03b: joint-observation gap segmentation
 
-仍只处理 2023-11-06、Route 29。先保留实验 02 的方向候选，再按真实 AVL 时刻与 APC 有序到离站区间的并集，遇到严格 `gap > 1800 s` 时细分；恰好 30 分钟不切。不会把 AVL 的方向 hold 或无效空间投影当作无记录，也不把 APC 变成轨迹点。
+Still only 2023-11-06, Route 29. Experiment 02's direction candidates are retained first, then subdivided wherever the union of real AVL times and ordered APC arrival–departure intervals has a strict `gap > 1800 s`; exactly 30 minutes is not split. AVL direction holds and invalid spatial projections are not treated as absence of records, and APC is not turned into trajectory points.
 
-4 个原方向段变为 8 个子段，全日 **302 → 306**；唯一来源仍为 **92,143 AVL + 13,862 APC = 106,005**，未删除或改写原记录。每个子段重新运行完整 GTFS matching，8 workers、562.131 秒。除新增 `segmentation_joint_gap_s=1800.0` 外，配置与上一版一致。
+4 original direction segments become 8 child segments, **302 → 306** for the day; the unique sources are still **92,143 AVL + 13,862 APC = 106,005**, with no raw record deleted or rewritten. Each child segment re-runs full GTFS matching, 8 workers, 562.131 seconds. Apart from the added `segmentation_joint_gap_s=1800.0`, the configuration is identical to the previous version.
 
-| 原方向段 | 联合空白（本地时间） | 空白秒数 | 前／后子段 AVL + APC |
+| Original direction segment | Joint gap (local time) | Gap seconds | Child AVL + APC before / after |
 | --- | --- | ---: | --- |
-| `direction:9027:0001` SOUTH | 01:31:10–15:35:06 | 50,636 | 244 + 50 ／ 398 + 51 |
-| `direction:9027:0002` NORTH | 17:53:10–19:55:00 | 7,310 | 293 + 27 ／ 194 + 0 |
-| `direction:9042:0003` NORTH | 02:17:53–09:35:32 | 26,259 | 134 + 51 ／ 156 + 0 |
-| `direction:9147:0002` SOUTH | 12:55:17–13:34:26 | 2,349 | 539 + 10 ／ 0 + 6 |
+| `direction:9027:0001` SOUTH | 01:31:10–15:35:06 | 50,636 | 244 + 50 / 398 + 51 |
+| `direction:9027:0002` NORTH | 17:53:10–19:55:00 | 7,310 | 293 + 27 / 194 + 0 |
+| `direction:9042:0003` NORTH | 02:17:53–09:35:32 | 26,259 | 134 + 51 / 156 + 0 |
+| `direction:9147:0002` SOUTH | 12:55:17–13:34:26 | 2,349 | 539 + 10 / 0 + 6 |
 
-子段 ID 为原 ID 加 `:gap:0001` / `:gap:0002`。工作台单独显示父段 ID、分段序号、空白起止时间和来源证据；焦点成员严格由子段 `source_rids` 确定，原始 `candidate_segment_ids` 仍是父段注释，新展示归属为 `review_candidate_ids`。默认浏览实际来源覆盖，不把午夜外缘当成真实 trip 结束。
+Child IDs are the original ID plus `:gap:0001` / `:gap:0002`. The workbench separately shows the parent segment ID, child index, gap start / end times and source evidence; focus members are strictly determined by the child's `source_rids`, the original `candidate_segment_ids` remain parent annotations, and the newly displayed membership is `review_candidate_ids`. Default browsing follows the actual source coverage and does not treat the outer midnight edge as a real trip end.
 
-最终分布为 **287 PATTERN_ONLY、18 AMBIGUOUS、1 MATCHED**，不是准确率。1,295 条 OFF_REFERENCE 仍保留；匹配阈值、未校准概率约束及前三个未过门槛诊断候选的展示均不变。9147 的 APC-only 尾段完整保留，不补造 AVL。
+The final distribution is **287 PATTERN_ONLY, 18 AMBIGUOUS, 1 MATCHED**, which is not accuracy. The 1,295 OFF_REFERENCE rows remain; the matching thresholds, the uncalibrated-probability constraint and the display of the first three below-threshold diagnostic candidates are unchanged. 9147's APC-only tail segment is fully retained without fabricating AVL.
 
-805 项 Python 回归测试、新子段网页 78 项验收、旧版网页 99 项兼容检查通过。独立 v4 全量审计验证 306 个 cases、58,490 个 windows 与 3,735 次 candidate evaluations，零违规、零未知 schema；报告为 `artifacts/merge-debug-20231106/joint-gap-20260909/persisted-audit.json`。最终网页报告为 `artifacts/merge-debug-20231106/joint-gap-browser/final-noevidence/browser-gap-results.json`。
+805 Python regression tests, 78 new child-segment web acceptance checks and 99 legacy web compatibility checks passed. The independent v4 full audit verified 306 cases, 58,490 windows and 3,735 candidate evaluations with zero violations and zero unknown schemas; the report is `artifacts/merge-debug-20231106/joint-gap-20260909/persisted-audit.json`. The final web report is `artifacts/merge-debug-20231106/joint-gap-browser/final-noevidence/browser-gap-results.json`.
 
-298 个未切分 cases 的 projection、APC evidence、完整 result 和 parent_boundary 与旧版逐字段完全相同；31 个车辆的原始观测 Parquet 字段、行序和 schema 完全相同。正式 reviews / events 均未改变，浏览器验收零 POST。9147 尾段 40 个窗口全部 NO_EVIDENCE、零检索／评分／最终 candidates；PATTERN_ONLY 仅保留 APC 的 pattern 证据，不宣称 GTFS trip 身份。
+For the 298 unsplit cases, the projection, APC evidence, complete result and parent_boundary are field-for-field identical to the previous version; the raw observation Parquet fields, row order and schema of all 31 vehicles are identical. Formal reviews / events are unchanged, and browser acceptance made zero POSTs. All 40 windows of 9147's tail segment are NO_EVIDENCE, with zero retrieved / scored / final candidates; PATTERN_ONLY retains only APC pattern evidence and does not claim a GTFS trip identity.
 
-以下章节记录上一版 `054519` 的结果，供新旧对照；其不可变 artifacts 未被覆盖。
+The sections below record the previous version `054519` for old / new comparison; its immutable artifacts were not overwritten.
 
-## 范围与结果
+## Scope and results
 
-- 只使用本地日期 **2023-11-06、route 29**；不包含 929。
-- 继承实验 02 的去重、PI/PO 过滤和方向候选边界，不将候选片段宣称为已确认的完整 trip。
-- 31 辆车、302 个片段；92,143 条唯一 AVL、13,862 条唯一 APC，原始字段与来源 ID 保留。
-- 4 条被使用的 GTFS shapes 经验证形成 3 条 canonical references；不同 reference 不共用未验证的进度轴。
-- 90,848 条 AVL 为 ON_REFERENCE；1,295 条为 OFF_REFERENCE（约 1.41%），保留原记录与拒绝诊断，不进入匹配距离或延迟估计。
-- 最终 **283 PATTERN_ONLY、18 AMBIGUOUS、1 MATCHED**。这是启发式判定分布，**不是准确率**，MATCHED 也不是已人工核验的身份。
+- Only local date **2023-11-06, route 29**; 929 is excluded.
+- Inherits experiment 02's deduplication, PI/PO filtering and direction candidate boundaries, without claiming that candidate segments are confirmed complete trips.
+- 31 vehicles, 302 segments; 92,143 unique AVL and 13,862 unique APC, with raw fields and source IDs retained.
+- The 4 GTFS shapes used were validated into 3 canonical references; different references do not share an unvalidated progress axis.
+- 90,848 AVL rows are ON_REFERENCE; 1,295 are OFF_REFERENCE (about 1.41%), retained with the raw record and rejection diagnostics, and excluded from matching distance and delay estimation.
+- Final **283 PATTERN_ONLY, 18 AMBIGUOUS, 1 MATCHED**. This is a distribution of heuristic decisions, **not accuracy**, and MATCHED is not a human-verified identity.
 
-APC 跨边界冲突区间可能保留在多个候选中，因此 case 内 APC 数量不能直接加总为全日唯一观测数或客流。本实验不输出正式 TIDES 客流汇总表。
+APC cross-boundary conflict intervals may be retained in multiple candidates, so APC counts within cases cannot be summed directly into unique full-day observations or passenger counts. This experiment does not output formal TIDES ridership summary tables.
 
-## 可检查的内容
+## What can be inspected
 
-双源时间线下方展示 GTFS 计划到离站时刻；原始 GPS 累计距离图下方展示共同 canonical s 轴上的计划、有效 AVL 投影和 APC 站点时间区间。原始 APC 不被补造成 GPS 轨迹。
+Below the dual-source timeline, the GTFS scheduled arrival / departure times are shown; below the raw GPS cumulative distance chart, the schedule, the valid AVL projections and the APC stop-time intervals are shown on the common canonical s axis. Raw APC is not fabricated into a GPS trajectory.
 
-可选择 1/2/5/10/15/30/60/120 分钟、全范围或自定义秒／分钟浏览窗，横向 bar 同步地图、原始时间线／进度图和两张 GTFS 对比图。窗口表可检查 EVIDENCE / NO_EVIDENCE，原始记录可查看投影尝试、拒绝原因与 reference。
+Browsing windows of 1/2/5/10/15/30/60/120 minutes, the full range, or a custom number of seconds / minutes can be selected; the horizontal bar synchronizes the map, the raw timeline / progress chart and the two GTFS comparison charts. The window table shows EVIDENCE / NO_EVIDENCE, and raw records show projection attempts, rejection reasons and the reference.
 
-超成本门但具有近等价解释力的竞争候选会带专门标记，仍参与歧义判断；不能因为第二名恰好略超过成本阈值，就把第一名认作唯一身份。
+Competing candidates that exceed the cost gate but have near-equivalent explanatory power carry a dedicated flag and still participate in the ambiguity decision; the top candidate cannot be declared the unique identity just because the runner-up happens to slightly exceed the cost threshold.
 
-建议先选以下三例：
+Suggested first three examples:
 
-| 车辆／片段 | 适合检查 |
+| Vehicle / segment | Suitable for checking |
 | --- | --- |
-| 9036 / `direction:9036:0000` | 347 条 AVL 中 88 条 OFF_REFERENCE；看原地图保留、canonical 断线与原 rid 诊断 |
-| 9025 / `direction:9025:0014` | 首选成本 2.98275，次选 3.06560；次选略超 3.0 仍不足以证明首选唯一 |
-| 9027 / `direction:9027:0000` | 205 条 AVL 均可投影；候选属于 11 月 5 日 service date 的午夜尾班，可检查跨午夜计划口径 |
+| 9036 / `direction:9036:0000` | 88 of 347 AVL are OFF_REFERENCE; see raw-map retention, canonical line breaks and raw rid diagnostics |
+| 9025 / `direction:9025:0014` | Top candidate cost 2.98275, runner-up 3.06560; the runner-up slightly exceeding 3.0 is still insufficient to prove the top candidate unique |
+| 9027 / `direction:9027:0000` | All 205 AVL can be projected; the candidate belongs to the post-midnight tail trip of the November 5 service date, for checking cross-midnight schedule conventions |
 
-唯一 MATCHED 为 `direction:9054:0012`：本次检索／评分的 7 个 aggregate 中，只有一个通过结构证据门；整段对齐点覆盖约 66.28%、时长覆盖约 68.86%。这是本模型内的唯一可行解释，不是独立核验结果；没有第二个合格结构对手时，margin 为 null，不伪造分差。
+The only MATCHED is `direction:9054:0012`: of the 7 aggregates retrieved / scored in this run, only one passes the structural-evidence gate; whole-segment aligned point coverage is about 66.28% and duration coverage about 68.86%. This is the only feasible explanation within this model, not an independently verified result; with no second qualifying structural competitor, the margin is null and no score difference is fabricated.
 
-## 计算与复现
+## Computation and reproduction
 
-重型证据来自 `run-20231106-20260909T053127-0df217126cb9`，8 个 worker，耗时 487.907 秒。最终版本仅重放最终判定层，保存与核验完整日志耗时 239.434 秒，未重新计算投影、检索、DTW 或整段对齐。
+The heavy evidence comes from `run-20231106-20260909T053127-0df217126cb9`, 8 workers, 487.907 seconds. The final version only replays the final decision layer; saving and verifying the complete logs took 239.434 seconds, without recomputing projection, retrieval, DTW or whole-segment alignment.
 
-所有 projection、APC evidence、all_candidates、local_scores、windows、retrieval 和 whole_trip 重型字段均与来源运行完全一致。来源 hash、历史执行代码 hash 与新判定层代码 hash 分别记录，旧运行保留不覆盖。
+All projection, APC evidence, all_candidates, local_scores, windows, retrieval and whole_trip heavy fields are exactly identical to the source run. The source hash, the historical execution code hash and the new decision-layer code hash are recorded separately, and the old run is retained rather than overwritten.
 
-此前 `run-20231106-20260909T050724-7d87d0cd56e6` 存在拟合校正时钟倒退问题，仅保留作历史诊断，不是交付结果；`053127` 修复了重型对齐，但其原始最终判定仍有成本阈值造成的假唯一性，最终由 `054519` 的保守判定层修正。另一个中断原型没有 completion，不作为完成实验展示。
+The earlier `run-20231106-20260909T050724-7d87d0cd56e6` had a backward-stepping fitted corrected clock and is kept only as a historical diagnostic, not a deliverable; `053127` fixed the heavy alignment, but its original final decision still had false uniqueness caused by the cost threshold, which was finally corrected by `054519`'s conservative decision layer. Another interrupted prototype has no completion and is not presented as a completed experiment.
 
-## 验证与限制
+## Verification and limitations
 
-671 项 Python 回归测试通过，覆盖 canonical 验证、序列投影、窗口、检索、局部评分、整段整合、校准接口、最终判定、重放及工作台接口。代码静态检查通过。验收仅使用独立临时笔记库，正式 reviews / events 保持不变。
+671 Python regression tests passed, covering canonical validation, sequence projection, windows, retrieval, local scoring, whole-segment integration, the calibration interface, the final decision, replay and the workbench interface. Static code checks passed. Acceptance used only an independent temporary notes database; formal reviews / events are unchanged.
 
-最终网页验收两组各 68 项通过：成本门案例（含小分差精度）与真实 OFF_REFERENCE 案例；零 POST、外网或浏览器错误。旧实验 02 另有 54 项兼容检查通过。
+The final web acceptance passed two groups of 68 checks each: the cost-gate case (including small-margin precision) and the real OFF_REFERENCE case; zero POSTs, external or browser errors. Legacy experiment 02 separately passed 54 compatibility checks.
 
-独立 v3 审计完整通过，零违规、零未知 schema：核对 404 个来源哈希、302 个 case 重型字段原样、510,997 对共享延迟时序和 233,630 个拟合节点。报告在 `artifacts/merge-debug-20231106/gtfs-browser/final-guarded/persisted-result-audit.json`；最终浏览器报告在同目录的 `cost-edge-margin/` 和 `off-reference/`。
+The independent v3 audit passed completely, with zero violations and zero unknown schemas: it checked 404 source hashes, the heavy fields of 302 cases unchanged, 510,997 shared-delay time-order pairs and 233,630 fit knots. The report is at `artifacts/merge-debug-20231106/gtfs-browser/final-guarded/persisted-result-audit.json`; the final browser reports are in `cost-edge-margin/` and `off-reference/` in the same directory.
 
-缺少独立核验的 trip 标签，故**未执行可验证的最终概率校准，概率为 null**。修改最终候选集合后也不能沿用此前决策层的校准结果。校准模块与分组验证测试已提供，但当前结果不能用于声称已知准确率。
+Because independently verified trip labels are lacking, **no verifiable final probability calibration was performed, and probabilities are null**. After the final candidate set is changed, the calibration result of the previous decision layer cannot be carried over either. The calibration module and grouped validation tests are provided, but the current results cannot be used to claim a known accuracy.
 
-GTFS 明确固定到覆盖该日期的 draft feed `ttc-d092742e6a5b`；其 provenance 尚未人工批准。方向 crosswalk 来自形状／站序几何推断，未将 GTFS direction_id 的 0/1 硬编码为南／北。可选的车辆整日／block_id 软约束层未启用。
+GTFS is explicitly pinned to the draft feed `ttc-d092742e6a5b` covering this date; its provenance has not been manually approved. The direction crosswalk is inferred from shape / stop-order geometry, without hard-coding GTFS direction_id 0/1 as south / north. The optional vehicle-day / block_id soft-constraint layer is not enabled.
 
-实现模块、配置、日志合同和重跑命令见 [README.md](README.md)。
+Implementation modules, configuration, log contract and rerun commands: see [README.md](README.md).

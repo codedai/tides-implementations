@@ -72,11 +72,11 @@ def resolve_config(argv: list[str] | None = None) -> AppConfig:
 
     if not run_dir.exists():
         notes.append(
-            f"找不到 run 目录：{run_dir} —— 请在 ttc 根目录下执行 "
-            "`uv run python -m r1spike.run_labeling_v2_setup` 生成"
+            f"Run directory not found: {run_dir} — generate it from the ttc "
+            "root with `uv run python -m r1spike.run_labeling_v2_setup`"
         )
     if not audit_dir.exists():
-        notes.append(f"找不到审计目录：{audit_dir}")
+        notes.append(f"Audit directory not found: {audit_dir}")
     return AppConfig(
         run_dir=run_dir,
         artifacts_root=artifacts_root,

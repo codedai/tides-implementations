@@ -19,7 +19,7 @@ from .scoring import qualified_quality
 from .windows import get_config, observation_key, usable
 
 MODES = ("global", "early", "middle", "late")
-LABELS = {"global": "全局", "early": "前期", "middle": "中期", "late": "后期"}
+LABELS = {"global": "Global", "early": "Early", "middle": "Middle", "late": "Late"}
 BASIS = "valid_projected_travel_distance"
 VERSION = "projected-distance-thirds-v1"
 

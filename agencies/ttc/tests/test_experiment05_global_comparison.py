@@ -8,7 +8,7 @@ from tools.experiment05.io import write_rows
 
 def test_column_hashes_ignore_other_modes_and_batch_boundaries(tmp_path):
     rows = [
-        {"match_mode": "global", "s": "文字", "t": 0.0, "n": None},
+        {"match_mode": "global", "s": "naïve", "t": 0.0, "n": None},
         {"match_mode": "early", "s": "ignored", "t": 99.0, "n": None},
         {"match_mode": "global", "s": "a\x00b", "t": -0.0, "n": None},
     ]

@@ -1,313 +1,447 @@
-# APC–AVL 逐趟审查与单日 Visual Debug
+# APC–AVL Trip-by-Trip Review and One-Day Visual Debug
 
-本地、中文优先的证据工作台。冻结审查模式直接读取最终 `full02`；单日调试模式
-只重跑 **2023-11-06**，将每次分割与 merge 保存为独立实验版本。
-两种模式都不引入 GTFS，不修改原始数据、`full02` 冻结分割或以前的人工标签。
+A local evidence workbench. Frozen review mode reads the final `full02` directly;
+one-day debug mode reruns only **2023-11-06** and saves each segmentation and
+merge as a separate experiment version. Neither mode introduces GTFS, and neither
+modifies the raw data, the frozen `full02` segmentation or earlier human labels.
 
-本项目后续实验约定：**用户没有另外指定日期时，仅使用 2023-11-06，并将结果展示在
-同一个 8767 工作台**。新实验保存为新版本，不覆盖此前结果或人工笔记。
+Convention for subsequent experiments in this project: **unless the user specifies
+another date, use only 2023-11-06 and present the results in the same workbench on
+port 8767**. New experiments are saved as new versions and never overwrite earlier
+results or human notes.
 
-## 中英文界面切换
+> **Artifact paths in this document.** Paths under `artifacts/` name local
+> evidence files, which are never committed. Many of them were removed by the
+> approved retention cleanup described in
+> [frozen workbench retention](../../docs/frozen-workbench.md); they are recorded
+> here as provenance, not as files you can expect to open. Regenerate results
+> before relying on any of them.
 
-右上角 `中文 / EN` 按钮即时切换界面语言，默认中文；浏览器使用独立的
-`tides-review-language` 本地偏好记住选择，刷新后继续使用。禁用本地存储时，
-仍可在当前页面切换。按钮支持键盘操作及屏幕阅读器。
+## Interface language
 
-翻译覆盖操作、参数说明、候选评分、图表提示、四种决策模式和全天总览。
-切换只改变显示文字，不刷新数据、不重算匹配、不提交实验或审查；当前筛选、
-时间窗、候选颜色／可见性及未保存的参数与笔记保持不变。
-原始数据、JSON 诊断、机器状态码、ID、实验名称和用户输入保留原文。
-语言资源全部由本地工作台提供，不调用外部翻译服务。
+The interface is English-only. All interface text is served by the local workbench;
+no external translation service is called. Source data, JSON diagnostics, machine
+status codes, IDs, experiment names and user input are displayed verbatim and are
+never rewritten for presentation. The official workbench continues to serve the
+existing experiment 03d results.
 
-语言运行时测试：`node tools/merge_review/tests/test_i18n_runtime.mjs`（7 项通过）。
-相关 Python 回归 827 项、原有中文 GTFS 浏览器回归 99 项通过；独立 8768 工作台的
-[双语浏览器验收](../../artifacts/merge-debug-20231106/i18n-browser/second-pass/browser-i18n-results.json)
-134 项通过，覆盖动态翻译、状态保留、语言持久化、键盘和移动端布局。
-该验收不创建实验或写入审查，正式工作台仍使用实验 03d 的既有结果。
+## Experiment 01: merge by VehicleID only and sort by time
 
-## 实验 01：只按 VehicleID 合并并按时间排序
+Adds a `vehicle_only` mode: the AVL and APC records of the same vehicle are combined
+with **UNION ALL** into one observation stream. "Merge" here means a source-tagged
+union of records followed by ordering; it is neither a many-to-many join of the two
+tables on vehicle number alone nor nearest-time matching. No trip segmentation,
+spatial gate, time-difference gate, interpolation or evidence-matching algorithm is
+invoked.
 
-新增 `vehicle_only` 模式：将同一车辆的 AVL 和 APC **UNION ALL** 成一条观测流。
-这里的“merge”是带来源的记录合并与排序，不是两张表仅按车辆号做多对多连接，
-也不是时间最近邻匹配。没有调用 trip 分割、空间门槛、时差门槛、插值或证据匹配算法。
+- Records are grouped by exact match on the normalized raw vehicle-number string.
+  The vehicle sets of both sources are kept; a vehicle is not dropped because only
+  one source contains it.
+- AVL uses the raw `time`; APC uses the raw `arrival`, and `departure` is used only
+  when the arrival time is missing, with an explicit flag. No raw arrival or
+  departure time is modified, and no two-source clock offset or service day is
+  guessed.
+- Within a vehicle, records are sorted by `event_time`, with missing times placed
+  last. Ties are ordered by a fixed source order and then by raw row number / ID;
+  this only guarantees reproducible display and does not mean AVL or APC actually
+  occurred first.
+- Duplicate raw rows are retained; no Cartesian product of every AVL × every APC is
+  generated, and passenger counts are not summed.
+- Each vehicle is one **vehicle-day observation stream**, not a trip. Time gaps only
+  break the line in the trajectory plot; they do not split the stream.
+- APC is flagged `not_evaluated` (matching not performed), not `unmatched`
+  (matching failed), and carries no match score. APC is not projected onto the AVL
+  distance curve; the map / timeline only show the real source positions and times
+  side by side.
 
-- 按规范化后的原始车辆号字符串精确分组，保留双方车辆集合，不因只有一个来源就丢弃车辆。
-- AVL 使用原始 `time`，APC 使用原始 `arrival`；仅到站时间缺失时，才明确标记后使用
-  `departure`。不修改任何原始到离站时间，不猜测两源时差或运营日。
-- 车内按 `event_time` 排序，缺失时刻置于末尾。同刻按固定来源顺序及原始行号／ID
-  排序，仅保证显示可复现，不意味着 AVL 或 APC 在现实中先发生。
-- 重复原始行保留；不生成每个 AVL × 每个 APC 的笛卡尔积，不加总客流。
-- 每辆车是一个**车日观测流**，不是一个 trip。时间缺口仅在轨迹绘图中断线，不切分观测流。
-- APC 标记为 `not_evaluated / 未执行匹配`，不是 `unmatched / 匹配失败`，也没有匹配评分。
-  APC 不投影到 AVL 距离曲线上；地图／时间线只并列展示真实来源位置与时刻。
+Selecting "VehicleID grouping + time ordering only" in the console disables the
+segmentation and merge parameters. The combined observation table interleaves the
+two sources and supports search, pagination and click-to-locate. Every raw record
+keeps its source ID, raw time and the fields from the day's input; the raw CSV is
+unchanged. When comparing against older versions that performed spatiotemporal
+matching, no "match-rate improvement" or "trip boundary change" is computed, because
+the two experiments did not perform the same kind of judgment.
 
-在控制台选择“仅 VehicleID 分组＋时间排序”，分割和 merge 参数会停用。
-统一观测表交错显示两种来源，可搜索、分页和点击定位。每条原始记录的来源 ID、原始时间
-以及日输入中的字段均保留，原始 CSV 不变。与执行了时空匹配的旧版本对照时，不计算
-所谓匹配率改善或 trip 边界变化，因为两种实验没有执行同一种判断。
-
-该模式的配置只有：
+The only configuration for this mode is:
 
 ```json
 {"method":"vehicle_only","segmentation":{},"merge":{}}
 ```
 
-已完成正式运行 `run-20231106-20260908T204034-97eba31b5e7f`，原始版本保留在工作台版本列表。
-实际保存 **232,985 条观测 = 213,895 AVL + 19,090 APC**、51 个车日分组，
-而不是 51 个已确认 trip。没有生成 trip chunks 或 APC–AVL 匹配记录；3 条跨午夜离站
-的 APC 保留了原始离站时间。全日汇集与内存／落盘双遍核对耗时 **33.805 秒**，
-来源、字段、日范围、排序和无伪匹配检查均零违规。
+The formal run `run-20231106-20260908T204034-97eba31b5e7f` is complete, and the
+original version is kept in the workbench version list. It saved
+**232,985 observations = 213,895 AVL + 19,090 APC** and 51 vehicle-day groups,
+not 51 confirmed trips. No trip chunks or APC–AVL match records were generated;
+3 APC records with departures past midnight kept their raw departure times.
+Full-day collection plus the in-memory / on-disk two-pass check took
+**33.805 seconds**, with zero violations in the source, field, day-range, ordering
+and no-spurious-match checks.
 
-完整回归 **483 项通过**，包含 HTTP 创建实验，以及禁止调用分割／匹配算法的检查。
-浏览器展示时，超出 JavaScript 精确整数范围的字段（如 UInt64 `payload_hash`）使用
-十进制字符串，避免无声舍入；Parquet 中的原值和类型不变。时间使用声明过的本地墙钟轴。
-运行检查报告：[summary.json](../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T204034-97eba31b5e7f/summary.json)，
-回归报告：[vehicle-only-regression-tests.xml](../../artifacts/merge-debug-20231106/vehicle-only-regression-tests.xml)。
+The full regression suite **passed 483 tests**, including HTTP experiment creation
+and checks that forbid calling the segmentation / matching algorithms. In the
+browser, fields outside JavaScript's exact integer range (such as the UInt64
+`payload_hash`) are rendered as decimal strings to avoid silent rounding; the values
+and types in Parquet are unchanged. Times use the declared local wall-clock axis.
+Run check report: `../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T204034-97eba31b5e7f/summary.json`,
+regression report: `../../artifacts/merge-debug-20231106/vehicle-only-regression-tests.xml`.
 
-最终浏览器验收 **97 项通过**：完整分页／筛选、双源原始 ID、可读本地到离站时间、
-地图原坐标选择、大整数精确显示、APC 不投影、跨模式不可比、审查记录隔离、刷新和
-手机布局；无浏览器错误、HTTP 错误或外网请求。原冻结模式另有 **82 项兼容性检查通过**。
-验收使用独立测试工作区，首次实际创建实验后复用该运行完成后续检查；没有向正式运行
-写入测试笔记。报告：[观测流浏览器验收](../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/browser-vehicle-stream-results.json)，
-截图：[同车时间排序表](../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/vehicle-source-stream.png)、
-[双源时间线与 AVL 距离](../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/vehicle-time-progress.png)。
+Final browser acceptance **passed 97 checks**: full pagination / filtering, raw IDs
+from both sources, readable local arrival and departure times, map selection by raw
+coordinates, exact display of large integers, no APC projection, cross-mode
+incomparability, review-record isolation, refresh and mobile layout; no browser
+errors, HTTP errors or external requests. The original frozen mode separately
+**passed 82 compatibility checks**. Acceptance used an independent test workspace;
+after one real experiment was created, that run was reused for the remaining
+checks, and no test notes were written to the formal run. Report:
+observation-stream browser acceptance (`../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/browser-vehicle-stream-results.json`),
+screenshots: same-vehicle time-ordered table (`../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/vehicle-source-stream.png`),
+dual-source timeline with AVL distance (`../../artifacts/merge-debug-20231106/vehicle-stream-browser-acceptance/final-display/vehicle-time-progress.png`).
 
-复测观测流 UI 时，在独立 `acceptance-workspace` 和测试笔记目录启动 8768，再运行：
+To retest the observation-stream UI, start port 8768 with an independent
+`acceptance-workspace` and test-notes directory, then run:
 
 ```sh
 node tools/merge_review/tests/browser_vehicle_stream_smoke.mjs --allow-test-writes
 ```
 
-只允许专用本地测试端口 8768；可加 `--existing-run <测试运行编号>` 复用既有测试结果，
-但仍会在该测试运行保存审查笔记。不要对正式工作区启用此写入测试。
+Only the dedicated local test port 8768 is allowed. `--existing-run <test run ID>`
+reuses existing test results, but review notes are still saved to that test run.
+Do not enable this write test against the formal workspace.
 
-## 实验 01 的 AVL 去重版与全天横向浏览
+## Experiment 01 AVL-deduplicated variant and full-day horizontal browsing
 
-`vehicle_only_dedup` 是实验 01 的独立派生版本：仍只按 VehicleID 汇集并按源时间排序，
-不执行 trip 分割、时空配对或 APC 去重。原 `vehicle_only` 实验及人工笔记保持不变。
+`vehicle_only_dedup` is an independent derivative of experiment 01: it still collects
+records by VehicleID only and sorts them by source time, without trip segmentation,
+spatiotemporal pairing or APC deduplication. The original `vehicle_only` experiment
+and its human notes are unchanged.
 
-去重依据是原 AVL CSV 的 **全部 13 个业务字段逐字段精确相同**，不是只按车辆和时间，
-也不单凭 `payload_hash`。每组保留 `source_row` 最小的一条；不同时间、不同字段以及
-原始字符串不同的记录均保留。即使 APC 同车同到站时间也不删除，避免误删不同方向的记录。
+Deduplication requires **exact field-by-field equality on all 13 business fields** of
+the raw AVL CSV, not merely vehicle and time, and not `payload_hash` alone. Each
+group keeps the row with the smallest `source_row`; records that differ in time, in
+any field or in raw string form are all retained. APC records are never removed, even
+with the same vehicle and arrival time, to avoid deleting records from different
+directions.
 
-派生运行的 `observations/` 只包含保留的 AVL 和全部 APC；`deduplication/` 保存原字段
-快照与每条原 AVL 到代表记录的映射。网页的地图、时间线、距离曲线和排序表使用去重后
-记录，原始 CSV 与实验 01 可用于恢复或回查。去重不是判定记录错误，也不是匹配准确率改善。
+The derived run's `observations/` contains only the retained AVL plus all APC;
+`deduplication/` stores a snapshot of the original fields and the mapping from every
+original AVL row to its representative. The web page's map, timeline, distance curve
+and sorted table use the deduplicated records; the raw CSV and experiment 01 remain
+available for recovery or lookup. Deduplication does not judge a record to be wrong,
+and it is not a matching-accuracy improvement.
 
-双源时间线新增独立的“横向浏览全天”范围滑条。先选择 10／30／60 分钟窗口，再拖动
-滑条平移窗口，地图与距离曲线同步；键盘 Home／End 可到当天最早／最晚窗口。下方原有
-“时间游标”仍只改变窗口内查看的时刻，不代替范围平移。全日概览下滑条明确停用，可一键
-回到 30 分钟详细窗口。统一观测表默认展示全部保留记录，只有勾选“仅当前浏览时间窗”
-才随范围滑条筛选，横移本身不会删除数据或重新切分 trip。
+The dual-source timeline gains an independent "Pan across the day" range slider.
+Choose a 10 / 30 / 60 minute window first, then drag the slider to pan it; the map
+and distance curve follow. Keyboard Home / End jump to the earliest / latest window
+of the day. The existing "Time cursor" below it still changes only the instant being
+viewed within the window and does not replace range panning. In the full-day overview
+the slider is explicitly disabled, with a one-click return to the 30-minute detail
+window. The combined observation table shows all retained records by default and
+filters with the range slider only when "Current viewing window only" is checked.
+Panning never deletes data or re-splits trips.
 
-配置仍不包含分割和匹配阈值：
+The configuration still contains no segmentation or matching thresholds:
 
 ```json
 {"method":"vehicle_only_dedup","segmentation":{},"merge":{}}
 ```
 
-正式去重运行 **`run-20231106-20260908T211936-160cab4053e8`**（“实验 01b”）
-已设为工作台启动时载入的最新结果：**177,638 AVL + 19,090 APC = 196,728 条观测**，
-共 51 辆车，移除 36,257 个 AVL 完全重复副本。原始 213,895 条 AVL 均有可恢复的代表映射。
-全日运行与双遍核对耗时 **40.833 秒**；独立回查确认 APC 全部原字段不变、代表均为原字段
-完全相同组内的最小源行号，实验 01 的 manifest 和 summary 内容哈希未变。
+The formal deduplicated run **`run-20231106-20260908T211936-160cab4053e8`**
+("experiment 01b") is now the latest result loaded when the workbench starts:
+**177,638 AVL + 19,090 APC = 196,728 observations** across 51 vehicles, with
+36,257 exact AVL duplicate copies removed. All 213,895 raw AVL rows have a
+recoverable representative mapping. The full-day run plus the two-pass check took
+**40.833 seconds**; an independent re-check confirmed that all APC raw fields are
+unchanged, that every representative is the smallest source row within its group of
+fully identical raw fields, and that the content hashes of experiment 01's manifest
+and summary are unchanged.
 
-完整后端回归 **526 项通过**；旧 frozen 浏览器兼容回归 **82 项通过**。
-新界面首次实际创建去重实验并通过 **55 项浏览器检查**，覆盖真实鼠标点击／拖动、
-Home／End／方向键、全天首末窗口、三图联动、来源映射与手机布局；使用独立测试工作区，
-没有写入正式笔记。报告：[去重运行摘要](../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T211936-160cab4053e8/summary.json)、
-[完整回归](../../artifacts/merge-debug-20231106/dedup-timeline-regression-tests.xml)、
-[实际运行与交互验收](../../artifacts/merge-debug-20231106/dedup-timeline-browser/browser-dedup-timeline-results.json)。
-手机总览宽度修复后，复用同一测试运行再通过 **55 项最终检查**（零新实验／笔记写入），
-另核对全天总览包含全部保留 AVL 与 APC，而非仅当前窗口。
-最终报告：[响应式与全天覆盖检查](../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/browser-dedup-timeline-results.json)，
-截图：[横向滑条](../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/timeline-first-window.png)、
-[手机布局](../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/timeline-mobile.png)。
+The full backend regression suite **passed 526 tests**; the legacy frozen browser
+compatibility regression **passed 82 checks**. The new interface created a real
+deduplication experiment for the first time and **passed 55 browser checks**,
+covering real mouse clicks / drags, Home / End / arrow keys, the first and last
+windows of the day, three-chart linkage, source mapping and mobile layout; it used an
+independent test workspace and wrote no formal notes. Reports:
+dedup run summary (`../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T211936-160cab4053e8/summary.json`),
+full regression (`../../artifacts/merge-debug-20231106/dedup-timeline-regression-tests.xml`),
+real run and interaction acceptance (`../../artifacts/merge-debug-20231106/dedup-timeline-browser/browser-dedup-timeline-results.json`).
+After the mobile overview width fix, the same test run was reused and **passed 55
+final checks** (zero new experiments / notes written); the full-day overview was also
+verified to include all retained AVL and APC rather than only the current window.
+Final report: responsive and full-day coverage check (`../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/browser-dedup-timeline-results.json`),
+screenshots: horizontal slider (`../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/timeline-first-window.png`),
+mobile layout (`../../artifacts/merge-debug-20231106/dedup-timeline-browser/final-responsive/timeline-mobile.png`).
 
-复测去重和滑条时仍须使用独立 8768 测试工作区：
+Retesting deduplication and the slider still requires the independent 8768 test
+workspace:
 
 ```sh
 node tools/merge_review/tests/browser_dedup_timeline_smoke.mjs --allow-test-writes
 ```
 
-此脚本会创建新的测试运行；加 `--existing-run <测试运行编号>` 可只复核已有结果。
-脚本不写人工笔记，浏览器外部请求会被拦截。
+This script creates a new test run; add `--existing-run <test run ID>` to only
+re-verify existing results. The script writes no human notes, and external browser
+requests are blocked.
 
-## 实验 02：过滤 PI/PO，用两源方向分割候选 trip
+## Experiment 02: filter PI/PO and split candidate trips by two-source direction
 
-`direction_destination` 在实验 01b 的 **13 个原字段精确 AVL 去重**基础上，
-过滤 AVL `Route` 为 `PI` 或 `PO` 的代表记录。判定仅为去除首尾空白、转大写后精确相等；
-不因 APC `Branch` 含字母或 Destination 缺失而过滤。原始 CSV、以前实验及人工笔记不变。
-去重映射仍覆盖全部原始 AVL，过滤代表的完整字段及原因另存于 `direction/{vehicle_case}.json`。
+`direction_destination` builds on experiment 01b's **exact 13-field AVL
+deduplication** and filters out representative records whose AVL `Route` is `PI` or
+`PO`. The test is exact equality after trimming surrounding whitespace and
+upper-casing; records are not filtered because an APC `Branch` contains letters or a
+Destination is missing. The raw CSV, earlier experiments and human notes are
+unchanged. The deduplication mapping still covers all raw AVL; the full fields and
+reason for each filtered representative are stored separately in
+`direction/{vehicle_case}.json`.
 
-本版只做基于时间证据的**候选 trip 分割**，不调用原有时空 matcher、不投影 APC 进度、
-不使用 Heading、GTFS、source trip ID 或线路变化来替代本次方向实验。
+This version performs only time-evidence-based **candidate trip segmentation**: it
+does not invoke the existing spatiotemporal matcher, does not project APC progress,
+and does not use Heading, GTFS, source trip IDs or route changes as a substitute for
+this direction experiment.
 
-明确的实验规则：
+Explicit experiment rules:
 
-1. 同车分别读取 AVL `Destination` 开头的 `NORTH / SOUTH` 和 APC `direction`，
-   不改写原字段。未知方向保留，不能自动当成反向。
-2. AVL 的方向从定位时刻短时延续至下一不同定位时刻，最多 **30 秒**；
-   下一条 PI/PO 或未知方向也会截断这种延续，避免过滤后跨过无方向证据区间。
-   最后一条 AVL 只提供该时刻的点证据。这是实验假设，不是供应商确认的字段有效期。
-3. APC 正序到离站时间采用闭区间。缺失端点或倒序区间只在可用的排序时刻提供点证据，
-   并显式记录回落原因；无效／时间歧义记录不提供确定方向，记录本身仍保留。
-   方向证据限于本地自然日；原始跨午夜 departure 不裁剪。
-4. 按时间批量检查活跃方向集合。只有 NORTH 或只有 SOUTH 时才提供确定方向。
-   同时出现两种方向时，保留冲突双方及时间窗，不因同刻稳定显示顺序切出伪短片段。
-   冲突期间维持此前候选分段；下一次非冲突确定方向反转时，才建立新候选片段。
-5. APC 区间横跨边界时，保留多个 `candidate_segment_ids` 和边界重叠标记。
-   落盘观测仍每条仅一份；逐段网页可重复显示该记录用于审查，不能按候选片段重复加总客流。
-6. 未知时间段和全天两端保持未决／范围截断说明。长时间无观测不自动证明确实仍在同一 trip，
-   本次也不额外按时间缺口切分。方向反转本身并非独立验证的真实 trip 边界。
+1. For each vehicle, read the `NORTH / SOUTH` prefix of the AVL `Destination` and the
+   APC `direction` separately, without rewriting the raw fields. Unknown directions
+   are retained and are never automatically treated as the opposite direction.
+2. An AVL direction is carried forward briefly from its fix time to the next fix with
+   a different time, for at most **30 seconds**; the next PI/PO or unknown-direction
+   record also truncates this carry-forward, so that it does not bridge a filtered
+   interval without direction evidence. The last AVL record provides point evidence
+   for its own instant only. This is an experimental assumption, not a
+   vendor-confirmed field validity period.
+3. APC arrival–departure intervals in forward order are treated as closed intervals.
+   Records with a missing endpoint or a reversed interval provide point evidence only
+   at the usable sort time, and the fallback reason is recorded explicitly; invalid /
+   time-ambiguous records provide no definite direction but are retained. Direction
+   evidence is confined to the local calendar day; raw departures past midnight are
+   not clipped.
+4. The set of active directions is checked in time batches. A definite direction is
+   produced only when the set is NORTH-only or SOUTH-only. When both directions are
+   present at once, both sides of the conflict and the time window are retained, and
+   no spurious short segment is cut because of the stable same-instant display order.
+   The previous candidate segment is kept during a conflict; a new candidate segment
+   is started only at the next non-conflicting definite direction reversal.
+5. When an APC interval spans a boundary, multiple `candidate_segment_ids` and a
+   boundary-overlap flag are retained. Each observation is still persisted exactly
+   once; the per-segment web page may display the record more than once for review,
+   but passenger counts must not be summed repeatedly per candidate segment.
+6. Unknown time spans and both ends of the day keep their undecided / range-truncation
+   notes. A long span with no observations does not automatically prove that the
+   vehicle was still on the same trip, and this version does not additionally split
+   on time gaps. A direction reversal is not by itself an independently verified real
+   trip boundary.
 
-冲突标注区分两源异向以及同源异向；`conflict_windows` 是按活跃证据集合产生的审查时间窗，
-相邻窗口可能属于同一个业务事件，不能当成独立错误次数。地图、时间线、方向片段队列、
-统一观测表可回查原始 source rid；上下文与候选成员分别计数。累计距离只来自 AVL 实际位置，
-不是候选 trip 完成百分比。
+Conflict annotations distinguish cross-source from same-source direction
+disagreement; `conflict_windows` are review windows generated from the active
+evidence set, and adjacent windows may belong to the same operational event, so they
+must not be counted as independent errors. The map, timeline, direction-segment queue
+and combined observation table can look up the raw source rid; context and candidate
+members are counted separately. Cumulative distance comes only from actual AVL
+positions and is not a candidate-trip completion percentage.
 
-此版本规则固定并记录在 manifest 的 `direction_segmentation`，无隐藏旧 matcher 阈值：
+The rules of this version are fixed and recorded in the manifest's
+`direction_segmentation`, with no hidden legacy matcher thresholds:
 
 ```json
 {"method":"direction_destination","segmentation":{},"merge":{}}
 ```
 
-与 01b 对照时，检查 PI/PO 过滤是否解释全部来源变化、APC 是否完全保留及候选／冲突数量。
-不把候选数量或冲突减少解释为匹配准确率提高。
+When comparing against 01b, check whether PI/PO filtering explains all source
+changes, whether APC is fully retained, and the candidate / conflict counts. A
+reduction in candidate count or conflicts is not interpreted as improved matching
+accuracy.
 
-正式运行 **`run-20231106-20260908T220649-9be72540c029`** 已完成，父版本明确指向
-实验 01b `run-20231106-20260908T211936-160cab4053e8`，直接复用其已校验的自然日输入。
-本次生成 **187,962 条唯一落盘观测 = 168,872 AVL + 19,090 APC**；
-过滤 8,766 条去重后的 PI/PO AVL（PI 3,339、PO 5,427）。01b 原来的 36,257 个重复副本
-仍由完整去重映射解释，不与此次 PI/PO 过滤混为一类。
+The formal run **`run-20231106-20260908T220649-9be72540c029`** is complete; its
+parent version explicitly points to experiment 01b
+`run-20231106-20260908T211936-160cab4053e8`, and it reuses that run's validated
+calendar-day input directly. It produced
+**187,962 unique persisted observations = 168,872 AVL + 19,090 APC**, filtering
+8,766 deduplicated PI/PO AVL records (PI 3,339, PO 5,427). The 36,257 duplicate
+copies from 01b are still explained by the full deduplication mapping and are not
+conflated with this PI/PO filtering.
 
-51 辆车均有审计入口，50 辆产生共 **541 个方向候选片段**，另一辆只有被过滤记录。
-**795 条 APC、13,811 条 AVL** 涉及方向冲突；**267 条 APC** 跨候选边界并保留多归属。
-14,127 个冲突证据窗口中，相邻窗口可属于同一业务冲突，不代表 14,127 个独立错误。
-本次没有自动删除冲突、丢弃 APC、根据方向选择“更好”的 GPS 匹配点或加总候选客流。
+All 51 vehicles have an audit entry; 50 produced a total of **541 direction
+candidate segments**, and the remaining vehicle has only filtered records.
+**795 APC and 13,811 AVL** records are involved in direction conflicts; **267 APC**
+records span candidate boundaries and retain multiple memberships. Among the 14,127
+conflict evidence windows, adjacent windows may belong to the same operational
+conflict, so they do not represent 14,127 independent errors. This run did not
+automatically delete conflicts, drop APC, pick a "better" GPS match point based on
+direction, or sum candidate passenger counts.
 
-全日运行含去重、源守恒及方向证据的内存／落盘双遍校验，耗时 **96.879 秒**，所有已实现
-检查零违规。完整 merge-review / coverage-study / direct-evidence / raw-audit 回归
-**502 项通过**；旧 frozen 页面 **82 项浏览器兼容检查通过**，只使用独立临时笔记库。
-正式数据的结构可行性通过不等于 trip 准确率已知。
+The full-day run, including the in-memory / on-disk two-pass validation of
+deduplication, source conservation and direction evidence, took **96.879 seconds**,
+with zero violations in all implemented checks. The full merge-review /
+coverage-study / direct-evidence / raw-audit regression suite **passed 502 tests**;
+the legacy frozen page **passed 82 browser compatibility checks**, using only an
+independent temporary notes database. Structural feasibility on the formal data does
+not mean trip accuracy is known.
 
-独立对照再次逐列核查：全部保留 AVL/APC 原字段、213,895 条去重映射与 01b 一致，
-全部候选成员与冲突来源关系双向一致。网站数据层实际加载 541 个候选＋1 个审计窗口。
-全过滤车辆为 **9037**：原 34 条 AVL 去重为 26 条，均为 PO、无 APC；只提供排除审计，
-不伪造一趟行程。
+An independent column-by-column re-check confirmed that all retained AVL/APC raw
+fields and the 213,895-row deduplication mapping are consistent with 01b, and that
+all candidate-membership and conflict-source relationships are consistent in both
+directions. The site's data layer actually loads 541 candidates + 1 audit window.
+The fully filtered vehicle is **9037**: its 34 raw AVL rows deduplicate to 26, all
+PO, with no APC; it provides only an exclusion audit and does not fabricate a trip.
 
-优先审查的短片段：车辆 **9047** 的 `direction:9047:0002`，
-**07:23:36–07:23:48，12 秒 NORTH 候选**。一条 SOUTH APC 的原区间
-07:04:27–07:23:36 结束后，短暂只剩 AVL NORTH 证据；07:23:48 AVL 再变 SOUTH。
-当前规则没有最小时长／方向平滑，所以保留此段。这是待审查的实验边界，不是已确认的
-12 秒真实 trip；网页保留前一条长 APC 及两侧 AVL 边界证据以供回查。
+Short segment to review first: vehicle **9047**, `direction:9047:0002`, a
+**12-second NORTH candidate from 07:23:36 to 07:23:48**. After the raw interval
+07:04:27–07:23:36 of one SOUTH APC record ends, only AVL NORTH evidence remains
+briefly; at 07:23:48 the AVL turns SOUTH again. The current rules have no minimum
+duration / direction smoothing, so this segment is retained. It is an experimental
+boundary awaiting review, not a confirmed 12-second real trip; the web page retains
+the preceding long APC record and the AVL boundary evidence on both sides for lookup.
 
-结果：[实验 02 摘要](../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T220649-9be72540c029/summary.json)、
-[后端回归](../../artifacts/merge-debug-20231106/direction-regression-tests.xml)、
-[旧 frozen 浏览器兼容](../../artifacts/merge-debug-20231106/direction-frozen-compat/browser-results.json)。
+Results: experiment 02 summary (`../../artifacts/merge-debug-20231106/runs/run-20231106-20260908T220649-9be72540c029/summary.json`),
+backend regression (`../../artifacts/merge-debug-20231106/direction-regression-tests.xml`),
+legacy frozen browser compatibility (`../../artifacts/merge-debug-20231106/direction-frozen-compat/browser-results.json`).
 
-新版真实浏览器成功创建独立测试 02，并通过 **54 项创建／交互验收**。
-最后复用同一测试运行完成 **54 项只读复测**，含车辆 9047 的秒级短候选、冲突窗口开闭
-端点、跨车辆搜索、切版本加载保护、原字段定位、多候选归属、三图联动及手机布局；
-零浏览器／HTTP／外部请求错误，未写正式或测试人工笔记。01b 的独立兼容复测另通过
-**55 项**，复用原测试结果，不创建新实验。
+A real browser successfully created an independent test experiment 02 with the new
+version and **passed 54 creation / interaction checks**. Finally, the same test run
+was reused for **54 read-only re-checks**, covering vehicle 9047's second-scale short
+candidate, conflict-window open / closed endpoints, cross-vehicle search, loading
+guards when switching versions, raw-field lookup, multi-candidate membership,
+three-chart linkage and mobile layout; zero browser / HTTP / external-request errors,
+and no formal or test human notes written. An independent compatibility re-check of
+01b separately **passed 55 checks**, reusing the original test results without
+creating a new experiment.
 
-报告：[实际创建实验](../../artifacts/merge-debug-20231106/direction-browser/actual-02/browser-direction-results.json)、
-[最终只读检查](../../artifacts/merge-debug-20231106/direction-browser/final-short-candidate-fixed/browser-direction-results.json)。
-两处界面异步请求问题（切版本覆盖方法、旧搜索回调误用新车辆）已通过加载保护与队列隔离
-修复；不会改变已保存的实验方法或结果。测试中产生的旧失败截图及一次误选方法的 01b
-测试副本留在独立验收目录，不进入正式工作台。
+Reports: real experiment creation (`../../artifacts/merge-debug-20231106/direction-browser/actual-02/browser-direction-results.json`),
+final read-only check (`../../artifacts/merge-debug-20231106/direction-browser/final-short-candidate-fixed/browser-direction-results.json`).
+Two asynchronous-request issues in the interface (a version switch overwriting the
+method, and a stale search callback misapplied to the new vehicle) were fixed with
+loading guards and queue isolation; this does not change any saved experiment method
+or result. Old failure screenshots produced during testing, and one 01b test copy
+created with a mis-selected method, remain in the independent acceptance directory
+and do not enter the formal workbench.
 
-复测请只指向独立的 8768 测试工作区：
+For retests, point only at the independent 8768 test workspace:
 
 ```sh
 node tools/merge_review/tests/browser_direction_smoke.mjs --allow-test-writes
 ```
 
-加入 `--existing-run <测试运行编号>` 会只读复核已有结果，不重新提交实验，也不写审查笔记。
+Adding `--existing-run <test run ID>` re-verifies existing results read-only,
+without resubmitting an experiment or writing review notes.
 
-## 单日 Visual Debug（本次新增）
+## One-Day Visual Debug (new in this iteration)
 
-从 `agencies/ttc` 启动：
+Start from `agencies/ttc`:
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   -m tools.merge_review.server --debug-date 2023-11-06
 ```
 
-打开 **http://127.0.0.1:8767**。默认不会占用原冻结网站的 8765 端口。
-第一次启动提取单日源数据并运行初始基线；之后复用已缓存的单日输入和已完成版本。
-当天原始输入有 213,895 条 AVL、19,090 条 APC，共 51 辆车。
+Open **http://127.0.0.1:8767**. By default this does not occupy port 8765 used by the
+original frozen site. The first start extracts the single-day source data and runs
+the initial baseline; later starts reuse the cached single-day input and the
+completed versions. The day's raw input has 213,895 AVL and 19,090 APC records
+across 51 vehicles.
 
-调试流程：
+Debug workflow:
 
-1. 选择已完成版本和用于对照的基线版本。
-2. 选择 `vehicle_only` 只汇集来源记录、`vehicle_only_dedup` 先精确去重 AVL，或选择分割方法
-   （`gap_only`／`avl_context`／`apc_assisted`）并调整分割和直接证据 merge 参数。
-   填写实验名称，重跑当天全部车辆。一次只执行一个后台实验；期间仍可浏览旧版本。
-3. 比较候选片段边界、APC 状态及归属变化，再在地图、时间线、累计距离曲线中检查具体源记录。
-4. 给当前版本保存独立的人工判断。新版本不会继承旧版本的“可接受”结论。
-5. 逐步修改参数并建立新实验；代码与配置指纹记录在版本中，旧结果不被覆盖。
-   如果修改了本地算法代码，先重启调试服务再建立实验，避免长驻进程继续使用已导入的旧代码。
+1. Select a completed version and a baseline version for comparison.
+2. Choose `vehicle_only` to only collect source records, `vehicle_only_dedup` to
+   first deduplicate AVL exactly, or a segmentation method (`gap_only` /
+   `avl_context` / `apc_assisted`) and adjust the segmentation and direct-evidence
+   merge parameters. Enter an experiment name and rerun all vehicles for the day.
+   Only one background experiment runs at a time; older versions can still be
+   browsed meanwhile.
+3. Compare candidate segment boundaries, APC statuses and membership changes, then
+   inspect the specific source records on the map, timeline and cumulative distance
+   curve.
+4. Save an independent human judgment for the current version. A new version does
+   not inherit an older version's "acceptable" conclusion.
+5. Change parameters step by step and create new experiments; the code and
+   configuration fingerprints are recorded in each version, and old results are not
+   overwritten. If the local algorithm code was modified, restart the debug server
+   before creating an experiment, so that the long-running process does not keep
+   using already-imported stale code.
 
-对照按原始 APC `rid` 对齐，而不是按可能改变的片段 ID 对齐。片段归属变化依据实际
-GPS 成员集合比较：片段 ID 改名本身不是归属变化。诊断变化不自动解释为“改善”。
-匹配比例、片段数量和无损保留检查均不是准确率；没有独立真值时，准确率保持未知。
+Comparison aligns on the raw APC `rid`, not on segment IDs that may change.
+Segment-membership changes are determined by comparing the actual GPS member sets: a
+segment ID rename is not by itself a membership change. Diagnostic changes are not
+automatically interpreted as "improvement". Match ratio, segment count and
+lossless-retention checks are not accuracy; without independent ground truth,
+accuracy remains unknown.
 
-日期范围明确为 **源本地自然日 [2023-11-06 00:00, 2023-11-07 00:00)**，
-不是推断后的运营日。AVL 按原始定位时间、APC 优先按到站时间入选；到站缺失时才用
-离站时间。APC 跨午夜的原始离站时间仍保留，未裁剪为午夜。默认不加载邻日 GPS，
-所以日期边缘属于**数据范围截断**，不代表真实 trip 起终点；不能用本日片段证明完整跨日行程。
+The date range is explicitly the **source-local calendar day
+[2023-11-06 00:00, 2023-11-07 00:00)**, not an inferred service day. AVL is selected
+by raw fix time and APC preferentially by arrival time; departure time is used only
+when arrival is missing. Raw APC departure times past midnight are retained, not
+clipped to midnight. Neighboring-day GPS is not loaded by default, so the day edges
+are **data-range truncation**, not real trip start / end points; a single day's
+segments cannot prove a complete cross-day trip.
 
-本次不提供“推广全量”按钮，也不把浏览后的人工笔记当盲测真值。单日迭代完成后，仍需
-另选未用于调参的日期和边界案例验证，才讨论全量应用。
+This iteration provides no "promote to full data" button, and browsed human notes
+are not treated as blind ground truth. After single-day iteration, dates not used for
+tuning plus boundary cases must still be validated before full-data application is
+discussed.
 
-默认实验目录为 `artifacts/merge-debug-20231106`；审查数据库位于该目录的 `reviews/`。
-可用 `--debug-dir` 和 `--state-dir` 指定独立位置，`--port` 指定本机端口。
-HTTP 接口不接受任意文件路径、任意日期、脚本或命令，只接受有范围限制的已知参数。
-关闭服务会中断未完成实验，未完成结果不会作为成功版本载入；已完成版本和审查记录保留。
+The default experiment directory is `artifacts/merge-debug-20231106`; the review
+database is in its `reviews/`. Use `--debug-dir` and `--state-dir` to specify
+independent locations and `--port` to set the local port. The HTTP interface accepts
+no arbitrary file paths, arbitrary dates, scripts or commands, only known parameters
+with bounded ranges. Shutting down the server interrupts unfinished experiments, and
+incomplete results are not loaded as successful versions; completed versions and
+review records are preserved.
 
-当前字段展示保留 APC 的 `Route`、`RouteName`、`Branch`；字母分支不会自动改写为
-线路号或非载客标签。未关联 APC 窗口不再声称是“只有 APC 的真实单源行程”，窗口内
-实际 GPS 与已归属片段的 GPS 分开计数，显示上下文不等于接受关联。
+The current field display keeps the APC `Route`, `RouteName` and `Branch`; lettered
+branches are not automatically rewritten as route numbers or non-revenue labels.
+Unassociated APC windows no longer claim to be "APC-only real single-source trips";
+the actual GPS inside a window and the GPS of already-assigned segments are counted
+separately, and displayed context does not equal accepted association.
 
-### 本次验收（2026-09-08）
+### Acceptance for this iteration (2026-09-08)
 
-- 完整回归 **437 项通过**，包含单日 runner、数据适配器、HTTP 与原有算法测试。
-- 真实单日默认运行耗时 **14.543 秒**，51 辆车、130 个候选片段；19,090 条 APC
-  均有唯一处置记录。已实现的源守恒／支持证据检查零违规，准确率仍为未知。
-- 单日浏览器验收 **75 项通过**，实际改变参数并创建新版本，检查差异、三图选择、
-  笔记保护、跨版本隔离和手机布局；无外部请求或浏览器错误。
-- 最终 UI 另有 **15 项只读复核通过**，覆盖边界理由变化泳道、刷新恢复和手机布局，零 POST。
-- 原冻结模式浏览器回归 **82 项通过**，使用独立临时审查库，未写真实旧笔记。
+- The full regression suite **passed 437 tests**, including the one-day runner, data
+  adapter, HTTP and existing algorithm tests.
+- The real single-day default run took **14.543 seconds**, with 51 vehicles and 130
+  candidate segments; all 19,090 APC records have a unique disposition record. The
+  implemented source-conservation / supporting-evidence checks had zero violations;
+  accuracy remains unknown.
+- One-day browser acceptance **passed 75 checks**, actually changing parameters and
+  creating a new version, and checking diffs, three-chart selection, note protection,
+  cross-version isolation and mobile layout; no external requests or browser errors.
+- The final UI separately **passed 15 read-only re-checks**, covering the
+  boundary-reason-change swimlane, refresh recovery and mobile layout, with zero
+  POSTs.
+- The original frozen-mode browser regression **passed 82 checks**, using an
+  independent temporary review database, without writing real legacy notes.
 
-本机速度是这一数据切片和配置的测量值，不是所有参数的性能保证。
-浏览器验收使用独立 `acceptance-workspace`，测试实验不会出现在正式工作台的运行列表。
-结果：[单日浏览器验收](../../artifacts/merge-debug-20231106/browser-acceptance/browser-debug-results.json)、
-[边界与记录差异截图](../../artifacts/merge-debug-20231106/browser-acceptance/source-rid-boundary-diff.png)、
-[三图截图](../../artifacts/merge-debug-20231106/browser-acceptance/rerun-timeline-progress.png)。
+Local speed is a measurement for this data slice and configuration, not a performance
+guarantee for all parameters. Browser acceptance uses an independent
+`acceptance-workspace`; test experiments do not appear in the formal workbench's run
+list. Results: one-day browser acceptance (`../../artifacts/merge-debug-20231106/browser-acceptance/browser-debug-results.json`),
+boundary and record diff screenshot (`../../artifacts/merge-debug-20231106/browser-acceptance/source-rid-boundary-diff.png`),
+three-chart screenshot (`../../artifacts/merge-debug-20231106/browser-acceptance/rerun-timeline-progress.png`).
 
-复测单日浏览器时，先用独立工作区和审查目录启动 **8768**，再执行：
+To retest the one-day browser flow, first start **8768** with an independent
+workspace and review directory, then run:
 
 ```sh
 node tools/merge_review/tests/browser_debug_smoke.mjs --allow-test-writes
 ```
 
-该脚本会创建实验并写入测试笔记，因此只允许专用的 `127.0.0.1:8768`，不要指向正式工作台。
+This script creates experiments and writes test notes, so only the dedicated
+`127.0.0.1:8768` is allowed; do not point it at the formal workbench.
 
-## 冻结审查模式启动
+## Starting frozen review mode
 
-从 `agencies/ttc` 运行，复用现有锁定 Python 环境，无新增依赖、npm 构建或 CDN：
+Run from `agencies/ttc`, reusing the existing locked Python environment, with no new
+dependencies, npm build or CDN:
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   -m tools.merge_review.server
 ```
 
-打开 **http://127.0.0.1:8765**。终端按 `Ctrl+C` 停止。若端口被占用，可指定
-`--port 8767`。服务只监听本机回环地址，不能直接用于公开部署。
+Open **http://127.0.0.1:8765**. Press `Ctrl+C` in the terminal to stop. If the port
+is in use, specify `--port 8767`. The server listens only on the local loopback
+address and cannot be used directly for public deployment.
 
-显式指定数据与独立审查记录目录：
+To specify the data and an independent review-record directory explicitly:
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
@@ -317,65 +451,96 @@ UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
   --port 8765
 ```
 
-## 怎么检查
+## How to review
 
-1. 左侧选择分割上下文、车辆，再按日期、线路、融合状态或人工审查状态筛选。
-   默认使用 `avl_context` 和车辆 9027（存在时）。这只是浏览起点，不是随机评估样本。
-2. 用上一趟／下一趟或 `J`／`K` 逐个检查。队列包含冻结 AVL 片段，也包含未关联、
-   非唯一归属或未接受关联的 APC 检查窗口，不会只展示成功匹配。
-3. 在地图、时间线或明细表中点击 APC 记录，查看同一记录的正证据、反证、竞争候选、
-   时空残差和真实源 ID。相邻记录的“上下文”不等于已经关联到当前片段。
-4. 长片段可选择 10／30／60 分钟窗口、前后移动或聚焦选中 APC ±5 分钟；
-   “邻近上下文”可选 0／±3／±15／±30 分钟，用来检查起终点附近的单源尾段。
-   这是浏览范围，不改变归属或 trip 分割。轨迹缺口保持可见，不用连接线补齐。
-5. 选择“可接受／有问题／待确认”，填写笔记，保存或“保存并下一趟”。
-   `Ctrl/Cmd+S` 保存；左下角可导出带历史的 JSON 审查记录。
+1. On the left, select the segmentation context and vehicle, then filter by date,
+   route, association status or human review status. The default is `avl_context`
+   and vehicle 9027 (when present). This is only a browsing starting point, not a
+   random evaluation sample.
+2. Use previous / next trip or `J` / `K` to step through items one by one. The queue
+   includes the frozen AVL segments as well as APC review windows that are
+   unassociated, non-uniquely assigned or whose association was not accepted; it
+   does not show only successful matches.
+3. Click an APC record on the map, timeline or detail table to see that record's
+   positive evidence, counterevidence, competing candidates, spatiotemporal residuals
+   and real source IDs. "Context" from adjacent records does not mean they are
+   associated with the current segment.
+4. For long segments, choose a 10 / 30 / 60 minute window, move backward or
+   forward, or focus on the selected APC ±5 minutes; "Nearby context" can be
+   0 / ±3 / ±15 / ±30 minutes, used to inspect single-source tails near the start and
+   end points. This is a viewing range and does not change membership or trip
+   segmentation. Trajectory gaps stay visible and are not bridged with connecting
+   lines.
+5. Choose "Acceptable / Problematic / Uncertain", write a note, then save or
+   "Save and next trip". `Ctrl/Cmd+S` saves; the bottom left exports a JSON review
+   record with history.
 
-审查对象是**候选 trip／观测片段，不是已确认的 `trip performed`**。部分片段可长达
-一天，APC 附加窗口按 15 分钟桶组织以便浏览；这些窗口不构成新的 trip 分割或匹配。
-跨片段 APC 可能出现在多个检查对象中，不能按队列数量统计独立 trip 或累加客流。
+The review objects are **candidate trips / observation segments, not confirmed
+`trip performed`**. Some segments can be as long as a day, and APC attachment
+windows are organized in 15-minute buckets for browsing; these windows do not
+constitute new trip segmentation or matching. Cross-segment APC records can appear
+in multiple review objects, so queue counts cannot be used to count distinct trips
+or to sum passenger counts.
 
-## 三种可视化的含义
+## What the three visualizations mean
 
-| 视图 | 可以检查 | 不代表什么 |
+| View | What can be checked | What it does not represent |
 |---|---|---|
-| 地图 | 同车实际 GPS 轨迹、APC 位置、支持点、真实插值端点与位置反证 | 路线／trip 身份已经确认 |
-| 双源时间线 | 两源覆盖、到离站区间、GPS 缺口、证据锚点 | 两源时钟已经同步，或区间全程连续停站 |
-| 时间–距离曲线 | 连续有效 GPS 观测段内的累计距离、APC 的受支持位置 | GTFS 计划完成率、跨缺口的未知路程、真实 trip 总里程 |
+| Map | Actual same-vehicle GPS trajectory, APC positions, supporting points, real interpolation endpoints and positional counterevidence | A confirmed route / trip identity |
+| Dual-source timeline | Coverage of both sources, arrival–departure intervals, GPS gaps, evidence anchors | That the two source clocks are synchronized, or that the vehicle was continuously stopped for the whole interval |
+| Time–distance curve | Cumulative distance within continuous valid GPS observation runs, supported APC positions | GTFS schedule completion rate, unknown travel across gaps, real total trip mileage |
 
-累计距离在无效／歧义／同刻位置冲突、超过 90 秒采样间隔或超过 130 km/h
-隐含速度处断开，每个新的连续段从零开始。这是可视化的保守几何定义，不改变 merge。
-原始重复行仍保留，但相同时间位置不会增加距离。所有时刻在源数据的本地墙钟轴上
-展示，不用浏览器时区二次转换，不猜 DST fold。
+Cumulative distance breaks at invalid / ambiguous / same-instant position conflicts,
+at sampling intervals over 90 seconds, or at implied speeds over 130 km/h, and each
+new continuous run starts from zero. This is a conservative geometric definition for
+visualization and does not change the merge. Duplicate raw rows are retained, but
+identical time-position pairs add no distance. All times are shown on the source
+data's local wall-clock axis, without a second browser-timezone conversion and
+without guessing the DST fold.
 
-源客流字段原样显示，未知值为 `—` 而不是零。不根据一条 APC 支持多个 GPS 点复制
-计数，不把未确认粒度的 boarding／alighting 累加成全 trip 客流。
+Source passenger-count fields are shown as-is, with unknown values as `—` rather than
+zero. Counts are not duplicated because one APC record supports multiple GPS points,
+and boarding / alighting counts of unconfirmed granularity are not summed into
+whole-trip passenger totals.
 
-## 地图与隐私
+## Map and privacy
 
-默认离线坐标地图，不向外部发送轨迹或下载地图。主动开启“街道底图”后，浏览器才会
-请求 OpenStreetMap 当前视窗瓦片，外部服务可获知 IP 与请求的地理范围；不要在不允许
-披露地理范围时开启。没有将原始 APC／AVL 数据或源 ID 上传的接口。
+The default is an offline coordinate map that sends no trajectories externally and
+downloads no map tiles. Only after "Street basemap" is actively enabled does the
+browser request OpenStreetMap tiles for the current viewport, and the external
+service can then learn the IP and the requested geographic extent; do not enable it
+when disclosing the geographic extent is not permitted. There is no interface that
+uploads raw APC / AVL data or source IDs.
 
-底图使用浏览器正常缓存、只请求当前视窗并显示署名；不提供批量下载或离线瓦片抓取。
-可用性和使用限制见 [OSM 瓦片服务政策](https://operations.osmfoundation.org/policies/tiles/)。
-断网时仍可使用坐标地图、时间线、进度曲线和本地审查记录。
+The basemap uses normal browser caching, requests only the current viewport and
+shows attribution; it provides no bulk download or offline tile scraping. For
+availability and usage limits, see the
+[OSM tile service policy](https://operations.osmfoundation.org/policies/tiles/).
+Without a network connection, the coordinate map, timeline, progress curve and local
+review records remain usable.
 
-## 保存在哪里
+## Where reviews are stored
 
-默认保存到 `artifacts/merge-review-website-20260908/reviews/reviews.sqlite3`，
-在现有 gitignore 下，目录仅本人可访问。记录以运行 manifest／config／completion
-的内容哈希、分割方法、车辆和检查对象共同标识。不同结果版本不会共用同一条审查。
+By default, reviews are saved to
+`artifacts/merge-review-website-20260908/reviews/reviews.sqlite3`, which is covered
+by the existing gitignore, in a directory accessible only to the current user. A
+record is identified jointly by the content hashes of the run manifest / config /
+completion, the segmentation method, the vehicle and the review object. Different
+result versions never share a review.
 
-每次保存更新当前判断，并在同一个 SQLite 事务中追加历史。多标签页通过 revision
-检查防止静默覆盖；发生冲突会拒绝保存，需重新加载后协调。导出包含当前判断和历史。
-这是**看过模型诊断后的非盲审查**，导出明确标记 `unblinded=true`、`ground_truth=false`；
-不会自动进入任何训练、方法评分或已冻结的盲标注流程。
+Each save updates the current judgment and appends to the history within the same
+SQLite transaction. Multiple tabs are protected against silent overwrites by a
+revision check; on conflict the save is rejected and must be reconciled after
+reloading. Exports include the current judgment and the history. This is an
+**unblinded review performed after seeing the model diagnostics**; exports are
+explicitly marked `unblinded=true`, `ground_truth=false`, and never flow
+automatically into any training, method scoring or frozen blind-labeling process.
 
-服务包含 Host 检查、保存令牌、Origin 检查、固定静态文件白名单、输入长度限制和
-禁止外部嵌入策略；这些是本地防护，不是公开网络部署所需的身份认证系统。
+The server includes a Host check, save tokens, an Origin check, a fixed static-file
+allowlist, input length limits and a no-external-embedding policy; these are local
+safeguards, not the authentication system a public network deployment would require.
 
-## 验证
+## Verification
 
 ```sh
 UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync python \
@@ -385,21 +550,30 @@ UV_CACHE_DIR=/tmp/tides-coverage-uv-cache uv run --offline --no-sync ruff check 
 node --check tools/merge_review/static/app.js
 ```
 
-HTTP 测试使用本机临时端口和临时数据库；受限执行环境需允许 loopback socket。
-独立浏览器测试脚本为 `tests/browser_smoke.mjs`，使用本机 Chrome 与 Node 内置
-DevTools WebSocket，无需下载依赖。只能对单独的测试记录目录启用写入测试，
-不应对真实审查库运行测试保存。
+HTTP tests use a local ephemeral port and a temporary database; restricted execution
+environments must allow loopback sockets. The standalone browser test script is
+`tests/browser_smoke.mjs`, which uses the local Chrome and Node's built-in DevTools
+WebSocket, with no downloaded dependencies. Write tests may be enabled only against a
+separate test-records directory; test saves must never be run against the real
+review database.
 
-数据适配层按车辆延迟加载并最多缓存两个车辆的数据；首次选择车辆通常需要数秒，
-长片段可能返回较大的完整证据 JSON。不会为缩短加载时间静默丢弃原始行或证据。
+The data adapter layer loads lazily per vehicle and caches at most two vehicles'
+data; the first selection of a vehicle usually takes a few seconds, and long segments
+may return a large complete-evidence JSON. Raw rows or evidence are never silently
+dropped to shorten loading time.
 
-2026-09-08 本机验收：原项目与新网站共 375 项回归测试通过，ruff／格式与 JS
-语法检查通过；独立 Chrome 浏览器 82 项交互检查通过，页面无外部请求、控制台错误、
-运行错误或 HTTP 错误。覆盖三图双向选择、长片段浏览、四档上下文、未保存笔记保护、
-保存刷新恢复和手机布局；联网瓦片服务未在自动测试中请求。
-验证记录：[测试报告](../../artifacts/merge-review-website-20260908/verification-tests.xml)、
-[浏览器检查](../../artifacts/merge-review-website-20260908/browser-final01/browser-results.json)、
-[界面截图](../../artifacts/merge-review-website-20260908/browser-final01/desktop-1440.png)。
+Local acceptance on 2026-09-08: 375 regression tests passed across the original
+project and the new site, and the ruff / formatting and JS syntax checks passed; 82
+interaction checks in a standalone Chrome browser passed, with no external requests,
+console errors, runtime errors or HTTP errors on the page. They covered bidirectional
+selection across the three charts, long-segment browsing, the four context levels,
+unsaved-note protection, save / refresh recovery and mobile layout; the online tile
+service was not requested in the automated tests. Verification records:
+[test report](../../artifacts/merge-review-website-20260908/verification-tests.xml),
+[browser check](../../artifacts/merge-review-website-20260908/browser-final01/browser-results.json),
+[interface screenshot](../../artifacts/merge-review-website-20260908/browser-final01/desktop-1440.png).
 
-实现入口：[server.py](server.py)、[data.py](data.py)、[store.py](store.py)。
-本次 merge 方法与局限见 [直接证据层优化报告](../../docs/apc-avl-direct-evidence-optimization-20260908.md)。
+Implementation entry points: [server.py](server.py), [data.py](data.py),
+[store.py](store.py). The merge method and its limitations for this iteration are
+described in the
+[direct-evidence layer optimization report](../../docs/apc-avl-direct-evidence-optimization-20260908.md).

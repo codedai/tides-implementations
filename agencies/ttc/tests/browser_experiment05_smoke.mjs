@@ -67,7 +67,7 @@ try {
   for (const date of ['2023-11-06', '2023-11-20']) assert(availability.dates.some(day => day.service_date === date && day.available), date + ' has real raw rows and a GTFS archive');
   await startBrowser(); await cdp.send('Page.navigate', { url: origin });
   await waitFor("document.querySelector('#service-date')?.options.length>1 && document.querySelector('#run-list')?.childElementCount>0");
-  assert(await cdp.evaluate("document.documentElement.lang==='zh-CN' && document.querySelector('#run-button').disabled"), 'Chinese initial UI requires an explicit available date');
+  assert(await cdp.evaluate("document.documentElement.lang==='en' && document.querySelector('#run-button').disabled"), 'initial UI requires an explicit available date');
   assert(await cdp.evaluate("JSON.stringify([...document.querySelector('#match-mode').options].map(option=>option.value))==='[\"all\",\"global\",\"early\",\"middle\",\"late\"]'"), 'UI has all four modes plus all-mode batch');
   assert(await cdp.evaluate("document.querySelector('#route').value==='29'"), 'UI route is29');
   await set('service-date', '2023-11-06');
@@ -75,13 +75,7 @@ try {
   for (const mode of ['global', 'early', 'middle', 'late', 'all']) { await set('match-mode', mode); assert(await cdp.evaluate(`document.querySelector('#match-mode').value===${JSON.stringify(mode)}`), 'select mode ' + mode); }
   await cdp.evaluate("document.querySelector('#force').checked=true;document.querySelector('#force').checked=false");
   assert(await cdp.evaluate("!document.querySelector('#force').checked"), 'force control exists and remains off; no recomputation is authorized');
-  const before = requests.length;
-  await cdp.evaluate("document.querySelector('#language-switch').click()");
-  assert(await cdp.evaluate("document.documentElement.lang==='en' && document.querySelector('#run-button').textContent==='Start processing' && document.querySelector('#service-date').value==='2023-11-06'"), 'English switch retains chosen date and mode');
-  assert(requests.length === before, 'language switch has no processing or network side effect');
-  await screenshot('launcher-english.png');
-  await cdp.evaluate("document.querySelector('#language-switch').click()");
-  await screenshot('launcher-chinese.png');
+  assert(await cdp.evaluate("document.querySelector('#run-button').textContent==='Start processing' && document.querySelector('#service-date').value==='2023-11-06'"), 'English launcher retains chosen date and mode');
   await screenshot('launcher-mobile.png', true);
   assert(await cdp.evaluate("document.documentElement.scrollWidth<=window.innerWidth+2"), 'mobile launcher has no page-level horizontal overflow');
   await screenshot('launcher-desktop.png');
@@ -108,28 +102,22 @@ try {
     const previousJobLabel = await cdp.evaluate("document.querySelector('#job-id').textContent");
     await cdp.evaluate("document.querySelector('#run-button').click()");
     await waitFor(`document.querySelector('#job-id').textContent!==${JSON.stringify(previousJobLabel)}`);
-    await waitFor("document.querySelector('#job-status').textContent==='已完成' || document.querySelector('#job-status').textContent==='失败'", 180000);
+    await waitFor("document.querySelector('#job-status').textContent==='Complete' || document.querySelector('#job-status').textContent==='Failed'", 180000);
     allowedDate = null;
-    assert(await cdp.evaluate("document.querySelector('#job-status').textContent==='已完成' && document.querySelector('#job-id').textContent.includes('缓存')"), 'real UI submission reused verified cache ' + date);
+    assert(await cdp.evaluate("document.querySelector('#job-status').textContent==='Complete' && document.querySelector('#job-id').textContent.includes('Reused verified cached results')"), 'real UI submission reused verified cache ' + date);
     await waitFor(`document.querySelector('#result-run-id').textContent===${JSON.stringify(id)} && document.querySelectorAll('.mode-card').length===4`);
     const rendered = await cdp.evaluate("JSON.parse(document.querySelector('#summary-json').textContent)");
     assert(JSON.stringify(rendered) === JSON.stringify(detail.summary), 'DOM summary exactly matches published JSON ' + date);
-    assert(await cdp.evaluate("document.querySelector('#validator-status').textContent==='校验通过' && !document.querySelector('#error').textContent"), 'validation status and no UI error ' + date);
+    assert(await cdp.evaluate("document.querySelector('#validator-status').textContent==='Validation passed' && !document.querySelector('#error').textContent"), 'validation status and no UI error ' + date);
     assert(JSON.stringify((await json('/api/runs')).runs.map(run => run.run_id).sort()) === JSON.stringify(runsBefore), 'cache replay created no new run ' + date);
     for (const [mode, value] of Object.entries(detail.summary.modes)) {
       assert(value.matched_count + value.unmatched_count === detail.summary.performed_trip_count, 'assignment conservation ' + date + ' / ' + mode);
       assert(await cdp.evaluate(`(() => {const card=document.querySelector('[data-mode=${mode}]');return card && [...card.querySelectorAll('.counts strong')].map(el=>Number(el.textContent.replaceAll(',',''))).join(',')===${JSON.stringify([value.matched_count,value.unmatched_count].join(','))} && card.querySelector('a')?.href.includes('mode=${mode}');})()`), 'mode card exact assigned/unassigned counts and ZIP ' + date + ' / ' + mode);
     }
     await cdp.evaluate("document.querySelector('#result-panel').scrollIntoView({block:'start'})");
-    await screenshot(`${date}-results-chinese.png`);
-    await cdp.evaluate("document.querySelector('#language-switch').click()");
-    assert(await cdp.evaluate("document.documentElement.lang==='en' && document.querySelector('#validator-status').textContent==='Validation passed' && document.querySelector('#job-id').textContent.includes('Reused verified cached results')"), 'English completed-cache summary ' + date);
-    assert(JSON.stringify(await cdp.evaluate("JSON.parse(document.querySelector('#summary-json').textContent)")) === JSON.stringify(detail.summary), 'translation preserves published summary values ' + date);
-    await screenshot(`${date}-results-english.png`);
     await screenshot(`${date}-results-mobile.png`, true);
     assert(await cdp.evaluate("document.documentElement.scrollWidth<=window.innerWidth+2"), 'mobile results no page-level overflow ' + date);
     await screenshot(`${date}-results-desktop.png`);
-    await cdp.evaluate("document.querySelector('#language-switch').click()");
     for (const format of ['csv','parquet','json']) {
       await set('download-filter', format);
       assert(await cdp.evaluate(`document.querySelectorAll('#downloads a').length>0 && [...document.querySelectorAll('#downloads a')].every(link=>link.textContent.endsWith('.${format}'))`), 'download filter ' + date + ' / ' + format);

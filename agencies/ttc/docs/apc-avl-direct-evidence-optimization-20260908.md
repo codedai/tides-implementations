@@ -1,111 +1,111 @@
-# APC–AVL 直接证据层优化（2026-09-08）
+# APC–AVL Direct Evidence Layer Optimization (2026-09-08)
 
-本轮将时空关联实现升级为独立版本，重点是让每一项关联声明都有相应证据：瞬时记录、到离站端点均获支持、仅局部支持、竞争候选和时空反证不再混为一个 `direct`。没有修改原始数据、原研究结果或 trip 分割，没有使用 GTFS、人工标签、自动时钟校正或单源尾段推断，也没有输出生产 TIDES 包。
+This round upgrades the spatiotemporal association implementation to a separately versioned release. The focus is on giving every association claim its corresponding evidence: instant records, records with support at both the arrival and departure endpoints, records with only partial support, competing candidates, and spatiotemporal counter-evidence are no longer collapsed into a single `direct`. No raw data, prior study results, or trip segmentation were modified; no GTFS, human labels, automatic clock correction, or single-source tail inference were used; and no production TIDES package was produced.
 
-代码与复现步骤见 [实验 README](../experiments/apc_avl_direct_evidence/README.md)，核心实现为 [matcher.py](../experiments/apc_avl_direct_evidence/matcher.py)。继续采用先前的 [TIDES 基础评价标准](apc-avl-coverage-evaluation-standard.md)，其中数值阈值是本项目的探索设置，不是 TIDES 的规范要求。
+Code and reproduction steps are in the [experiment README](../experiments/apc_avl_direct_evidence/README.md); the core implementation is [matcher.py](../experiments/apc_avl_direct_evidence/matcher.py). The earlier [TIDES-based evaluation standard](apc-avl-coverage-evaluation-standard.md) continues to apply; its numeric thresholds are exploratory settings of this project, not normative TIDES requirements.
 
-## 1. 本轮修改的范围
+## 1. Scope of this round's changes
 
-对照使用完全相同的 6,202,996 行 AVL、573,596 行 APC，以及三套已经冻结的分割映射：`gap_only`、`avl_context`、`apc_assisted`。每条 APC 都保留独立结果。共同的旧版时间／区间准入分母为 573,121，未因为新版弃判增加而缩小分母。
+The comparison uses exactly the same 6,202,996 AVL rows and 573,596 APC rows, plus the three already-frozen segmentation maps: `gap_only`, `avl_context`, and `apc_assisted`. Every APC row keeps its own result. The shared old-version time/interval eligibility denominator is 573,121; the denominator was not shrunk because the new version abstains more often.
 
-全量首轮 `full01` 完成后，独立审查又补上重复测量的多重归属，以及近时刻位置反证的可行运动范围。保留了初版源代码与函数哈希快照。最终版本采用 `full02` 对全部车辆重新执行，而不是把初版结果直接改名。曾开发的增量复用检查没有用于最终结果。
+After the first full run `full01` completed, an independent review added multiple ownership for duplicate measurements and a feasible-motion envelope for contemporaneous position counter-evidence. The initial source code and function hash snapshot were retained. The final version re-executed every vehicle as `full02` rather than renaming the initial results. An incremental-reuse check that was developed along the way was not used for the final result.
 
-### 1.1 最终全量对照
+### 1.1 Final full-data comparison
 
-`full02` 已完成全部 157 个车辆身份、三套固定映射的成对比较。每套上下文的 APC 总数均为 573,596：
+`full02` completed the paired comparison across all 157 vehicle identities and the three fixed maps. The APC total under each context is 573,596:
 
-| 固定分割上下文 | 旧版 direct | 新版 direct | 新版 partial | 新版 ambiguous | 新版 unmatched | 新版 ineligible |
+| Fixed segmentation context | Old direct | New direct | New partial | New ambiguous | New unmatched | New ineligible |
 |---|---:|---:|---:|---:|---:|---:|
 | `gap_only` | 562,362 | 547,505 | 4,937 | 12,151 | 8,528 | 475 |
 | `avl_context` | 562,097 | 547,499 | 4,939 | 12,152 | 8,531 | 475 |
 | `apc_assisted` | 559,287 | 547,455 | 4,946 | 12,188 | 8,532 | 475 |
 
-以 `avl_context` 为例，在共同准入分母 573,121 上，旧版 direct 覆盖为 98.08%，新版 direct 为 95.53%，direct＋partial 为 96.39%。新版 direct 包含 437,563 条端点范围支持和 109,936 条瞬时支持；partial 包含到达端 2,785 条、离开端 2,090 条、仅内部 64 条。
+Taking `avl_context` as an example, on the shared eligibility denominator of 573,121, old-version direct coverage is 98.08%, new-version direct is 95.53%, and direct + partial is 96.39%. New-version direct comprises 437,563 endpoint-pair (`bounded_interval`) supports and 109,936 instant supports; partial comprises 2,785 arrival-only, 2,090 departure-only, and 64 interior-only.
 
-成对变化比单看覆盖率更有解释力：原 direct 中有 4,776 条变为 partial、9,574 条变为 ambiguous、559 条变为 unmatched；另有 259 条旧 ambiguous 和 52 条旧 unmatched 获得新版 direct。新版仍有 155 条 direct 涉及多个固定 chunk；它们保留局部支持但不宣称单一 trip 归属。
+The paired transitions are more informative than coverage rates alone: of the old direct rows, 4,776 became partial, 9,574 became ambiguous, and 559 became unmatched; conversely, 259 old ambiguous and 52 old unmatched rows gained new-version direct. The new version still has 155 direct rows that span multiple fixed chunks; they retain local support but do not claim a single trip assignment.
 
-8,165 条 APC 在当前时空解释下有端点反证；另有 3,987 条属于“竞争 episode 或分数／差距不足”的合并原因，不能把这 3,987 条全部称为多次访问。实际同一 chunk 内多 episode 的弃判为 1,558 条。默认路线策略仍保留冲突：局部支持中 945 条为 `conflict`，147 条为 `mixed`。
+8,165 APC rows have endpoint counter-evidence under the current spatiotemporal interpretation; another 3,987 fall under the combined reason "competing episodes or insufficient score/margin", and these 3,987 cannot all be called multiple visits. Actual abstentions due to multiple episodes within the same chunk number 1,558. The default route policy still retains conflicts: among locally supported rows, 945 are `conflict` and 147 are `mixed`.
 
-上述结果表明输出的证据范围和弃判原因更明确，而非证明准确率提高。详见 [全量汇总](../artifacts/apc-avl-direct-evidence-20260908/full02/summary.json)、[成对比较说明](../artifacts/apc-avl-direct-evidence-20260908/full02/report.md) 与每车的 `paired/`、`assignments/`。
+These results show that the evidence scope and abstention reasons of the output are more explicit; they do not prove improved accuracy. See the [full-run summary](../artifacts/apc-avl-direct-evidence-20260908/full02/summary.json), the [paired comparison notes](../artifacts/apc-avl-direct-evidence-20260908/full02/report.md), and the per-vehicle `paired/` and `assignments/` directories.
 
-新版 `avl_context` direct 的空间残差 P50／P95／P99 为 10.45／51.51／80.96 米，时间残差为 3／23／37 秒。这里采用所需端点证据中的最大残差，旧版采用最佳局部证据残差，定义不同，不宜直接称为残差改善或恶化。相对开发初版 `full01`，最终运动反证修订使 375 条 ambiguous 转为 direct、573 条转为 partial、98 条转为 unmatched，原有 direct／partial 的状态均保留。详细统计与版本差异见 [最终统计](../artifacts/apc-avl-direct-evidence-20260908/final-statistics01/assessment.json)。
+For new-version `avl_context` direct rows, the spatial residual P50/P95/P99 is 10.45/51.51/80.96 m and the temporal residual is 3/23/37 s. These use the maximum residual among the required endpoint witnesses, whereas the old version used the residual of the best local witness; the definitions differ, so this should not be described directly as residual improvement or degradation. Relative to the development run `full01`, the final motion-envelope counter-evidence revision moved 375 ambiguous rows to direct, 573 to partial, and 98 to unmatched; all previously direct/partial statuses were preserved. Detailed statistics and version differences are in the [final statistics](../artifacts/apc-avl-direct-evidence-20260908/final-statistics01/assessment.json).
 
-### 1.2 完整性与运行可行性
+### 1.2 Integrity and runtime feasibility
 
-全量执行前后，canonical 输入、旧版冻结结果和运行代码哈希均未改变。每套上下文均保留一条 APC 一个最终处置，已实现的完整性检查未检出违规。`avl_context` 的正支持独立检查覆盖 552,438 条 APC、1,458,166 条 witness，其中 406,216 条为插值；这些是证据实例数量，不是独立准确率样本量。
+Before and after the full run, the hashes of the canonical inputs, the frozen old-version results, and the executing code were unchanged. Each context keeps exactly one final disposition per APC row, and the implemented integrity checks found no violations. The independent positive-support check for `avl_context` covers 552,438 APC rows and 1,458,166 witnesses, of which 406,216 are interpolations; these are counts of evidence instances, not independent accuracy sample sizes.
 
-另行实现、且不导入 matcher 或 evaluator 的负证据校验器，已对 157 个车辆身份 × 三套上下文的全部 1,720,788 条处置完成回放。保存的 70,487 条 counter witness（43,122 条实测点、27,365 条插值）在 N01–N09 共 3,821,376 次限定检查中无失败，搜索超限跳过为 0。检查包含真实源身份、测量质量、目标端点、运动容许范围、插值几何与所有副本归属、线路溯源、弃判状态和区间远离标记；耗时 87.62 秒。重复用于不同上下文的证据也重复计数。它不证明没有遗漏候选／反证，不验证真实时钟或实际 trip。完整结果见 [独立反证回放](../artifacts/apc-avl-direct-evidence-20260908/negative-replay02/negative_evidence_replay.json)。
+A separately implemented negative-evidence validator, which imports neither the matcher nor the evaluator, replayed all 1,720,788 dispositions across 157 vehicle identities × three contexts. The 70,487 retained counter witnesses (43,122 measured points, 27,365 interpolations) passed all 3,821,376 bounded checks N01–N09 with no failures and 0 search-overflow skips. The checks cover real source identity, measurement quality, target endpoint, motion allowance, interpolation geometry together with the ownership of all aliases, route provenance, abstention status, and interval-excursion flags; the replay took 87.62 seconds. Evidence reused across contexts is counted repeatedly. It does not prove that no candidate or counter-evidence was missed, and it does not verify the true clock or actual trips. Full results are in the [independent counter-evidence replay](../artifacts/apc-avl-direct-evidence-20260908/negative-replay02/negative_evidence_replay.json).
 
-重复副本归属另作有界正证据审计：全量映射筛出 25 个存在风险的车辆身份，逐一检查这些车辆 213,520 条 APC × 三套映射中的 1,626,926 个已接受 witness 和 1,652,564 个已保存候选 witness，未检出插值跨副本 owner 或声明上下文遗漏，审计输入哈希未变。两类 witness 有重叠，不能相加称为独立观测。其余 132 个车辆身份由全量映射检查确认没有跨 owner 的有效重复测量；未对它们额外重复这一有界审计。结果见 [正证据副本归属审计](../artifacts/apc-avl-direct-evidence-20260908/positive-alias-replay02/assessment.json)。
+Duplicate-alias ownership was separately covered by a bounded positive-evidence audit: the full-vehicle mapping screen identified 25 at-risk vehicle identities, and for those vehicles every one of the 1,626,926 accepted witnesses and 1,652,564 saved candidate witnesses across 213,520 APC rows × three maps was checked; no interpolation crossing alias owners and no omission of declared contexts were found, and the audit input hashes were unchanged. The two witness classes overlap and cannot be summed as independent observations. For the remaining 132 vehicle identities, the full mapping check confirmed that there are no valid cross-owner duplicate measurements; this bounded audit was not additionally repeated for them. Results are in the [positive-evidence alias-ownership audit](../artifacts/apc-avl-direct-evidence-20260908/positive-alias-replay02/assessment.json).
 
-统一测试为 327 项通过，`ruff check` 和格式检查通过。未执行的规范、语义与真实性检查仍然未执行：完成记录明确保留 `all_validation_rules_evaluated=false`、`publishable=false`、`accuracy=null`，不将工程检查通过扩展成全部 TIDES 门槛通过。
+The unified test suite passes with 327 tests, and `ruff check` and the format check pass. Specification, semantic, and truthfulness checks that were not executed remain unexecuted: the completion record explicitly keeps `all_validation_rules_evaluated=false`, `publishable=false`, and `accuracy=null`, and passing engineering checks is not extended into passing all TIDES gates.
 
-本地全量运行耗时 794.2 秒（13.24 分钟），峰值 RSS 4,173.5 MiB。索引构建 45.2 秒、候选准备 57.3 秒，三套上下文的匹配分别为 26.2／24.4／24.5 秒，正证据检查 66.4 秒；其余约 550.4 秒包含读入、转行对象、冻结上下文读取、复杂嵌套证据持久化和哈希等未细分成本，不能统称纯 I/O。索引和候选按车辆复用于三套映射；这证明当前机器上可运行，不构成与旧版不同组合数量的公平提速比较。机器记录见 [completion.json](../artifacts/apc-avl-direct-evidence-20260908/full02/completion.json)。
+The local full run took 794.2 seconds (13.24 minutes) with a peak RSS of 4,173.5 MiB. Index construction took 45.2 s, candidate preparation 57.3 s, matching for the three contexts 26.2/24.4/24.5 s respectively, and positive-evidence checking 66.4 s; the remaining roughly 550.4 s covers unbroken-down costs such as reading input, converting to row objects, loading frozen contexts, persisting deeply nested evidence, and hashing, and cannot be summarized as pure I/O. Indexes and candidates are reused per vehicle across the three maps; this demonstrates that the run is feasible on the current machine, and does not constitute a fair speedup comparison against the old version, which ran a different number of combinations. Machine details are in [completion.json](../artifacts/apc-avl-direct-evidence-20260908/full02/completion.json).
 
-## 2. 关键优化与证据含义
+## 2. Key optimizations and what the evidence means
 
-| 原方法的风险 | 新方法 | 仍然不能据此断言 |
+| Risk in the old method | New method | Still cannot be asserted from this |
 |---|---|---|
-| 长 APC 区间内只找一个最好 GPS 点 | 到达、离开和内部证据分开；实测离站／返回会分成不同局部候选 | 实际全程停站、准确 dwell、完整 trip |
-| 同一长 chunk 内的多次访问合并为一个候选 | 按局部时空 episode 竞争，保留空候选和分数差距 | 一个 episode 就是一次已确认停站 |
-| 选择较早近点，忽略更同时段的远点 | 保留并检查负证据；点支持不能跨过已观测的离站或质量屏障 | APC 错误或传感器失效已被确认 |
-| 正常驶近／驶离的远点也可能触发反证 | 点反证需同时超过距离门槛和允许运动距离 | 真实速度、误差分布或时钟偏差已知 |
-| 重复 GPS 增加证据数量或隐藏上下文冲突 | 同时刻同位置只形成一份几何测量，所有原始副本的 owner 都参与上下文判断 | 原始副本可删除或所有源标签可信 |
-| 两端线路不同时，插值上下文被置空 | 保留两端完整线路集合，显式标记 `mixed`／`conflict` | 源线路已映射为权威线路身份 |
-| APC 跨 chunk 边界便丢弃全部局部支持 | 实测点证据与 chunk 归属分离；多重上下文可保留局部直接支持 | 真实 trip 边界已恢复 |
-| 旧候选缓存可沿用到新参数或新 APC | 缓存绑定原索引、相关 APC 字段和完整配置，不匹配则拒绝 | 未验证配置可直接部署 |
+| Only the single best GPS point was sought within a long APC interval | Arrival, departure, and interior evidence are evaluated separately; an observed departure and return split into distinct local candidates | An actual stop for the full interval, an accurate dwell, a complete trip |
+| Multiple visits within the same long chunk were merged into one candidate | Local spatiotemporal episodes compete; the null candidate and score margin are retained | That one episode is one confirmed stop |
+| An earlier near point was selected while a more contemporaneous distant point was ignored | Negative evidence is retained and checked; point support cannot bridge an observed departure or a quality barrier | That an APC error or sensor failure has been confirmed |
+| Distant points from normal approach/departure could also trigger counter-evidence | A point counter must exceed both the distance threshold and the allowed motion distance | That the true speed, error distribution, or clock offset is known |
+| Duplicate GPS rows inflated the evidence count or hid context conflicts | Same time and same position form one geometric measurement; the owners of all raw aliases take part in the context decision | That raw aliases can be deleted or that all source labels are trustworthy |
+| When the two bracket endpoints carried different routes, the interpolation context was blanked | The complete route sets of both endpoints are kept and explicitly flagged `mixed`/`conflict` | That source routes have been mapped to authoritative route identities |
+| An APC row crossing a chunk boundary discarded all local support | Measured-point evidence is separated from chunk ownership; multiple contexts can retain local direct support | That true trip boundaries have been recovered |
+| An old candidate cache could be carried over to new parameters or new APC rows | The cache is bound to the source index, the relevant APC fields, and the full configuration, and is rejected on mismatch | That an unvalidated configuration can be deployed directly |
 
-`episode` 在这里仅指同一车辆在 APC 位置附近的一段候选观测。实测远离、无效时刻和长采样间隔将其分开。候选 ID 不等于 trip ID。插值依旧是一个派生位置特征，必须引用相邻真实、有效的 GPS 端点；重复副本涉及不同 owner 时，也不能借其中一个代表行绕过跨边界限制。
+Here `episode` refers only to a stretch of candidate observations of the same vehicle near the APC position. Observed excursions, invalid instants, and long sampling gaps separate episodes. A candidate ID is not a trip ID. Interpolation remains a derived position feature and must reference adjacent real, valid GPS endpoints; when duplicate aliases belong to different owners, one representative row cannot be used to bypass the cross-boundary restriction.
 
-## 3. 新的输出契约
+## 3. New output contract
 
-| 输出 | 含义 |
+| Output | Meaning |
 |---|---|
-| `direct / instant` | 零时长 APC 记录的时刻存在合格的局部实测点或短间隔插值支持 |
-| `direct / bounded_interval` | 到达和离开均获同一局部候选支持，至少涉及两个不同测量，没有已观测的区间内远离情形 |
-| `partial / arrival_only` | 只接受到达端的支持 |
-| `partial / departure_only` | 只接受离开端的支持 |
-| `partial / interior_only` | 只接受区间内部的局部支持 |
-| `ambiguous` | 有反证、竞争、分数／差距不足或搜索超限；不强制选择 |
-| `unmatched` | 实现的局部搜索内没有合格支持 |
-| `ineligible` | 时间、位置、车辆身份或区间未满足准入条件；原记录仍保留 |
+| `direct / instant` | A zero-duration APC record's instant has qualifying local measured-point or short-gap interpolation support |
+| `direct / bounded_interval` | Both arrival and departure are supported by the same local candidate, involving at least two distinct measurements, with no observed interval excursion |
+| `partial / arrival_only` | Only arrival-end support is accepted |
+| `partial / departure_only` | Only departure-end support is accepted |
+| `partial / interior_only` | Only local support inside the interval is accepted |
+| `ambiguous` | Counter-evidence, competition, insufficient score/margin, or search overflow; no forced selection |
+| `unmatched` | No qualifying support within the implemented local search |
+| `ineligible` | Time, position, vehicle identity, or interval fails the eligibility conditions; the original record is retained |
 
-`bounded_interval` 不是“连续每一秒都有 GPS”，也不是“实际 dwell 已验证”。`partial` 不能作为整个 APC 区间已获证实来使用。两版 `direct` 的定义不同，必须同时比较新版的 `direct` 和 `partial`，不能将数量下降直接叫作准确率提高。
+`bounded_interval` does not mean "GPS exists for every consecutive second", nor "the actual dwell has been verified". `partial` must not be used as if the entire APC interval had been confirmed. The two versions define `direct` differently, so the new version's `direct` and `partial` must be compared together, and a drop in count cannot be called an accuracy improvement.
 
-独立字段 `context_status` 表示 `single_segment`、`multiple_segments`、`unmapped` 或 `no_assignment`。因此，一条记录可以有直接实测支持，同时 `segment_id=null`、`segment_ids` 包含两个候选上下文。这正是局部观测与实际趟次归属之间的区别。
+The independent field `context_status` reports `single_segment`, `multiple_segments`, `unmapped`, or `no_assignment`. A record can therefore have direct measured support while `segment_id=null` and `segment_ids` contains two candidate contexts. This is precisely the distinction between local observation and actual trip assignment.
 
-正支持保存于 `witnesses`，反证保存于 `counter_witnesses`；两者都有真实源 ID、测量身份、目标时间、支持时间、空间残差、插值间隔和完整线路标签。原始 APC 行不因共享同一个物理位置而合并，客流计数不参与正向匹配得分，也不复制到多条 GPS 上累计。
+Positive support is stored in `witnesses` and counter-evidence in `counter_witnesses`; both carry real source IDs, measurement identity, target time, support time, spatial residual, interpolation gap, and the complete route labels. Raw APC rows are not merged for sharing the same physical location; passenger counts do not contribute to the positive matching score and are not duplicated and accumulated across multiple GPS rows.
 
-## 4. 阈值及适用前提
+## 4. Thresholds and applicability assumptions
 
-默认保留 60 秒点时间容差、100 米局部半径、90 秒插值／episode 最大间隔。反证的基准距离为 200 米，近时刻窗口为 10 秒，运动上界为 130 km/h。点反证还须满足：
+The defaults retain a 60 s point time tolerance, a 100 m local radius, and a 90 s maximum interpolation/episode gap. The baseline distance for counter-evidence is 200 m, the contemporaneous window is 10 s, and the motion ceiling is 130 km/h. A point counter must additionally satisfy:
 
-`距离 > max(200 米, 100 米 + 130 km/h × 时间差)`，其中时间差需要换算成相同单位。
+`distance > max(200 m, 100 m + 130 km/h × time difference)`, where the time difference must be converted to compatible units.
 
-例如在 APC 时刻有精确近点，10 秒后 GPS 已离开 300 米，这仍低于配置的运动上界，不能仅凭后来这个点否定先前的局部支持。相应构造回归已覆盖正常驶近、正常驶离及超过运动容许范围的情形。插值反证位于目标时刻，但仍依赖短间隔线性位置模型。
+For example, if there is an exact near point at the APC instant and 10 s later the GPS is already 300 m away, that is still within the configured motion ceiling, and the later point alone cannot refute the earlier local support. The corresponding constructed regression tests cover normal approach, normal departure, and motion beyond the allowance. An interpolated counter sits at the target instant but still depends on the short-gap linear position model.
 
-分数门槛／空候选／差距为 650／550／60，APC 区间上限为 30 分钟。所有这些阈值与权重均未经过独立现场标签校准；分数不是概率。默认线路策略为保留冲突标记，不把未确认的源标签升级为权威硬约束。
+The score floor/null candidate/margin are 650/550/60, and the APC interval cap is 30 minutes. None of these thresholds and weights have been calibrated against independent field labels; scores are not probabilities. The default route policy retains conflict flags and does not promote unconfirmed source labels into authoritative hard constraints.
 
-新版同时调整了排序权重和端点资格判定，例如归一化距离惩罚系数由 400 改为 300。因此，两版名义上同为 100 米／60 秒硬边界，并不代表实际接受区域相同；结果增减不能全部归因于 episode 或重复测量处理，也不构成单因素消融结论。
+The new version also changed the ranking weights and endpoint qualification, for example the normalized distance penalty coefficient from 400 to 300. Consequently, although both versions nominally share the 100 m/60 s hard bounds, the effective acceptance regions are not the same; result changes cannot be attributed entirely to episode or duplicate-measurement handling, and they do not constitute a single-factor ablation conclusion.
 
-60 秒采样匹配容差不等于能够自动处理 60 秒的设备时钟偏移。两源时间仍按原始本地墙上时间解释，DST 歧义不猜 fold，也没有自动平移时钟。反证是在当前时间／位置解释下的条件性不一致，不能证明 APC 错误。
+A 60 s sample matching tolerance is not the same as being able to automatically handle a 60 s device clock offset. Both sources' times are still interpreted as the original local wall-clock time, DST-ambiguous rows are not given a guessed fold, and no automatic clock shift is applied. Counter-evidence is a conditional inconsistency under the current time/position interpretation and cannot prove that the APC is wrong.
 
-## 5. 固定窗口与独立验证
+## 5. Fixed windows and independent validation
 
-完整分层数据见 [最终固定窗口报告](apc-avl-direct-evidence-probes-20260908.md)。最终 `probes02` 复用此前固定的 12 个一般窗口及 8 个边界窗口，包含 1,749 个唯一 APC 源记录、12,909 个唯一 AVL 源记录；没有按新版匹配结果重新挑选这些窗口。
+The complete stratified data are in the [final fixed-window report](apc-avl-direct-evidence-probes-20260908.md). The final `probes02` reuses the previously fixed 12 general windows and 8 edge windows, containing 1,749 unique APC source records and 12,909 unique AVL source records; these windows were not re-selected according to the new version's matching results.
 
-640 项限定范围检查通过，27,487 条正支持 witness 独立回放未检出失败。计数跨扰动重复出现，不能解释成独立样本量。纯实测点支持在重排、重复和 owner 细分压力下保持逻辑结果；插值跨 owner 时会被撤回或降级。
+640 bounded checks pass, and the independent replay of 27,487 positive-support witnesses found no failures. The counts recur across perturbations and cannot be interpreted as independent sample sizes. Pure measured-point support keeps its logical result under reordering, duplication, and owner-refinement stress; interpolation that crosses owners is withdrawn or downgraded.
 
-全 157 个车辆身份的重复测量上下文检查发现，`gap_only` 无跨 owner 的有效重复测量，`avl_context` 有 33 个、涉及 25 个车辆身份，`apc_assisted` 有 32 个、涉及 24 个车辆身份。两种映射下的事件可以重叠，不能相加称为 65 个独立物理事件；这一统计说明上下文冲突确实存在，不表示有同样数量的最终误关联。完整诊断见 [alias 检查](../artifacts/apc-avl-direct-evidence-20260908/alias-screen-all01/assessment.json)。
+The duplicate-measurement context check across all 157 vehicle identities found that `gap_only` has no valid cross-owner duplicate measurements, `avl_context` has 33 involving 25 vehicle identities, and `apc_assisted` has 32 involving 24 vehicle identities. Events under the two maps can overlap and cannot be summed into 65 independent physical events; this statistic shows that context conflicts do exist, not that there is the same number of final mis-associations. The full diagnostics are in the [alias screen](../artifacts/apc-avl-direct-evidence-20260908/alias-screen-all01/assessment.json).
 
-另对三条真实输出做了 canonical 源记录回查，分别说明区间内部近点掩盖端点远离、跨 chunk 的有效实测支持、插值两端线路标签丢失。案例及其相对时间／距离见 [脱敏案例说明](apc-avl-direct-evidence-probes-20260908.md#三条真实记录的有限定性核对)。这是按输出情景选择的诊断样本，不是独立准确率评估。
+Three real output records were additionally traced back to their canonical source records, illustrating respectively an interior near point masking endpoint excursions, valid measured support spanning chunks, and loss of route labels at the two interpolation endpoints. The cases and their relative times/distances are in the [de-identified case notes](apc-avl-direct-evidence-probes-20260908.md#bounded-verification-of-three-real-records). These are diagnostic samples selected by output scenario, not an independent accuracy assessment.
 
-时钟敏感性是明确限制：原始窗口有 1,413 条新版 `direct`，人为平移 APC −60／+60 秒后仅为 58／172 条。位置反证是主要原因。这不是已估计的 TTC 时钟偏差，也不是准确率提升的证据。缺失／遮挡实验同样只与未遮挡算法输出比较，不提供真实 trip 标签。
+Clock sensitivity is an explicit limitation: the original windows have 1,413 new-version `direct` rows, but after artificially shifting APC by −60/+60 s only 58/172 remain. Position counter-evidence is the main cause. This is neither an estimated TTC clock offset nor evidence of improved accuracy. The missing-data/masking experiments likewise compare only against the unmasked algorithm output and provide no true trip labels.
 
-## 6. 使用建议
+## 6. Usage recommendations
 
-把该实现用于可追溯的直接证据层和诊断，不直接发布为实际趟次或完整停站。优先消费支持级别、实际 witness、反证、上下文与粒度标记，避免只取单个 `status` 或 `score`。
+Use this implementation as a traceable direct-evidence layer and for diagnostics; do not publish it directly as actual trips or complete stop events. Consume the support level, the actual witnesses, the counter-evidence, and the context and grain flags in preference to reading only a single `status` or `score`.
 
-对于 AVL 13:00–14:00、APC 13:15–14:13 的情况，本层只声明有局部观测支持的部分。APC-only 尾段仍保留未匹配／部分支持状态，不通过外推 GPS 增加直接支持；后续序列推断需要另一层明确标识。观测覆盖的并集仍不等于实际 trip 起终点。
+For a case such as AVL 13:00–14:00 and APC 13:15–14:13, this layer claims only the portion with local observational support. The APC-only tail keeps its unmatched/partial-support status, and direct support is not added by extrapolating GPS; any subsequent sequence inference needs a separate, explicitly labeled layer. The union of observed coverage is still not the actual trip start and end.
 
-仍需确认：两源时钟与 APC 时间字段的生成合同、APC 行粒度与可加性、车辆／线路身份、真实 trip 边界和完整停站顺序。当前整月数据已用于方法开发；未来精度验证需要新的、事先声明的评估设计。没有独立真值，本轮结论是实现行为、证据一致性和运行可行性，不是关联准确率或 trip 准确率排名。
+Still to be confirmed: the clocks of both sources and the generation contract of the APC time fields, APC row grain and additivity, vehicle/route identity, true trip boundaries, and the complete stop sequence. The current full month of data has already been used for method development; future accuracy validation needs a new, pre-declared evaluation design. Without independent ground truth, this round's conclusions concern implementation behavior, evidence consistency, and runtime feasibility, not association accuracy or a trip-accuracy ranking.

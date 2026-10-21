@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,71 +11,70 @@
 </head>
 <body>
   <header class="page-header">
-    <div><p class="eyebrow">TTC · ROUTE 29</p><h1 data-i18n="title">实验05 · 运行工作台</h1><p data-i18n="subtitle">从原始观测到三轮锁定分配与TIDES导出</p></div>
-    <button id="language-switch" type="button" aria-label="Switch language">English</button>
+    <div><p class="eyebrow">TTC · ROUTE 29</p><h1>Experiment 05 · Workbench</h1><p>Raw observations → three locked assignment rounds → TIDES export</p></div>
   </header>
   <main>
     <section class="panel" aria-labelledby="run-heading">
-      <h2 id="run-heading" data-i18n="newRun">运行实验</h2>
+      <h2 id="run-heading">Run experiment</h2>
       <form id="run-form">
         <div class="controls">
-          <label><span data-i18n="date">数据日期</span><select id="service-date" required><option value="" data-i18n="loadingDates">加载可用日期…</option></select></label>
-          <label><span data-i18n="route">线路</span><select id="route"><option value="29">29</option></select></label>
-          <label><span data-i18n="mode">匹配模式</span><select id="match-mode"><option value="all" data-i18n="all">全部四种模式</option><option value="global" data-i18n="global">全局</option><option value="early" data-i18n="early">前期</option><option value="middle" data-i18n="middle">中期</option><option value="late" data-i18n="late">后期</option></select></label>
-          <button id="run-button" type="submit" disabled data-i18n="run">开始处理</button>
+          <label><span>Data date</span><select id="service-date" required><option value="">Loading available dates…</option></select></label>
+          <label><span>Route</span><select id="route"><option value="29">29</option></select></label>
+          <label><span>Matching mode</span><select id="match-mode"><option value="all">All four modes</option><option value="global">Global</option><option value="early">Early</option><option value="middle">Middle</option><option value="late">Late</option></select></label>
+          <button id="run-button" type="submit" disabled>Start processing</button>
         </div>
-        <div class="run-options"><label class="check"><input id="force" type="checkbox"><span data-i18n="force">强制重新处理（保留已有结果）</span></label><p id="availability-note" class="muted" aria-live="polite"></p></div>
+        <div class="run-options"><label class="check"><input id="force" type="checkbox"><span>Force a fresh run (keep existing results)</span></label><p id="availability-note" class="muted" aria-live="polite"></p></div>
       </form>
-      <p class="notice" data-i18n="notice">每次只运行一个任务；可复用的成功结果由同一处理管线验证后读取。分配结果不等于经过校准的真实trip确认。</p>
-      <details><summary data-i18n="availability">原始数据与GTFS可用性</summary><div id="availability-table" class="table-wrap"></div></details>
+      <p class="notice">One job at a time. Successful cached results are verified by the same pipeline. An assignment is not a calibrated confirmation of trip identity.</p>
+      <details><summary>Raw data and GTFS availability</summary><div id="availability-table" class="table-wrap"></div></details>
     </section>
     <div id="error" role="alert" hidden></div>
     <section class="panel" aria-labelledby="job-heading">
-      <div class="section-heading"><h2 id="job-heading" data-i18n="progress">处理进度</h2><span id="job-status" class="badge" data-i18n="idle">尚未运行</span></div>
+      <div class="section-heading"><h2 id="job-heading">Processing progress</h2><span id="job-status" class="badge">Not started</span></div>
       <p id="job-id" class="muted"></p>
-      <ol id="stage-progress"><li class="muted" data-i18n="progressEmpty">开始后显示各阶段的实际状态与行数。</li></ol>
+      <ol id="stage-progress"><li class="muted">Actual stage states and row counts appear after starting.</li></ol>
     </section>
     <section class="panel" aria-labelledby="history-heading">
-      <div class="section-heading"><h2 id="history-heading" data-i18n="history">已保存的运行</h2><button id="refresh-runs" type="button" class="secondary" data-i18n="refresh">刷新</button></div>
+      <div class="section-heading"><h2 id="history-heading">Saved runs</h2><button id="refresh-runs" type="button" class="secondary">Refresh</button></div>
       <div id="run-list" class="run-list"></div>
     </section>
     <section id="viz-panel" class="panel" hidden aria-labelledby="viz-heading">
-      <div class="section-heading"><div><p class="eyebrow" data-viz-i18n="eyebrow">已保存的观测 · 只读检查</p><h2 id="viz-heading" data-viz-i18n="title">Trip 可视化检查</h2></div><span id="viz-run-status" class="badge"></span></div>
+      <div class="section-heading"><div><p class="eyebrow">Saved observations · read-only inspection</p><h2 id="viz-heading">Trip visual inspection</h2></div><span id="viz-run-status" class="badge">Validated saved results</span></div>
       <p id="viz-run-id" class="muted"></p>
       <div class="viz-toolbar">
-        <div class="viz-tabs" role="tablist" aria-label="Visualization view"><button id="viz-trip-tab" type="button" role="tab" aria-selected="true" aria-controls="viz-trip-page" data-viz-i18n="tripView">逐趟检查</button><button id="viz-day-tab" type="button" role="tab" aria-selected="false" aria-controls="viz-day-page" data-viz-i18n="dayView">全天总览</button></div>
-        <label><span data-viz-i18n="decisionMode">已计算的匹配模式</span><select id="viz-mode"><option value="global" data-viz-i18n="global">全局</option><option value="early" data-viz-i18n="early">前期</option><option value="middle" data-viz-i18n="middle">中期</option><option value="late" data-viz-i18n="late">后期</option></select></label>
+        <div class="viz-tabs" role="tablist" aria-label="Visualization view"><button id="viz-trip-tab" type="button" role="tab" aria-selected="true" aria-controls="viz-trip-page">Trip detail</button><button id="viz-day-tab" type="button" role="tab" aria-selected="false" aria-controls="viz-day-page">Full-day overview</button></div>
+        <label><span>Computed matching mode</span><select id="viz-mode"><option value="global">Global</option><option value="early">Early</option><option value="middle">Middle</option><option value="late">Late</option></select></label>
       </div>
-      <p class="notice" data-viz-i18n="identityNotice">已分配不等于已校准的真实身份；未分配时展示的候选仅用于诊断。时间轴使用原始时钟，不按估计延误平移。</p>
-      <p id="viz-loading" class="muted" role="status" hidden data-viz-i18n="loading">正在读取已保存的可视化数据…</p><p id="viz-error" role="alert" hidden></p>
+      <p class="notice">An assignment is not calibrated confirmation of trip identity. Unassigned candidates are diagnostics only. All timelines retain original clocks; schedules are never delay-shifted.</p>
+      <p id="viz-loading" class="muted" role="status" hidden>Reading saved visualization evidence…</p><p id="viz-error" role="alert" hidden></p>
       <div id="viz-trip-page" role="tabpanel" aria-labelledby="viz-trip-tab">
-        <div class="viz-filters"><label><span data-viz-i18n="vehicle">车辆</span><select id="viz-vehicle"></select></label><label><span data-viz-i18n="direction">方向</span><select id="viz-direction"></select></label><label class="viz-search-label"><span data-viz-i18n="search">搜索 Trip / 车辆 / 时间</span><input id="viz-search" type="search" autocomplete="off"></label></div>
-        <div class="viz-trip-navigation"><button id="viz-previous" class="secondary" type="button" data-viz-i18n="previous">上一趟</button><label><span data-viz-i18n="performedTrip">分割后的 Trip</span><select id="viz-trip"></select></label><button id="viz-next" class="secondary" type="button" data-viz-i18n="next">下一趟</button></div>
+        <div class="viz-filters"><label><span>Vehicle</span><select id="viz-vehicle"></select></label><label><span>Direction</span><select id="viz-direction"></select></label><label class="viz-search-label"><span>Search trip / vehicle / time</span><input id="viz-search" type="search" autocomplete="off"></label></div>
+        <div class="viz-trip-navigation"><button id="viz-previous" class="secondary" type="button">Previous</button><label><span>Performed segment</span><select id="viz-trip"></select></label><button id="viz-next" class="secondary" type="button">Next</button></div>
         <p id="viz-trip-count" class="muted"></p><div id="viz-trip-metadata" class="viz-metadata"></div>
         <div id="viz-candidate-list" class="viz-candidates"></div>
-        <div class="viz-window-controls"><label><span data-viz-i18n="viewSpan">浏览窗口</span><select id="viz-span"><option value="full" data-viz-i18n="fullTrip">完整 Trip</option><option value="300">5 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option></select></label><label class="viz-pan-label"><span id="viz-window-label"></span><input id="viz-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan trip time window"></label></div>
+        <div class="viz-window-controls"><label><span>View window</span><select id="viz-span"><option value="full">Full comparison range</option><option value="300">5 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option></select></label><label class="viz-pan-label"><span id="viz-window-label"></span><input id="viz-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan trip time window"></label></div>
         <div id="viz-selection-note" class="muted"></div>
-        <p class="viz-mobile-note muted" data-viz-i18n="mobileSwipe"></p>
-        <section class="viz-chart-panel"><div class="section-heading"><h3 data-viz-i18n="map">地理位置与线路形状</h3><button id="viz-map-fit" type="button" class="secondary" data-viz-i18n="fitMap">适合线路范围</button></div><p class="muted viz-note" data-viz-i18n="mapNote">真实经纬度、北向上；不使用外部底图。APC仅显示有依据的站点位置，不制造GPS轨迹。</p><div id="viz-map" class="viz-map"></div><div id="viz-map-legend" class="viz-legend"></div></section>
-        <section class="viz-chart-panel"><h3 data-viz-i18n="timeline">AVL · APC · GTFS 时间线</h3><div id="viz-timeline" class="viz-chart"></div></section>
-        <section class="viz-chart-panel"><h3 data-viz-i18n="progress">时间—线路进度</h3><p class="muted viz-note" data-viz-i18n="progressNote">只连接同一连续有效投影片段。OFF_REFERENCE、被截尾部分和真实时间缺口不会被伪装成连续服务轨迹。</p><div id="viz-progress" class="viz-chart"></div></section>
-        <details><summary data-viz-i18n="diagnostics">本趟诊断与证据说明</summary><pre id="viz-diagnostics"></pre></details>
+        <p class="viz-mobile-note muted">Swipe small-screen charts horizontally; the time slider above controls the data window.</p>
+        <section class="viz-chart-panel"><div class="section-heading"><h3>Geographic positions and route shapes</h3><button id="viz-map-fit" type="button" class="secondary">Fit route extent</button></div><p class="muted viz-note">Real longitude/latitude, north up, no external basemap. APC symbols are supported stop positions, never fabricated GPS pings. Wheel to zoom; drag to pan.</p><div id="viz-map" class="viz-map"></div><div id="viz-map-legend" class="viz-legend"></div></section>
+        <section class="viz-chart-panel"><h3>AVL · APC · GTFS timeline</h3><div id="viz-timeline" class="viz-chart"></div></section>
+        <section class="viz-chart-panel"><h3>Time–distance progress</h3><p class="muted viz-note">Only continuous valid projection fragments are connected. Rejected points, censored tails and real gaps are not depicted as continuous service.</p><div id="viz-progress" class="viz-chart"></div></section>
+        <details><summary>Trip diagnostics and evidence notes</summary><pre id="viz-diagnostics"></pre></details>
       </div>
       <div id="viz-day-page" role="tabpanel" aria-labelledby="viz-day-tab" hidden>
-        <div class="viz-window-controls"><label><span data-viz-i18n="viewSpan">浏览窗口</span><select id="viz-day-span"><option value="full" data-viz-i18n="fullDay">全天</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option><option value="14400">240 min</option></select></label><label class="viz-pan-label"><span id="viz-day-window-label"></span><input id="viz-day-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan full-day time window"></label></div>
-        <p class="muted" data-viz-i18n="dayNote">按方向和canonical reference分面；每趟只显示已分配班次，或明确标记为诊断的排名1候选。点击任意Trip进入逐趟检查。</p><div id="viz-day-metrics" class="viz-metadata"></div><div id="viz-day-legend" class="viz-legend"></div><p class="viz-mobile-note muted" data-viz-i18n="mobileSwipe"></p><div id="viz-day-charts"></div>
+        <div class="viz-window-controls"><label><span>View window</span><select id="viz-day-span"><option value="full">Full day</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">120 min</option><option value="14400">240 min</option></select></label><label class="viz-pan-label"><span id="viz-day-window-label"></span><input id="viz-day-pan" type="range" min="0" max="1000" value="0" step="1" aria-label="Pan full-day time window"></label></div>
+        <p class="muted">Separate panels for each direction and canonical reference. Each segment shows its assigned schedule, or an explicitly diagnostic rank1 fallback. Click a trip to inspect it.</p><div id="viz-day-metrics" class="viz-metadata"></div><div id="viz-day-legend" class="viz-legend"></div><p class="viz-mobile-note muted">Swipe small-screen charts horizontally; the time slider above controls the data window.</p><div id="viz-day-charts"></div>
       </div>
     </section>
     <section id="result-panel" class="panel" hidden aria-labelledby="result-heading">
-      <div class="section-heading"><h2 id="result-heading" data-i18n="result">结果与导出</h2><span id="validator-status" class="badge"></span></div>
+      <div class="section-heading"><h2 id="result-heading">Results and exports</h2><span id="validator-status" class="badge"></span></div>
       <p id="result-run-id" class="muted"></p>
       <div id="summary-metrics" class="metrics"></div>
       <div id="mode-results" class="mode-grid"></div>
-      <details><summary data-i18n="stageCounts">阶段行数</summary><div id="stage-counts" class="table-wrap"></div></details>
-      <details open><summary data-i18n="downloads">下载CSV / Parquet / JSON</summary><div class="download-toolbar"><label><span data-i18n="format">格式</span><select id="download-filter"><option value="all" data-i18n="allFormats">全部格式</option><option value="csv">CSV</option><option value="parquet">Parquet</option><option value="json">JSON</option></select></label></div><div id="downloads" class="download-list"></div></details>
-      <details><summary data-i18n="rawSummary">完整摘要</summary><pre id="summary-json"></pre></details>
+      <details><summary>Stage row counts</summary><div id="stage-counts" class="table-wrap"></div></details>
+      <details open><summary>Download CSV / Parquet / JSON</summary><div class="download-toolbar"><label><span>Format</span><select id="download-filter"><option value="all">All formats</option><option value="csv">CSV</option><option value="parquet">Parquet</option><option value="json">JSON</option></select></label></div><div id="downloads" class="download-list"></div></details>
+      <details><summary>Full summary</summary><pre id="summary-json"></pre></details>
     </section>
   </main>
-  <footer data-i18n="footer">仅本机访问 · 不使用外部资源 · 下载前校验发布文件SHA-256</footer>
+  <footer>Localhost only · No external resources · Published SHA-256 checked before download</footer>
 </body>
 </html>

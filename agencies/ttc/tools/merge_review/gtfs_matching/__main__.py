@@ -18,7 +18,9 @@ def main():
     parser.add_argument(
         "--config", type=Path, help="Optional JSON object of GTFS parameters"
     )
-    parser.add_argument("--label", default="实验 03 · route 29 · 分层 GTFS 匹配")
+    parser.add_argument(
+        "--label", default="Experiment 03 · route 29 · hierarchical GTFS matching"
+    )
     args = parser.parse_args()
     supplied = json.loads(args.config.read_text()) if args.config else {}
     workspace = DebugWorkspace(args.debug_dir, args.audit)

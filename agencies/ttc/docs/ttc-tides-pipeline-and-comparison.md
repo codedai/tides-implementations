@@ -1,712 +1,822 @@
-# TTC：从 GTFS + AVL + APC 到 TIDES —— 流水线、算法与跨机构对比
+# TTC: From GTFS + AVL + APC to TIDES — Pipeline, Algorithms, and Cross-Agency Comparison
 
-> English version: [ttc-tides-pipeline-and-comparison.en.md](ttc-tides-pipeline-and-comparison.en.md)
-
-> **文档状态（2026-09-10）**
+> **Document status (2026-09-10)**
 >
-> 本文依据 `agencies/ttc/` 的现行 Experiment 05 代码、
-> 权威配置 [`config/experiment05-v1.toml`](../config/experiment05-v1.toml)
-> 以及本地运行清单编写。第 8 节区分原始两日验收与后续版本化导出策略；
-> 具体代码、配置和输出身份以各 run manifest 的哈希为准，不把旧包当成已被新策略改写。
+> Based on the current Experiment 05 code in `agencies/ttc/`, the
+> authoritative configuration [`config/experiment05-v1.toml`](../config/experiment05-v1.toml),
+> and local run manifests. Section 8 distinguishes the original two-day acceptance from the
+> later versioned export policy. Each run manifest pins its own code, config and outputs;
+> a new policy does not retroactively change an older package.
 >
-> 输出是**研究性推断**的 TIDES v1.0 数据包：结构上通过 TIDES schema 与跨表键校验，
-> 但 `trip_id_scheduled`、行程边界等是模型推断，**目前没有独立人工标签校准**，
-> 也不是 TTC 官方数据发布。
+> The output is an **inferred research** TIDES v1.0 package. It passes the TIDES schemas and
+> cross-table key checks, but `trip_id_scheduled` and trip boundaries are model inferences.
+> **No independent human labels exist to calibrate them yet**, and this is not an official
+> TTC data release.
 >
-> 本文只使用聚合统计，不含车辆编号、源记录 ID、精确时间或坐标
-> （遵循 [ADR 0003](decisions/0003-isolated-r1-diagnostic-experiments.md) 的仓库脱敏规则）。
+> Only aggregate statistics are used here: no vehicle IDs, source record IDs, precise
+> timestamps, or coordinates (per the repository redaction rule in
+> [ADR 0003](decisions/0003-isolated-r1-diagnostic-experiments.md)).
 
-## 目录
+## Contents
 
-1. [一页摘要](#1-一页摘要)
-2. [数据现实：为什么不能直接 join](#2-数据现实为什么不能直接-join)
-3. [总体架构](#3-总体架构)
-4. [分阶段说明](#4-分阶段说明)
-5. [核心算法](#5-核心算法)
-6. [TIDES 输出契约](#6-tides-输出契约)
-7. [可复现性、溯源与失败即停](#7-可复现性溯源与失败即停)
-8. [实测运行](#8-实测运行)
-9. [演进历程与教训](#9-演进历程与教训)
-10. [与其他机构 TIDES 实现的比较](#10-与其他机构-tides-实现的比较)
-11. [已知局限与开放问题](#11-已知局限与开放问题)
-12. [运行方式与代码地图](#12-运行方式与代码地图)
-13. [术语表](#13-术语表)
+1. [One-page summary](#1-one-page-summary)
+2. [Data reality: why a join is not enough](#2-data-reality-why-a-join-is-not-enough)
+3. [Architecture](#3-architecture)
+4. [Stage by stage](#4-stage-by-stage)
+5. [Core algorithms](#5-core-algorithms)
+6. [TIDES output contract](#6-tides-output-contract)
+7. [Reproducibility, lineage, and fail-closed execution](#7-reproducibility-lineage-and-fail-closed-execution)
+8. [Measured runs](#8-measured-runs)
+9. [How we got here](#9-how-we-got-here)
+10. [Comparison with other agencies' TIDES implementations](#10-comparison-with-other-agencies-tides-implementations)
+11. [Known limitations and open questions](#11-known-limitations-and-open-questions)
+12. [Running it and code map](#12-running-it-and-code-map)
+13. [Glossary](#13-glossary)
 
 ---
 
-## 1. 一页摘要
+## 1. One-page summary
 
-**做什么。** 输入是 TTC 2023 年 11 月的离线 AVL（GPS）CSV、APC（站点客流）CSV
-和 14 个版本的 GTFS 压缩包；输出是按"服务日 × 线路 × 匹配模式"生成的 TIDES v1.0
-数据包：`trips_performed`、`vehicle_locations`、`stop_visits`、`passenger_events`、`vehicles`
-与 `datapackage.json`。当前只启用 29 路。
+**What it does.** Inputs are TTC's offline November 2023 AVL (GPS) CSV, APC (stop-level
+passenger counter) CSV, and 14 versions of GTFS archives. Outputs are TIDES v1.0 packages per
+service date × route × match mode: `trips_performed`, `vehicle_locations`, `stop_visits`,
+`passenger_events`, `vehicles`, and `datapackage.json`. Only route 29 is enabled.
 
-**难在哪里。** 在其他机构的实现中，供应商 AVL 或 GTFS-Realtime 记录通常自带计划班次 ID，
-`trip_id_scheduled` 基本上是一次连接（join）。TTC 这份数据则不同：AVL 的 `tatripId`
-与当月 GTFS `trip_id` **零匹配**（3,133 个取值中 0 个），APC 的 `StopID` 实际是
-`stop_code`，GTFS 的 `route_id` 每个版本都会变化。计划关联因此只能**从时空证据推断**，
-这是本实现与其他机构最根本的区别。
+**What makes it hard.** In other agencies' implementations, vendor AVL or GTFS-Realtime
+records usually carry a scheduled trip ID, so `trip_id_scheduled` is essentially a join.
+TTC's data is different: **none** of the 3,133 AVL `tatripId` values matches a GTFS `trip_id`
+valid that month, APC `StopID` is really a `stop_code`, and GTFS `route_id` changes with every
+feed version. The scheduled association can only be **inferred from spatiotemporal evidence**.
+This is the most fundamental difference between this implementation and the others.
 
-**怎么做。**
+**How it works.**
 
-1. 把每个 GPS 点投影到经过校验的 GTFS 规范参考线上，得到一维里程 `s(t)`；
-2. 按车辆把轨迹切分成"实际执行的行程"（performed trip），并识别可信的观测终点；
-3. 把 APC 当作"站点 × 时间区间"证据挂接到行程上；
-4. 对每个行程，在当天有效的 GTFS 班次中检索候选，为每个候选拟合一条共享延误过程并计算
-   8 项成本，得到固定排名；
-5. 在每个（服务日、线路、方向、GTFS 版本）组内，做"三轮锁定、保持时序单调"的一对一分配；
-6. 为 `global`、`early`、`middle`、`late` 四种匹配模式各写出一个独立、经过校验的 TIDES 包。
+1. Project every GPS ping onto a validated canonical GTFS reference line, giving
+   one-dimensional progress `s(t)`;
+2. Split each vehicle's track into performed trips and identify a trustworthy observed end;
+3. Attach APC records to trips as "stop × time interval" evidence;
+4. For each trip, retrieve the scheduled trips active that day, fit one shared delay process per
+   candidate, compute 8 cost components, and freeze a ranking;
+5. Within each (service date, route, direction, GTFS version) group, run a three-round, locked,
+   order-preserving one-to-one assignment;
+6. Write one independent, validated TIDES package for each of the four match modes:
+   `global`, `early`, `middle`, and `late`.
 
-**立场。** 每条源记录都保留并可追溯；不猜外键，不伪造 GPS 点或逐乘客测量；
-APC 累计客流按显式版本策略使用离站代理时间，假设与真实源时间分开标注；
-时间一律转为 UTC，夏令时歧义不做猜测；代码、配置、依赖或输入的任何变化都会让运行
-直接失败（fail-closed）；只有完整验证通过的结果才会按指纹缓存。
+**Principles.** Every source record is kept and traceable; no guessed foreign keys; no
+fabricated GPS pings or individual passenger measurements. Aggregate APC events use an explicit,
+versioned departure-time proxy, distinguished from recorded source times. Times use UTC; daylight-saving
+ambiguity is never guessed; any change to code, configuration, dependencies, or inputs makes
+the run fail closed; only fully validated results are cached by fingerprint.
 
-**验收结果。** 2023-11-06 与 2023-11-20 两天已从原始数据完整跑通，分别得到 352 和 313 个
-performed trips；四个模式下有 64.5%–72.5% 的行程获得计划关联。8 个 TIDES 包（2 天 × 4 模式）
-全部通过 schema 与跨表键校验，全流程不变量检查 1,459 项与 1,303 项全部通过。
-上述为原始两日验收；后续 2023-11-06 新策略包每模式含 38,211 条 `passenger_events`。
-这些是描述性结果，不是准确率（见[第 8 节](#8-实测运行)）。
+**Acceptance results.** Two service dates, 2023-11-06 and 2023-11-20, run end to end from raw
+data, yielding 352 and 313 performed trips; across the four modes, 64.5%–72.5% of trips
+receive a scheduled association. All 8 TIDES packages (2 days × 4 modes) pass schema and
+cross-table key validation, and all 1,459 and 1,303 pipeline invariant checks pass in the original
+two-day acceptance. The later November 6 policy run exports 38,211 passenger events per mode. These are
+descriptive results, not accuracy (see [Section 8](#8-measured-runs)).
 
 ---
 
-## 2. 数据现实：为什么不能直接 join
+## 2. Data reality: why a join is not enough
 
-| 来源 | 规模（整月） | 关键字段 | 在流水线中的角色 |
+| Source | Size (whole month) | Key fields | Role in the pipeline |
 |---|---|---|---|
-| AVL | 6,202,996 行，约 840 MB；线路值 `29`/`929`/`PI`/`PO`；156 个车辆编号 | `Message_DateTime`、`Vehicle`、`Latitude`/`Longitude`、`Heading`、`KPH`、`Route`、`Destination`、`tatripId` | 轨迹主证据 |
-| APC | 573,596 行，约 97 MB；线路 `29`/`929`；148 个车辆编号；103 个站码 | `StopArrivalTime`/`StopDepartureTime`、`VehicleID`、`StopID`、`RouteDirection`、`Boarding`/`Alighting`、`Arrload`/`Depload`、`AvgSample`、`NoTrips` | 匹配使用站点 × 时间区间；导出按显式策略记录累计客流与车辆到离站事件 |
-| GTFS | 14 个 ZIP，约 441 MB；日历覆盖 2023-01-08 至 2024-01-06；版本互相重叠；没有 `feed_info.txt` | `trips`、`stop_times`、`stops`、`shapes`、`calendar`、`calendar_dates` | 计划班次、站点、几何 |
+| AVL | 6,202,996 rows, ~840 MB; route values `29`/`929`/`PI`/`PO`; 156 vehicle IDs | `Message_DateTime`, `Vehicle`, `Latitude`/`Longitude`, `Heading`, `KPH`, `Route`, `Destination`, `tatripId` | Primary trajectory evidence |
+| APC | 573,596 rows, ~97 MB; routes `29`/`929`; 148 vehicle IDs; 103 stop codes | `StopArrivalTime`/`StopDepartureTime`, `VehicleID`, `StopID`, `RouteDirection`, `Boarding`/`Alighting`, `Arrload`/`Depload`, `AvgSample`, `NoTrips` | Stop × time-interval matching evidence; explicit policy exports visit totals and vehicle arrival/departure events |
+| GTFS | 14 ZIPs, ~441 MB; calendars span 2023-01-08 to 2024-01-06; versions overlap; no `feed_info.txt` | `trips`, `stop_times`, `stops`, `shapes`, `calendar`, `calendar_dates` | Scheduled trips, stops, geometry |
 
-[源数据审计](source-data-audit.md)的发现直接决定了设计：
+The [source data audit](source-data-audit.md) findings drive the design directly:
 
-| 发现 | 直接使用的后果 | 本实现的处理 |
+| Finding | Consequence if used directly | Treatment here |
 |---|---|---|
-| AVL `tatripId` 的 3,133 个取值无一出现在 2023 年 11 月有效的 GTFS `trip_id` 中；部分数值与旧版本 feed 中其他线路的 trip 撞号 | 写出错误的 `trip_id_scheduled` | 仅作审计字段，**在代码层面排除在匹配输入之外**；计划关联由时空证据推断 |
-| APC `StopID` 实为 GTFS `stop_code`：按 `stop_code` 可映射 559,715 行、102 个站码；按 `stop_id` 只有 403,336 行、72 个；站码 `1652` 的 13,881 行无法映射 | 站点错配或大量丢失 | 在所选 feed 内 `stop_code` → `stop_id`；歧义结果保留为列表，不强选 |
-| 29 路 `route_id` 随版本变化（如 `70071`、`70291`、`70507`） | 跨版本错误连接 | 以 `route_short_name` + 当日所选 feed 解析；内部键始终带 feed 版本 |
-| GTFS 版本重叠且无 `feed_info.txt` | 选错计划版本 | 显式 feed manifest（SHA-256、日历范围、优先级、状态），同优先级直接报错 |
-| APC 有 1,150 行时间戳落在 2023-12-01；存在跨午夜服务 | 服务日判错 | 保留"前一服务日"假设作诊断；GTFS 中超过 24:00 的时刻保持原值，不折回 |
-| 2023-11-05 夏令时回拨，存在歧义本地时间（整月 3,831 条 GPS、428 条 APC） | 时间顺序错乱 | 歧义或不存在的本地时间把 `t` 置空并打标，不猜 `fold` |
-| `PI`/`PO` 疑似出入场，但含义未经确认 | 写出错误的 `trip_type` | 不进入匹配，也不映射为 `Pullin`/`Pullout` |
-| APC 的 `AvgSample`、`NoTrips`、`Avg*` 字段显示部分行可能是聚合值（45,226 行 `AvgSample > 1`） | 把平均值当成单次停站 | 保留 `grain_uncertain`；当前按用户确认的研究假设映射 visit 总数，不声称厂商已确认粒度 |
-| AVL 中存在逐字段完全相同的重复行（例如 2023-11-06 当日窗口内 36,257 行） | 轨迹权重被重复计算 | 标注 `duplicate_of`，不增加任何轨迹或评分权重 |
-| 源数据没有设备 ID、分门计数、司机或 block 字段 | — | 无依据字段为空；已分配行程的 `block_id` 可以来自 GTFS，而非源车辆记录 |
+| None of the 3,133 AVL `tatripId` values appears among GTFS `trip_id`s valid in November 2023; some numeric values collide with trips on other routes in older feeds | Wrong `trip_id_scheduled` | Audit-only field, **excluded from matching inputs in code**; the scheduled association is inferred from spatiotemporal evidence |
+| APC `StopID` is a GTFS `stop_code`: 559,715 rows / 102 codes map via `stop_code`, only 403,336 rows / 72 via `stop_id`; code `1652` (13,881 rows) does not map | Wrong stops or heavy loss | `stop_code` → `stop_id` within the selected feed; ambiguous results stay as lists and are never forced |
+| Route 29's `route_id` changes by version (e.g., `70071`, `70291`, `70507`) | Wrong cross-version joins | Resolved via `route_short_name` + the feed selected for that date; internal keys always carry the feed version |
+| GTFS versions overlap and lack `feed_info.txt` | Wrong schedule version | Explicit feed manifest (SHA-256, calendar range, priority, status); a tie at top priority is an error |
+| 1,150 APC timestamps fall on 2023-12-01; post-midnight service exists | Wrong service date | A "previous service day" hypothesis is kept as a diagnostic; GTFS times past 24:00 are never wrapped |
+| The 2023-11-05 DST fall-back creates ambiguous local times (3,831 GPS and 428 APC rows in the month) | Broken time ordering | Ambiguous or nonexistent local times get a null `t` and a flag; no `fold` is guessed |
+| `PI`/`PO` look like pull-in/pull-out but are unconfirmed | Wrong `trip_type` | Excluded from matching; not mapped to `Pullin`/`Pullout` |
+| APC `AvgSample`, `NoTrips`, and `Avg*` fields suggest some rows are aggregates (45,226 rows with `AvgSample > 1`) | Averages treated as single stops | Preserve `grain_uncertain`; map visit totals under a user-authorized research assumption, not a vendor-confirmed grain |
+| AVL contains byte-for-byte duplicate rows (e.g., 36,257 in the 2023-11-06 day window) | Double-counted trajectory weight | Annotated with `duplicate_of`; no extra trajectory or scoring weight |
+| The sources have no device IDs, per-door counts, operator, or block fields | — | Unsupported fields stay empty; an assigned trip's `block_id` may come from GTFS, not the vehicle records |
 
 ---
 
-## 3. 总体架构
+## 3. Architecture
 
-### 3.1 设计原则
+### 3.1 Design principles
 
-1. **离线、可复现。** 不需要网络、数据库或云服务；相同的输入、配置与代码产生相同的
-   ID 与业务输出（[ADR 0001](decisions/0001-offline-python-prototype.md)）。
-2. **Python 负责全部转换。** 使用 Polars + Parquet；SQL 不作为转换层。
-3. **原始输入不可变，逐行溯源。** 每一行都携带 `rid = <source>:<文件 SHA-256>:<原始 CSV 行号>`，
-   以及原始载荷与载荷哈希。
-4. **不猜外键。** 源值只有经过显式、可测试的映射才会成为 GTFS 或 TIDES 标识。
-5. **不确定性就是数据。** 歧义、拒绝、截尾都以原因码保留，而不是被任意选择掩盖。
-6. **TIDES 核心列只放有依据的值。** 诊断信息写在旁路 Parquet / JSON 中，不混入 TIDES 表。
-7. **计划派生字段隔离。** `AvgOTP`、`tatripId`、`Date_Key`、`OffRoute`、`Delayed`、`Run`
-   等源字段只作审计，匹配代码通过显式白名单读取输入，拿不到这些字段。
+1. **Offline and reproducible.** No network, database, or cloud service; the same inputs,
+   configuration, and code produce the same IDs and business outputs
+   ([ADR 0001](decisions/0001-offline-python-prototype.md)).
+2. **Python owns every transformation.** Polars + Parquet; SQL is not a transformation layer.
+3. **Immutable inputs, row-level lineage.** Every row carries
+   `rid = <source>:<file SHA-256>:<original CSV row number>`, plus its raw payload and payload hash.
+4. **No guessed foreign keys.** A source value becomes a GTFS or TIDES identifier only through an
+   explicit, tested mapping.
+5. **Uncertainty is data.** Ambiguity, rejection, and censoring are kept as reason codes instead of
+   being hidden behind an arbitrary choice.
+6. **TIDES core columns hold only supported values.** Diagnostics go to side-car Parquet / JSON,
+   never into TIDES tables.
+7. **Schedule-derived fields are quarantined.** `AvgOTP`, `tatripId`, `Date_Key`, `OffRoute`,
+   `Delayed`, `Run`, and similar source fields are audit-only; matching code reads its inputs
+   through an explicit allowlist and cannot see them.
 
-### 3.2 十阶段流水线
+### 3.2 The ten-stage pipeline
 
 ```mermaid
 flowchart TB
-    subgraph IN[不可变输入]
+    subgraph IN[Immutable inputs]
         AVL[AVL CSV]
         APC[APC CSV]
         GZ[GTFS ZIP × 14<br/>+ feed manifest]
     end
-    INIT[0 初始化<br/>feed 选择 · 缓存键 · 代码/环境指纹]
-    S1[1 load_raw<br/>本地日历日窗口 · rid]
-    S2[2 normalize<br/>UTC · DST 标记 · 服务日假设]
-    S3[3 event_timeline<br/>合并时间线 · 重复标注]
-    S4[4 project_avl<br/>规范参考线 · 序列 Viterbi 投影]
-    S5[5 segment_trips<br/>行程切分 · 平台段/右截尾]
-    S6[6 attach_apc<br/>APC 区间挂接 · 停站证据]
-    S7[7 generate_candidates<br/>检索 · 共享延误 · 8 项成本 × 4 模式]
-    S8[8 assign_scheduled<br/>三轮锁定单调一对一分配]
-    S9[9 map_tides<br/>每模式一个 TIDES 包]
-    S10[10 validate_publish<br/>全局不变量]
+    INIT[0 initialize<br/>feed selection · cache key · code/env fingerprint]
+    S1[1 load_raw<br/>local calendar-day window · rid]
+    S2[2 normalize<br/>UTC · DST flags · service-date hypotheses]
+    S3[3 event_timeline<br/>merged timeline · duplicate annotation]
+    S4[4 project_avl<br/>canonical references · sequence Viterbi]
+    S5[5 segment_trips<br/>trip segmentation · plateau / right-censoring]
+    S6[6 attach_apc<br/>APC interval attachment · stop evidence]
+    S7[7 generate_candidates<br/>retrieval · shared delay · 8 costs × 4 modes]
+    S8[8 assign_scheduled<br/>three locked monotone one-to-one rounds]
+    S9[9 map_tides<br/>one TIDES package per mode]
+    S10[10 validate_publish<br/>global invariants]
     OUT[("outputs/experiment_05/runs/{run_id}/")]
 
     GZ --> INIT
     AVL --> S1
     APC --> S1
     INIT --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> OUT
-    GZ -. 当日有效班次 / 几何 .-> S4
+    GZ -. active trips / geometry .-> S4
 ```
 
-命令行与本地网页调用同一个 `run_pipeline()`。每个阶段都声明了自己拥有的输出
-（`pipeline.STAGE_OUTPUTS`），并记录行数、耗时和输出 SHA-256，可以单独执行或从任一已验证边界续跑。
+The CLI and the local web page call the same `run_pipeline()`. Every stage declares the outputs
+it owns (`pipeline.STAGE_OUTPUTS`) and records row counts, duration, and output SHA-256, so it
+can run on its own or resume from any validated boundary.
 
-| # | 阶段 | 实现（`tools/experiment05/`） | 主要输出 | 行粒度 |
+| # | Stage | Implementation (`tools/experiment05/`) | Main outputs | Row grain |
 |---|---|---|---|---|
-| 0 | 初始化 | `pipeline.initialize_run` | `run_manifest.json`、`config.toml` | 一次运行 |
-| 1 | `load_raw` | `sources.read_raw_day` | `stages/raw_observations.parquet` | 源行 |
-| 2 | `normalize` | `sources.normalize_sources` | `stages/normalized_observations.parquet` | 源行 |
-| 3 | `event_timeline` | `sources.event_timeline` | `stages/event_timeline.parquet` | 源行 |
-| 4 | `project_avl` | `projection.py`（调用 `gtfs_matching.projection`） | `stages/projected_observations.parquet`、`gtfs/{bundle,canonical}.json` | 源行 |
-| 5 | `segment_trips` | `segmentation.py` + `plateau.py` | `performed_trip_segments.parquet`、`platform_diagnostics.parquet` | 行程 |
-| 6 | `attach_apc` | `apc.py` | `fused_projected_observations.parquet`、`stop_visits_evidence.parquet`、`apc_attachment_audit.parquet` | 源行 / 停站 |
-| 7 | `generate_candidates` | `candidates.py`（调用 04c 评分器） | `candidate_rankings.parquet`、`local_window_evidence.parquet`、`mode_results.parquet`、`scheduled_lookup.parquet` | 行程 × 模式 × 候选 |
-| 8 | `assign_scheduled` | `assignment.py` | `assignments.parquet`、`assignment_audit.parquet` | 行程 × 模式 |
-| 9 | `map_tides` | `tides.py` | `tides/<mode>/…` | TIDES 行 |
-| 10 | `validate_publish` | `validation.py` | `validation_report.json` | 不变量检查 |
+| 0 | Initialize | `pipeline.initialize_run` | `run_manifest.json`, `config.toml` | One run |
+| 1 | `load_raw` | `sources.read_raw_day` | `stages/raw_observations.parquet` | Source row |
+| 2 | `normalize` | `sources.normalize_sources` | `stages/normalized_observations.parquet` | Source row |
+| 3 | `event_timeline` | `sources.event_timeline` | `stages/event_timeline.parquet` | Source row |
+| 4 | `project_avl` | `projection.py` (calls `gtfs_matching.projection`) | `stages/projected_observations.parquet`, `gtfs/{bundle,canonical}.json` | Source row |
+| 5 | `segment_trips` | `segmentation.py` + `plateau.py` | `performed_trip_segments.parquet`, `platform_diagnostics.parquet` | Trip |
+| 6 | `attach_apc` | `apc.py` | `fused_projected_observations.parquet`, `stop_visits_evidence.parquet`, `apc_attachment_audit.parquet` | Source row / stop visit |
+| 7 | `generate_candidates` | `candidates.py` (calls the 04c scorer) | `candidate_rankings.parquet`, `local_window_evidence.parquet`, `mode_results.parquet`, `scheduled_lookup.parquet` | Trip × mode × candidate |
+| 8 | `assign_scheduled` | `assignment.py` | `assignments.parquet`, `assignment_audit.parquet` | Trip × mode |
+| 9 | `map_tides` | `tides.py` | `tides/<mode>/…` | TIDES row |
+| 10 | `validate_publish` | `validation.py` | `validation_report.json` | Invariant check |
 
-评分器（04c）位于 `tools/merge_review/gtfs_matching/`，其中连续评分部分在 `continuous/` 子目录。
+The 04c scorer lives in `tools/merge_review/gtfs_matching/`, with continuous scoring in its
+`continuous/` subdirectory.
 
 ---
 
-## 4. 分阶段说明
+## 4. Stage by stage
 
-### 4.0 GTFS 版本选择与计划时钟
+### 4.0 GTFS version selection and the schedule clock
 
-- **manifest 驱动。** `artifacts/feed_manifest.draft.csv` 为每个压缩包记录 `feed_id`、SHA-256、
-  日历范围、`priority` 和 `status`。选择规则：状态合格（默认只接受 `approved`）、日历覆盖目标日期、
-  压缩包存在且哈希一致，取 `priority` 最高者；最高优先级并列则报错，要求显式固定版本。
-- **当前是草稿 manifest。** 所有行仍为 `candidate`，Experiment 05 配置显式设置
-  `feed_allow_candidate = true`。例如 2023-11-06 选中 `ttc-d092742e6a5b`（优先级 120，
-  覆盖 2023-10-30 至 2023-11-18，29 路 `route_id = 70291`），它覆盖了同样包含该日、优先级 110 的旧版本；
-  2023-11-20 选中 `ttc-de8294439596`（优先级 130，29 路 `route_id = 70507`）。
-  manifest 的人工审批仍是未关闭的治理事项（决策 D-15）。
-- **有效服务。** 先按 `calendar.txt` 的星期规则展开，再应用 `calendar_dates.txt` 的例外。
-- **计划时钟。** GTFS `HH:MM:SS` 转为服务日内秒数，**超过 24 小时的值原样保留**
-  （`25:00:00` = 90000，而不是 `01:00`）。绝对时间使用 GTFS 规范定义的锚点：
-  服务日**本地正午减 12 小时**，再转成 UTC 纪元秒，在夏令时切换日同样正确。
-- **规范参考线（canonical references）。** 在选定 feed、route 内按方向组织 shape families，
-  reference 身份包含 feed/route/direction/family，米轴不得跨 reference 混用。对每个（方向, shape）验证：几何覆盖、
-  站点有序、低歧义单调嵌入（投影误差上限 `canonical_error_m = 30`，歧义比例上限 2%）。
-  只有通过验证，才会优先采用最长 shape 作为家族参考；不合格时保留多条 reference，
-  不同 reference 的 `s` 不相减。方向标签由几何端点判定（南北向或东西向）。
-  两个实测日期都生成了 3 条 reference。
+- **Manifest-driven.** `artifacts/feed_manifest.draft.csv` records `feed_id`, SHA-256, calendar
+  range, `priority`, and `status` for each archive. Selection rule: acceptable status (only
+  `approved` by default), calendar covers the target date, archive present with a matching hash;
+  take the highest `priority`. A tie at the top is an error that requires an explicit pin.
+- **The manifest is still a draft.** Every row is `candidate`, and the Experiment 05 config
+  explicitly sets `feed_allow_candidate = true`. For example, 2023-11-06 selects
+  `ttc-d092742e6a5b` (priority 120, covering 2023-10-30 to 2023-11-18, route 29 `route_id = 70291`), which
+  outranks an older version with priority 110 that also covers that date; 2023-11-20 selects
+  `ttc-de8294439596` (priority 130, route 29 `route_id = 70507`). Human approval of the manifest
+  remains an open governance item (decision D-15).
+- **Active service.** Expand `calendar.txt` weekday rules, then apply `calendar_dates.txt` exceptions.
+- **Schedule clock.** GTFS `HH:MM:SS` becomes seconds into the service day, and **values past 24
+  hours are kept as is** (`25:00:00` = 90000, not `01:00`). Absolute times use the anchor defined
+  by the GTFS specification: **local noon minus 12 hours** on the service date, converted to UTC
+  epoch seconds, which stays correct on daylight-saving transition days.
+- **Canonical references.** Within the selected feed and route, shapes form direction-specific
+  families; reference identity includes feed/route/direction/family, not a universal metre axis.
+  Each (direction, shape) combination is validated for geometric
+  coverage, stop order, and a low-ambiguity monotone embedding (projection error at most
+  `canonical_error_m = 30`, ambiguity fraction at most 2%). The longest shape is preferred as the
+  family reference only after it passes; otherwise several references are kept, and `s` values
+  from different references are never subtracted. Direction labels come from the geometry
+  endpoints (north–south or east–west). Both measured dates produced 3 references.
 
-### 4.1 `load_raw`：按本地日历日读取
+### 4.1 `load_raw`: read one local calendar day
 
-- 观测窗口是**本地日历日** `[00:00, 24:00)`：AVL 按 `Message_DateTime`，APC 按
-  `StopArrivalTime`（缺失时用 `StopDepartureTime`）。AVL 时间戳缺失但 `Date_Key` 等于该日的行也会读入。
-- 读入前后各校验一次文件 SHA-256，文件在读取过程中被改动即失败。
-- 每行生成不可变的 `rid`，并保留完整原始载荷。
+- The observation window is a **local calendar day** `[00:00, 24:00)`: AVL by
+  `Message_DateTime`, APC by `StopArrivalTime` (falling back to `StopDepartureTime`). AVL rows
+  with a missing timestamp but a `Date_Key` equal to that day are also read.
+- File SHA-256 is checked before and after reading; a file modified during the read fails the stage.
+- Every row gets an immutable `rid` and keeps its full raw payload.
 
-### 4.2 `normalize`：独立规范化，不跨源连接
+### 4.2 `normalize`: per-source normalization, no cross-source joins
 
-| 概念 | AVL 源字段 | APC 源字段 | 规范化结果 |
+| Concept | AVL source field | APC source field | Normalized result |
 |---|---|---|---|
-| 车辆 | `Vehicle` | `VehicleID` | `vehicle_id`：去首尾空格，保留前导零，始终为字符串 |
-| 时间 | `Message_DateTime` | `StopArrivalTime`、`StopDepartureTime` | UTC 纪元秒 `t`、`arrival`、`departure`，另附时间状态 |
-| 位置 | `Latitude`、`Longitude` | `Lat`、`Lon`（站点坐标） | 原始 WGS84；APC 坐标**不当作车辆 GPS** |
-| 速度 / 航向 | `KPH`、`Heading` | — | `speed_kph`、`heading`，保持原值 |
-| 线路 | `Route` | `Route` | `route_eligible = (Route == "29")` |
-| 方向 | `Destination` 首词 | `RouteDirection` | `direction_label`，仅接受 NORTH/SOUTH/EAST/WEST/INBOUND/OUTBOUND |
-| 站点 | — | `StopID` | 保留为站码，后续按 `stop_code` 映射 |
-| 客流 | — | `Boarding`、`Alighting`、`Arrload`、`Depload` | 保留；`AvgSample`/`NoTrips ≠ 1` 或计数非整数时标 `grain_uncertain` |
-| 仅审计 | `tatripId`、`Date_Key`、`Run`、`OffRoute`、`Delayed` | `AvgOTP`（改名为 `audit_avg_otp`） | 不进入匹配 |
+| Vehicle | `Vehicle` | `VehicleID` | `vehicle_id`: trimmed, leading zeros kept, always a string |
+| Time | `Message_DateTime` | `StopArrivalTime`, `StopDepartureTime` | UTC epoch seconds `t`, `arrival`, `departure`, plus a time status |
+| Position | `Latitude`, `Longitude` | `Lat`, `Lon` (stop coordinates) | Raw WGS84; APC coordinates are **not treated as vehicle GPS** |
+| Speed / heading | `KPH`, `Heading` | — | `speed_kph`, `heading`, unchanged |
+| Route | `Route` | `Route` | `route_eligible = (Route == "29")` |
+| Direction | First word of `Destination` | `RouteDirection` | `direction_label`, accepting only NORTH/SOUTH/EAST/WEST/INBOUND/OUTBOUND |
+| Stop | — | `StopID` | Kept as a stop code and mapped later via `stop_code` |
+| Passengers | — | `Boarding`, `Alighting`, `Arrload`, `Depload` | Kept; `grain_uncertain` when `AvgSample`/`NoTrips ≠ 1` or counts are non-integer |
+| Audit only | `tatripId`, `Date_Key`, `Run`, `OffRoute`, `Delayed` | `AvgOTP` (renamed `audit_avg_otp`) | Never enters matching |
 
-**时区与夏令时（`utc_clock`）。** 对朴素本地时间分别尝试 `fold = 0` 和 `fold = 1`：
-恰好得到一个 UTC 结果则采用（`UNIQUE_LOCAL_TIME`）；得到两个则为 `AMBIGUOUS`，
-一个都得不到则为 `NONEXISTENT`，这两种情况都把 `t` 置空、保留原始字符串和标记，
-不虚构轨迹时间。
+**Time zones and DST (`utc_clock`).** Each naive local time is tried with both `fold = 0` and
+`fold = 1`. Exactly one UTC result is accepted (`UNIQUE_LOCAL_TIME`); two results mean
+`AMBIGUOUS` and none means `NONEXISTENT`. In both cases `t` is null and the raw string and flag
+are kept; no trajectory time is invented.
 
-**服务日假设。** 每行的假设集合总是包含所选日期；本地时间早于 06:00 的行额外加入前一天，
-仅作诊断，不会被悄悄改到另一个服务日。
+**Service-date hypotheses.** Every row's hypothesis set contains the selected date; rows with a
+local time before 06:00 also get the previous day, as a diagnostic only. Rows are never silently
+moved to another service date.
 
-### 4.3 `event_timeline`：合并时间线与重复标注
+### 4.3 `event_timeline`: merged timeline and duplicate annotation
 
-- 两个来源 `UNION ALL`，按（车辆, 时间, 来源, `rid`）排序；`rid` 重复即失败。
-- AVL 以原始载荷 SHA-256 判定完全重复：后出现的行记录 `duplicate_of` 指向首行，
-  保留在诊断中，但不参与投影与评分。
-- 每行打上角色标签：`ROUTE_EVIDENCE`、`OUT_OF_ROUTE_SCOPE`、`DUPLICATE_DIAGNOSTIC`。
-  929 路、`PI`、`PO` 等行保留在共享诊断里，但不进入 29 路匹配和 TIDES 包。
+- The two sources are combined with `UNION ALL` and sorted by (vehicle, time, source, `rid`); a
+  duplicate `rid` fails the stage.
+- AVL duplicates are identified by raw-payload SHA-256: later rows get `duplicate_of` pointing to
+  the first. They stay in diagnostics but take no part in projection or scoring.
+- Each row gets a role: `ROUTE_EVIDENCE`, `OUT_OF_ROUTE_SCOPE`, or `DUPLICATE_DIAGNOSTIC`. Rows for
+  route 929, `PI`, and `PO` stay in shared diagnostics but never enter route-29 matching or TIDES
+  packages.
 
-### 4.4 `project_avl`：GPS → 规范参考线上的一维进度
+### 4.4 `project_avl`: GPS to one-dimensional progress on a canonical reference
 
-- 以车辆为单位并行（8 个 spawn 进程）。满足以下任一条件时，在序列中插入**数值分隔**：
-  相邻点间隔超过 1800 s、源方向词变化、或刚经过一段非本线路区间。分隔只重置数值投影，
-  **不生成行程 ID**。
-- 对每条允许的 reference 分别运行**带跳过状态的 beam Viterbi**（算法见 [§5.2](#52-序列投影带跳过状态的-beam-viterbi)），
-  方向只是先验，不是过滤条件。先做一次不设门控的序列搜索；如果最优路径用到了横向距离超过 100 m
-  （`max_projection_distance_m`）的点，就只在门控内的候选上重新搜索，并**整条采用**重搜的路径，
-  不在两条路径之间逐点拼接，否则在环线附近可能重新引入不可能的跳变。
-- 一个点只要在至少一条 reference 上被接受，就是 `ON_REFERENCE`，并在这些 reference 中选
-  `路径平均代价 − ln(投影质量) / 4` 最小者（并列时按 `reference_id`）；每条 reference 的结果都保留在
-  `projection_alternatives` 中。没有被接受的点为 `OFF_REFERENCE`（原因为 `distance_gate_failed` 或
-  `no_sequence_consistent_in_gate_path`），源数据无效的点为 `UNPROJECTABLE`。孤立异常（≤ 2 点且 ≤ 30 s）
-  可以跳过；持续偏离（≥ 60 s）或 GPS 缺口会切成独立片段。
-- **`OFF_REFERENCE` 点不会被悄悄删除**：除非后续被确认为截尾尾段，否则仍计入覆盖率分母。
+- Parallelized per vehicle (8 spawned processes). A **numerical separator** is inserted when
+  adjacent pings are more than 1800 s apart, the source direction word changes, or the vehicle has
+  just left an out-of-route interval. Separators only reset the numerical projection; **they do not
+  create trip IDs**.
+- A **beam Viterbi with skip states** runs separately on each allowed reference (algorithm in
+  [§5.2](#52-sequence-projection-beam-viterbi-with-skip-states)); direction is a prior, not a
+  filter. An ungated sequence search runs first. If its best path uses any point with a lateral
+  distance above 100 m (`max_projection_distance_m`), the search is rerun on in-gate candidates
+  only, and that rerun path is **adopted whole**. Paths are never spliced point by point, which
+  could reintroduce impossible jumps around loops.
+- A point accepted on at least one reference is `ON_REFERENCE`. Among those references, the one
+  minimizing `mean path cost − ln(projection quality) / 4` wins (ties broken by `reference_id`),
+  and every reference's result is kept in `projection_alternatives`. Points accepted nowhere are
+  `OFF_REFERENCE` (reason `distance_gate_failed` or `no_sequence_consistent_in_gate_path`); points
+  with invalid source data are `UNPROJECTABLE`. Isolated anomalies (≤ 2 points and ≤ 30 s) can be
+  skipped; sustained departures (≥ 60 s) or GPS gaps become separate fragments.
+- **`OFF_REFERENCE` points are never silently dropped.** Unless later confirmed as a censored
+  tail, they remain in the coverage denominator.
 
-### 4.5 `segment_trips`：切分实际执行的行程
+### 4.5 `segment_trips`: performed-trip segmentation
 
-对每辆车按时间排序的 AVL 行（29 路、非重复、时间有效，仍包括 `OFF_REFERENCE`），
-满足以下任一条件时切分；这里的“时间有效”不等于通过空间投影：
+Each vehicle's time-ordered AVL rows (route 29, not duplicates, valid time, including
+`OFF_REFERENCE`) are split whenever any of the following holds. Valid time here does not
+mean a valid spatial projection:
 
-| 切分原因 | 规则 |
+| Cut reason | Rule |
 |---|---|
-| `JOINT_AVL_APC_GAP` | 相邻 AVL 间隔 > 1800 s，**并且** AVL 时刻与 APC 服务区间的并集中最大空档也 > 1800 s（APC 可以"桥接"GPS 断流） |
-| `CONFIRMED_PROJECTED_DIRECTION_CHANGE` | 投影方向改变并持续至少 3 个点、20 s；切点落在新方向的第一个点 |
-| `SEQUENCE_RESTART_PROGRESS_RESET` | 同一 reference 上进度回退超过 500 m，且投影器记录了序列重启 |
+| `JOINT_AVL_APC_GAP` | The adjacent AVL gap is > 1800 s **and** the largest gap in the union of AVL instants and APC service intervals is also > 1800 s (APC can "bridge" a GPS outage) |
+| `CONFIRMED_PROJECTED_DIRECTION_CHANGE` | The projected direction changes and persists for at least 3 points and 20 s; the cut falls on the first point of the new direction |
+| `SEQUENCE_RESTART_PROGRESS_RESET` | Progress on the same reference drops by more than 500 m and the projector recorded a sequence restart |
 
-- 途中停车后恢复行驶**不会**切分行程。
-- **稳定 ID：** `trip_id_performed = stable_id("performed", 服务日, feed 版本, route_id, 车辆, 首个 rid, 末个 rid)`。
-  它只由输入溯源与原始边界决定，与计划班次和匹配模式无关，重跑结果一致。
-- 行程方向取投影方向的多数票；无投影时为 `UNKNOWN`（导出 TIDES 时为空）。
-- 随后由 `plateau.py` 评估每个行程的**可信证据范围**（见 [§5.5](#55-平台段与右截尾)），
-  输出原始边界、有效边界、平台起点、截尾决策时刻与原因。
+- A mid-route stop followed by recovery **does not** split a trip.
+- **Stable ID:**
+  `trip_id_performed = stable_id("performed", service date, feed version, route_id, vehicle, first rid, last rid)`.
+  It depends only on input lineage and raw boundaries — not on scheduled trips or match modes — so
+  reruns reproduce it.
+- The trip direction is the majority of projected directions, or `UNKNOWN` when nothing projects
+  (exported as null in TIDES).
+- `plateau.py` then assesses each trip's **trustworthy evidence extent**
+  (see [§5.5](#55-plateaus-and-right-censoring)) and records raw boundaries, effective boundaries,
+  plateau onset, censor decision time, and reason.
 
-### 4.6 `attach_apc`：APC 作为站点时间区间证据
+### 4.6 `attach_apc`: APC as stop-time interval evidence
 
-1. **站点投影。** APC `StopID` 按**所选 feed** 的 `stop_code` 查到 `stop_id`，再映射到各
-   reference 上的规范站点进度区间；站码或环线位置有歧义时保留为列表。
-2. **区间有效性。** 到站或离站时间缺失、区间倒置或超过 1800 s 的记录标为
-   `INVALID_SERVICE_INTERVAL`。
-3. **候选行程（同一车辆）。** 需要同时满足：
-   - APC 区间与行程有效范围的时间间隔 ≤ 120 s；已截尾行程不接受有效终点之后到站的 APC；
-   - 行程使用的 reference 上存在无歧义、投影状态合格的对应站点；
-   - 若到离站区间前后 120 s 内存在同 reference 的有效 AVL 点，其与站点的**最小**进度差 ≤ 200 m。
-     没有可比较的附近 AVL 时不因此拒绝，而在排序中使用 200 m 的回退值；这不等于已观测到空间一致。
-4. **排序与决策。** 按（方向冲突, 时间间隔, −重叠时长, 进度误差）排序：唯一最优为 `ATTACHED`；
-   前两名完全并列为 `AMBIGUOUS_TRIP_MEMBERSHIP`；没有候选为 `NO_COMPATIBLE_PERFORMED_TRIP`。
-   所有决定写入 `apc_attachment_audit`。
-5. **停站记录。** 唯一最优 trip 的站点映射还必须收敛到唯一 `stop_id`，才生成 visit。
-   一条成功关联的 APC 源记录对应一次停站假设，不与相邻记录合并，也不对 APC 做不可逆去重；
-   行程内按（到站, 离站, `rid`）排序，得到从 1 开始连续的 `trip_stop_sequence`。
-   `stop_visit_id` 由稳定 performed-trip ID 与源 `rid` 构造；这个观察站序不是 GTFS `stop_sequence`。
-   若行程已截尾，区间只在**评分时**裁剪到有效边界，原始值保持不变，客流计数也不按比例分摊。
-6. **实现边界。** 当前不从 AVL 独立重建停站、不补齐缺 APC 的 GTFS 站点；
-   `visit_merge_gap_s = 30` 尚未用于任何合并逻辑。没有真实车辆坐标的 APC 仍是站点区间证据；
-   有真实坐标时才适用 100 m 投影门控。完整约定见 [APC 映射策略](experiment05-apc-events.md)。
+1. **Stop projection.** APC `StopID` is looked up as a `stop_code` in the **selected feed** to get
+   `stop_id`, then mapped to canonical stop progress intervals on each reference; ambiguous stop
+   codes or loop positions stay as lists.
+2. **Interval validity.** Records with a missing arrival or departure, an inverted interval, or an
+   interval longer than 1800 s are marked `INVALID_SERVICE_INTERVAL`.
+3. **Candidate trips (same vehicle).** All of the following must hold:
+   - the time gap between the APC interval and the trip's effective extent is ≤ 120 s, and a
+     censored trip does not accept APC arriving after its effective end;
+   - the trip's references contain a matching stop that is unambiguous and has an acceptable
+     projection status;
+   - when comparable valid AVL exists on the same reference within 120 s before/after the APC
+     interval, the **minimum** point-to-stop progress error is ≤ 200 m. With no nearby AVL,
+     attachment is still possible using a 200 m ranking fallback, not observed spatial agreement.
+4. **Ranking and decision.** Sort by (direction conflict, time gap, −overlap, progress error). A
+   unique best is `ATTACHED`; an exact tie for first is `AMBIGUOUS_TRIP_MEMBERSHIP`; no candidate
+   is `NO_COMPATIBLE_PERFORMED_TRIP`. Every decision is written to `apc_attachment_audit`.
+5. **Stop visits.** The selected trip's stop mapping must also resolve to a unique `stop_id`.
+   One attached APC source row yields one hypothesis; neighboring rows are not merged and APC
+   undergoes no irreversible deduplication. Within a trip, visits are ordered by (arrival, departure, `rid`),
+   giving a consecutive `trip_stop_sequence` starting at 1. For a censored trip, the interval is
+   clipped to the effective boundary **for scoring only**; raw values are unchanged and passenger
+   counts are never prorated. `stop_visit_id` derives from the stable performed-trip ID and source
+   `rid`; the observed sequence is not GTFS `stop_sequence`.
+6. **Implementation limits.** There is no AVL-only reconstruction or automatic completion of
+   GTFS stops missing APC. `visit_merge_gap_s = 30` is currently unused, not an active merging rule.
+   APC without genuine vehicle coordinates remains stop-interval evidence; only genuine spatial
+   observations receive the 100 m projection gate. See the [APC policy](experiment05-apc-events.md).
 
-### 4.7 `generate_candidates`：检索与评分，排名一经生成即冻结
+### 4.7 `generate_candidates`: retrieval and scoring; rankings are frozen once produced
 
-- **四种匹配模式。** `global` 使用整段；`early`/`middle`/`late` 把有效投影行驶距离按时间顺序
-  等分为三份。距离只累计同 reference、同 fragment、连续有效点超过此前进度高水位的正向增量；
-  拒绝点、reference/fragment 改变、显式分隔与过长时间缺口不连线累计，GPS 来回抖动不重复计程。
-  1/3 与 2/3 边界向前对齐到真实 AVL 时刻；边界点归后段，稀疏数据可产生空段。
-  有效距离为零时三个局部模式均为 `NO_EVIDENCE`，不退化为等时长切分。
-  APC 只裁剪用于评分的区间、不分摊人数；四模式不改变共享分段或导出的原始停站时间。
-  每种模式**独立**检索、独立拟合，不共享候选短名单或延误结果。
-- **输入防火墙。** 评分输入会剔除原始载荷、`AvgOTP`、`tatripId`、源日期、`OffRoute`、`Delayed`、`Run`。
-- **检索（高召回）。** 按局部几何、有效进度范围及可靠 APC 观察站序建立共同可混淆集合，
-  不要求精确 `pattern_id` 相同。站序硬筛选只用当前窗口内 confidence ≥ 0.5 的 APC。
-  在观测位置处按计划通过时刻检索，每窗口每个共同集合保留 top-12 或"最佳 + 1.0"；
-  最近班次及紧邻前/后班次（含同刻并列）不被 top-K 截断，另保留配置的 3 层邻班救援。
-  核心 buffer = 2 × 共同局部发车间隔；救援 = max(核心, 4 × 间隔, 3600 s) + 时钟/边界不确定性，
-  有缺口才额外加 600 s。已校准历史尾部和车辆序列可提供带来源的额外救援；当前没有校准历史。
-  最后取所有窗口候选并集，不截断为 3 个；稀疏 pattern 不能获得私有的 3600 s headway 优惠。
-- **评分。** 对每个候选拟合共享延误过程，计算 8 项成本（见 [§5.3](#53-连续通过时刻评分与共享延误过程)）。
-- **排名。** 按 `(score, candidate_id)` 升序（越低越好），rank 1 为最佳。
-  每个候选都会对照权威的 `scheduled_lookup` 检查硬约束（服务日、route、direction、feed、
-  站序有效性）。所有分项、权重、覆盖率、延误摘要与全部名次都在分配前落盘；第 4 名及以后只用于审计。
-- **内存受控。** 按 worker 数限制并发提交；每个行程的结果写成按哈希命名的分片后立即释放，
-  最后流式合并。之前一次全日运行曾因结果在内存中无限累积被系统以退出码 137 终止，这是修正后的实现。
+- **Four match modes.** `global` uses the whole segment; `early`, `middle`, and `late` split the
+  valid projected travel distance into chronological thirds, not equal-duration thirds. Distance
+  accumulates only positive progress beyond the prior high-water mark between continuous valid
+  points on the same reference and fragment. Rejections, reference/fragment changes, separators
+  and long gaps contribute no connecting distance; jitter is not counted twice. The 1/3 and 2/3
+  boundaries snap forward to real AVL times; ties belong to the later third and sparse data can
+  leave a third empty. Zero valid distance gives `NO_EVIDENCE` for partial modes, not a time-based
+  fallback. APC scoring intervals are clipped without prorating counts; shared segmentation and
+  exported source visit times do not change. Each mode retrieves and fits **independently**,
+  sharing no shortlist or delay result.
+- **Input firewall.** Scoring inputs have the raw payload, `AvgOTP`, `tatripId`, source date,
+  `OffRoute`, `Delayed`, and `Run` removed.
+- **Retrieval (high recall).** Build a shared confusability class from local geometry, valid
+  progress range and reliable observed APC stop order, not exact `pattern_id` equality. The hard
+  stop-order filter uses only in-window APC with confidence ≥ 0.5. Keep top 12 or "best + 1.0"
+  per window/class; protect the nearest occurrence and immediate predecessor/successor, including
+  simultaneous ties, from top-K truncation, plus 3 configured rescue-neighbor levels. Core buffer
+  is 2 × shared local headway; rescue is max(core, 4 × headway, 3600 s) plus clock/boundary
+  uncertainty and 600 s only when a gap exists. Validated historical tails or vehicle-sequence
+  evidence can add provenance-bound rescue; no calibrated history is currently configured.
+  Union candidates across windows without truncating to 3. Sparse patterns receive no private
+  3600-second headway privilege.
+- **Scoring.** Fit a shared delay process per candidate and compute 8 cost components
+  (see [§5.3](#53-continuous-passage-scoring-and-the-shared-delay-process)).
+- **Ranking.** Ascending `(score, candidate_id)` (lower is better), with rank 1 the best. Every
+  candidate is checked against the authoritative `scheduled_lookup` for hard constraints (service
+  date, route, direction, feed, valid stop order). All components, weights, coverage, delay
+  summaries, and every rank are persisted before assignment; rank 4 and below are audit-only.
+- **Bounded memory.** Submissions are capped at the worker count; each trip's result is written as
+  a hash-named shard and released immediately, then the shards are stream-concatenated. An earlier
+  full-day run was killed by the system with exit code 137 because results accumulated in memory
+  without bound; this is the corrected implementation.
 
-### 4.8 `assign_scheduled`：三轮锁定的单调一对一分配
+### 4.8 `assign_scheduled`: three locked rounds of monotone one-to-one assignment
 
-- **分组：** `(service_date, route_id, direction_id, gtfs_feed_version)` × 匹配模式，模式之间互不占用。
-- **顺序：** 实际顺序按 `(actual_start_t, trip_id_performed)`；计划顺序按
-  `(计划开始服务秒, trip_id_scheduled)`，超过 24 小时的值不折回。
-- **三轮：** 第 r 轮（r = 1, 2, 3）只让尚未锁定的行程提出其第 r 名候选；在可行提案中选出
-  **严格单调、基数最大**的链，锁定后不再更改。算法细节见 [§5.4](#54-三轮锁定单调分配)。
-- **输出：** 每个"行程 × 模式"一行：`ASSIGNED` 或 `UNMATCHED`（`trip_id_scheduled` 为真正的空值），
-  并附非互斥的原因列表：`NO_CANDIDATES`、`TOP3_EXHAUSTED`、`LOST_SAME_SCHEDULE_CONFLICT`、
-  `CANDIDATE_ALREADY_USED`、`VIOLATED_LOWER_ORDER_BOUND`、`VIOLATED_UPPER_ORDER_BOUND`、
-  `CROSSED_CURRENT_ROUND_ASSIGNMENT`、`INVALID_GTFS_REFERENCE`。
-- **不设分数阈值。** 按需求，Experiment 05 不沿用 04c 的置信门槛：任何可行的前三名候选都可以被分配。
-  分配阶段不会重算分数或名次，运行前后会校验 `candidate_rankings.parquet` 的哈希未被改动。
+- **Groups:** `(service_date, route_id, direction_id, gtfs_feed_version)` × match mode. Modes
+  never share occupancy.
+- **Order:** actual order by `(actual_start_t, trip_id_performed)`; scheduled order by
+  `(scheduled start in service seconds, trip_id_scheduled)`, with values past 24 hours never wrapped.
+- **Three rounds:** in round r (r = 1, 2, 3), only still-unlocked trips propose their rank-r
+  candidate. Among feasible proposals, the **strictly monotone, maximum-cardinality** chain is
+  chosen and locked for good. Details in [§5.4](#54-three-locked-rounds-of-monotone-assignment).
+- **Output:** one row per trip × mode, `ASSIGNED` or `UNMATCHED` (with a genuinely null
+  `trip_id_scheduled`), plus a non-exclusive reason list: `NO_CANDIDATES`, `TOP3_EXHAUSTED`,
+  `LOST_SAME_SCHEDULE_CONFLICT`, `CANDIDATE_ALREADY_USED`, `VIOLATED_LOWER_ORDER_BOUND`,
+  `VIOLATED_UPPER_ORDER_BOUND`, `CROSSED_CURRENT_ROUND_ASSIGNMENT`, `INVALID_GTFS_REFERENCE`.
+- **No score threshold.** As requested for Experiment 05, 04c's confidence gates are not applied:
+  any feasible top-3 candidate can be assigned. Assignment never recomputes scores or ranks; the
+  hash of `candidate_rankings.parquet` is checked before and after to prove it was not modified.
 
-这是 Experiment 05 的运营假设，不是 TIDES 的约束：TIDES v1.0 允许一个 scheduled trip
-对应多个 performed trips。当前一对一策略可能拒绝换车或拆成多段的真实运行；`ASSIGNED`
-也不等于评分器经过校准的 `MATCHED`。未分配的实际行程仍可合法导出，计划字段留空。
+This is an Experiment 05 operating assumption, **not a TIDES requirement**. TIDES v1.0 allows
+multiple performed trips per scheduled trip. One-to-one assignment can reject real vehicle
+substitutions or split observations. `ASSIGNED` is not a calibrated scorer `MATCHED` verdict;
+unassigned performed trips remain valid exports with null scheduled fields.
 
-### 4.9 `map_tides`：每种模式一个 TIDES 包
+### 4.9 `map_tides`: one TIDES package per mode
 
-见 [§6](#6-tides-输出契约)。只读取 29 路的观测；每个模式的包与本次运行、配置、模式和全部上游阶段哈希
-绑定（`run_binding`）。
+See [Section 6](#6-tides-output-contract). Only route-29 observations are read. Each mode's
+package is bound to this run, its configuration, the mode, and all upstream stage hashes
+(`run_binding`).
 
-### 4.10 `validate_publish`：全局不变量
+### 4.10 `validate_publish`: global invariants
 
-检查项独立于分数和个案结果，包括：
+The checks are independent of scores and individual outcomes:
 
-- 源行身份守恒（原始行数 = 最终行数，`rid` 集合一致），原始载荷未被修改，`rid` 与文件哈希、行号一致；
-- 原始 AVL/APC 文件、GTFS 压缩包、feed manifest 的哈希与初始化时一致；
-- `trip_id_performed` 唯一，所有行程外键可解析；有效范围落在原始范围之内，截尾审计字段齐全；
-  截尾尾段不作为匹配证据；轨迹点都满足 100 m 投影门控；APC 没有被当作轨迹点；
-- 候选名次从 1 连续且与 `(score, candidate_id)` 顺序一致，所有分数有限；
-- 每个"行程 × 模式"恰好一条分配记录；已分配的必须来自合法的前三名候选；
-  组内计划班次唯一，并且**全局**严格单调（包括同一轮内部）；
-- 每个模式的 TIDES 包校验通过，`trips_performed.csv` 中的计划关联与分配表完全一致；
-- 所有已完成阶段的输出哈希在发布前仍未变化。
+- source-row identity is conserved (raw row count = final row count, identical `rid` sets), raw
+  payloads are unmodified, and each `rid` agrees with its file hash and row number;
+- the raw AVL/APC files, GTFS archive, and feed manifest still hash to their initialization values;
+- `trip_id_performed` is unique and every trip foreign key resolves; effective extents lie inside
+  raw extents and censoring audit fields are complete; censored tails are not matching evidence;
+  every trajectory point satisfies the 100 m projection gate; APC never appears as a trajectory point;
+- candidate ranks run consecutively from 1 and agree with `(score, candidate_id)` order, and every
+  score is finite;
+- there is exactly one assignment row per trip × mode; every assignment comes from a legal top-3
+  candidate; within a group, scheduled trips are unique and **globally** strictly monotone
+  (including within a round);
+- every mode's TIDES package validates, and the scheduled associations in `trips_performed.csv`
+  equal the assignment table exactly;
+- the outputs of every completed stage still match their recorded hashes before publication.
 
 ---
 
-## 5. 核心算法
+## 5. Core algorithms
 
-### 5.1 线性参考：把二维轨迹变成 `s(t)`
+### 5.1 Linear referencing: turning 2-D tracks into `s(t)`
 
-每条规范 reference 是一条带里程（米）的折线。GPS 点投影后得到进度 `s`、横向距离 `ℓ`
-和切线方向；GTFS 站点通过单调站序动态规划嵌入同一条 reference。此后所有比较都在
-`(s, t)` 平面上进行：观测轨迹是 `s(t)` 曲线，计划班次是由 `stop_times` 构成的单调阶梯折线。
+Each canonical reference is a polyline measured in metres. A projected GPS point gets progress
+`s`, lateral distance `ℓ`, and a tangent direction; GTFS stops are embedded on the same reference
+by a monotone stop-order dynamic program. Every later comparison happens in the `(s, t)` plane:
+the observed track is an `s(t)` curve, and a scheduled trip is a monotone step polyline built from
+`stop_times`.
 
-### 5.2 序列投影：带跳过状态的 beam Viterbi
+### 5.2 Sequence projection: beam Viterbi with skip states
 
 ```text
-候选：对每个 GPS 点 i，在每条 reference 上取 500 m 内最多 6 个投影候选 c
-      （进度 s_c、横向距离 ℓ_c、切线方向 θ_c）
+Candidates: for each GPS point i, on each reference, up to 6 projection candidates c within 500 m
+            (progress s_c, lateral distance ℓ_c, tangent direction θ_c)
 
-发射代价
+Emission cost
   E(i, c) = (ℓ_c / 25 m)²
-          + 2 · (航向误差 / 90°)²     仅当速度 ≥ 5 km/h 且 heading 有效
-          + 4                        若 Destination 方向词与 reference 方向矛盾
+          + 2 · (heading error / 90°)²   only when speed ≥ 5 km/h and heading is valid
+          + 4                            if the Destination direction word contradicts the reference
 
-转移可行性（相对上一个被接受的点）
+Transition feasibility (relative to the last accepted point)
   Δt ≥ 0,  Δs ≥ −35 m,  Δs ≤ 36.1 m/s · Δt + 20 m
-转移代价
-  ((−Δs) / 35 m)²                   仅当 Δs < 0（允许的轻微倒退）
+Transition cost
+  ((−Δs) / 35 m)²                        only when Δs < 0 (tolerated slight backtracking)
 
-跳过状态
-  每跳过一个点 +50，且保留"最后被接受点"的真实时间，
-  这样剔除孤立跳点不会缩短后续速度约束所用的时间间隔
-重新起始
-  转移不可行时，只有 Δt ≥ 60 s 才允许重启（再 +50），并记录 sequence_restart
+Skip states
+  +50 per skipped point, keeping the real time of the last accepted point, so removing an
+  isolated spike never shortens the interval used by the next speed constraint
+Restart
+  an infeasible transition may restart only when Δt ≥ 60 s (another +50), recorded as sequence_restart
 
-beam 宽度 12；按（时间, 进度）去重；投影质量 = exp(−min(E, 100) / 8)，
-缺少航向时再乘 0.8
+Beam width 12; deduplicated by (time, progress); projection quality = exp(−min(E, 100) / 8),
+multiplied by 0.8 when heading is missing
 
-门控与选择
-  先不设门控求最优路径；若路径用到横向距离 > 100 m 的点，只在门控内候选上重搜并整条采用
-  点在多条 reference 上都被接受时，取  路径平均代价 − ln(质量) / 4  最小者
+Gating and selection
+  first find the best ungated path; if it uses any point with lateral distance > 100 m,
+  rerun on in-gate candidates only and adopt that path whole
+  when a point is accepted on several references, pick the minimum of  mean path cost − ln(quality) / 4
 ```
 
-### 5.3 连续通过时刻评分与共享延误过程
+### 5.3 Continuous passage scoring and the shared delay process
 
-**计划轨迹不重采样。** 对候选班次 k，站间运动段是"上一站 departure → 下一站 arrival"的线性段；
-停站是固定 `s` 上的时间区间 `[arrival, departure]`。在任意进度 `s` 处，计划通过时刻是一个区间
-`[a_k(s), b_k(s)]`（运动段上 `a = b`），查询复杂度 O(log n)。
+**The schedule is never resampled.** For candidate trip k, each inter-stop movement segment is a
+straight line from one stop's departure to the next stop's arrival; each dwell is a time interval
+`[arrival, departure]` at fixed `s`. At any progress `s`, the scheduled passage is an interval
+`[a_k(s), b_k(s)]` (with `a = b` on movement segments), queried in O(log n).
 
-**残差是区间而不是点。** 观测 `(t_i, s_i)` 的残差为
+**Residuals are intervals, not points.** For an observation `(t_i, s_i)` the residual is
 
 ```text
 r_i = [ t_i − b_k(s_i),  t_i − a_k(s_i) ]
 ```
 
-延误状态落在区间内时代价为 0，不需要在到站和离站之间任意取一个。
+A delay state inside the interval costs nothing, so there is no need to pick arrival or departure
+arbitrarily.
 
-**每个（行程, 候选）只拟合一条延误过程 `d(t)`**，局部窗口不能各自平移。求解方法是 IRLS
-（迭代重加权最小二乘），法方程为三对角矩阵，复杂度 O(n)。目标函数的结构如下（示意）：
+**Each (trip, candidate) pair fits exactly one delay process `d(t)`**; local windows cannot shift
+it independently. It is solved by IRLS (iteratively reweighted least squares) with tridiagonal
+normal equations, in O(n). The objective has this structure (schematic):
 
 ```text
-  Σ_i  w_i · Huber( dist(d(t_i), r_i) / σ_i )             条件拟合
-+ λ_prior  · Prior(d)                                     运营延误先验
-+ λ_smooth · Σ_j Huber( (d_{j+1} − d_j) / 尺度 )          平滑
-约束：|Δd| ≤ 0.95 · Δt + 0.5 · |Δs|；延误恢复（下降）速率上限 3 s/s
+  Σ_i  w_i · Huber( dist(d(t_i), r_i) / σ_i )             conditioned fit
++ λ_prior  · Prior(d)                                     operational delay prior
++ λ_smooth · Σ_j Huber( (d_{j+1} − d_j) / scale )         smoothness
+subject to |Δd| ≤ 0.95 · Δt + 0.5 · |Δs|; delay recovery (decrease) rate at most 3 s/s
 ```
 
-- `w_i` 是时间支持（梯形积分，同一时刻的点共享支持）乘以投影质量，**不按 GPS 点数计票**；
-- `σ_i` 合并计划不确定性（timepoint 30 s、非 timepoint 90 s、插值 30 s）、投影误差、
-  停站或终点状态以及观测缺口；超过 90 s 的缺口会断开状态连接；
-- 状态定义在互不重叠的 60 s 物理时间原子上，动态项不会随采样密度增加。
+- `w_i` is temporal support (trapezoidal integration; points at the same instant share support)
+  times projection quality — **GPS points are not counted as votes**;
+- `σ_i` combines schedule uncertainty (timepoint 30 s, non-timepoint 90 s, interpolation 30 s),
+  projection error, stop or terminal state, and observation gaps; gaps longer than 90 s break the
+  state chain;
+- states live on non-overlapping 60 s physical-time atoms, so the dynamics term does not grow with
+  sampling density.
 
-**8 项成本**（原始分项 × 权重 = 贡献，总分 = 贡献之和，越低越好，**不是概率**）：
+**Eight cost components** (raw component × weight = contribution; score = sum of contributions;
+lower is better; **not a probability**):
 
-| 分项 | 权重 | 含义 |
+| Component | Weight | Meaning |
 |---|---:|---|
-| `absolute_delay_level_cost` | 1.0 | 延误水平在运营上是否合理（见下方运营先验） |
-| `conditioned_fit_cost` | 1.0 | 扣除共享延误后，按时间不确定性归一化的稳健残差 |
-| `delay_dynamics_cost` | 0.5 | 延误随时间和进度变化的物理合理性 |
-| `APC_stop_time_cost` | 0.5 | APC 服务区间与同一延误修正后的计划停站区间是否相容 |
-| `projection_and_coverage_cost` | 2.0 | 横向残差 + 丢失的投影时长比例 + 丢失的计划对齐比例 |
-| `pattern_progress_cost` | 1.0 | 航向、方向先验、进度倒退、未服务站点、关键站点矛盾 |
-| `occurrence_displacement_cost` | 1.0 | 为解释观测需要"跨过"多少个可混淆的相邻班次（04c 新增） |
-| `vehicle_sequence_cost` | 0.0 | 预留；车辆全天序列只作影子注释，不参与本次决策 |
+| `absolute_delay_level_cost` | 1.0 | Whether the delay level is operationally plausible (see the operational prior below) |
+| `conditioned_fit_cost` | 1.0 | Robust residual after removing the shared delay, normalized by time uncertainty |
+| `delay_dynamics_cost` | 0.5 | Physical plausibility of how delay changes over time and progress |
+| `APC_stop_time_cost` | 0.5 | Whether APC service intervals are compatible with scheduled stop intervals corrected by the same delay |
+| `projection_and_coverage_cost` | 2.0 | Lateral residual + share of projected time lost + share of schedule alignment lost |
+| `pattern_progress_cost` | 1.0 | Heading, direction prior, backtracking, unserved stops, contradicted key stops |
+| `occurrence_displacement_cost` | 1.0 | How many confusable neighboring trips must be "crossed" to explain the observations (new in 04c) |
+| `vehicle_sequence_cost` | 0.0 | Reserved; the whole-day vehicle sequence is a shadow annotation only and does not affect decisions |
 
-**三层覆盖率恒等式。** 分别按点数和按真实时长计算：
+**Three-level coverage identity.** Computed both by point count and by real duration:
 
 ```text
-projection  = 有效投影 / 全部空间观测
-schedule    = 获得计划支持的有效投影 / 有效投影
-end_to_end  = 获得计划支持的有效投影 / 全部空间观测
-满足  projection × schedule = end_to_end
+projection  = valid projected / all spatial observations
+schedule    = schedule-supported valid projected / valid projected
+end_to_end  = schedule-supported valid projected / all spatial observations
+with  projection × schedule = end_to_end
 ```
 
-每层都显式记录分子与分母，分母不会因为评分失败而缩小。
+Every level records its numerator and denominator explicitly, and denominators never shrink when
+scoring fails.
 
-**运营延误先验（04c）。** 使用非对称双侧 Student-t（3 自由度）混合分布：
-常态成分的提前/晚点尺度为 120 s / 300 s，扰动成分为 600 s / 1800 s，扰动权重 0.05。
-成本为相对众数的负对数密度差。所有竞争候选共用同一个由观测上下文决定的先验，
-**不使用候选自身的发车间隔**，避免"更稀疏的 pattern 更容易容纳大延误"。
-这些参数是明确标注的工程假设，不是校准后的概率。
+**Operational delay prior (04c).** An asymmetric two-piece Student-t mixture (3 degrees of
+freedom): the routine component has early/late scales of 120 s / 300 s, the disruption component
+600 s / 1800 s, with disruption weight 0.05. The cost is the negative log-density relative to the
+mode. All competing candidates share one prior determined by the observed context, and **a
+candidate's own headway is not an input**, so sparser patterns cannot absorb large delays more
+cheaply. These parameters are explicitly labeled engineering assumptions, not calibrated
+probabilities.
 
-**班次位移（04c）。** 在当前观测的 `s` 范围内，按几何与观测到的有序站点构建共同的可混淆班次集合：
+**Occurrence displacement (04c).** Within the observed `s` range, a common class of confusable
+trips is built from geometry and the observed ordered stops:
 
 ```text
 occurrence_displacement_cost
-  = 跨过的竞争通过次数 × 1
-  + 超出相邻通过时刻中点所围时间单元的秒数 / 局部共同发车间隔 × 1
+  = competing passages crossed × 1
+  + seconds outside the time cell bounded by midpoints to neighboring passages
+    / local common headway × 1
 ```
 
-它把"晚点整整一个发车间隔的前一班"与"准点的本班"区分开，这正是 R1 实验中仅靠区间证据无法做到的。
+It separates "the previous trip running a full headway late" from "this trip on time", which
+interval evidence alone could not do in the R1 experiments.
 
-**决策守卫。** 评分器还会输出 `MATCHED`、`AMBIGUOUS`、`PATTERN_ONLY`、`UNMATCHED` 等状态。
-由于没有独立标签，守卫从不把结果提升为 `MATCHED`，概率保持未校准。Experiment 05 把这些状态
-保存在 `mode_results.parquet` 中，但分配阶段只使用固定排名。
+**Decision guard.** The scorer also emits statuses such as `MATCHED`, `AMBIGUOUS`,
+`PATTERN_ONLY`, and `UNMATCHED`. Without independent labels, the guard never promotes a result
+to `MATCHED`, and probabilities stay uncalibrated. Experiment 05 stores these statuses in
+`mode_results.parquet`, but assignment uses only the frozen ranking.
 
-### 5.4 三轮锁定单调分配
+### 5.4 Three locked rounds of monotone assignment
 
 ```text
-for group in stable_group_order:            # (服务日, route, direction, feed) × 模式
+for group in stable_group_order:            # (service date, route, direction, feed) × mode
     locked = {}
     for r in [1, 2, 3]:
-        proposals = 每个未锁定行程的第 r 名候选
-        拒绝：GTFS 引用不存在或组不一致 / 硬约束失败 / 方向为 UNKNOWN
-              / 计划班次已被占用 / 违反最近已锁定前驱或后继给出的计划顺序上下界
-        在可行提案中求严格递增链（加权最长递增子序列，O(n²)），依次比较：
-            1) 链长最大
-            2) 分数之和最小（用 Fraction 精确求和，避免浮点与输入顺序相关）
-            3) 按实际顺序比较 (score, candidate_id, trip_id_performed) 元组
-        锁定选中者；之前各轮的结果永不改变
-    每个行程输出一行；未分配为真正的空值，并附全部原因
+        proposals = rank-r candidate of every unlocked trip
+        reject: missing GTFS reference or group mismatch / hard constraint failed
+                / UNKNOWN direction / scheduled trip already taken
+                / outside the scheduled-order bounds set by the nearest locked predecessor or successor
+        among feasible proposals, find a strictly increasing chain
+        (weighted longest increasing subsequence, O(n²)), comparing in turn:
+            1) maximum chain length
+            2) minimum score sum (exact Fraction arithmetic, so no float or input-order effects)
+            3) (score, candidate_id, trip_id_performed) tuples in actual order
+        lock the chosen proposals; earlier rounds never change
+    emit one row per trip; unassigned trips get a genuine null and every reason
 ```
 
-**这个约束意味着什么。** 在同一组内，按实际开始时间排序的行程，分配到的计划班次必须按计划开始时间
-严格递增：分配结果中不允许两辆车"交叉"，每个计划班次在一个模式中至多使用一次。这符合先到先发的
-运营直觉，并能消除相邻班次互相抢占的问题。代价是：遇到串车或超车，或者行程因数据缺口从中途开始
-（实际开始时间晚于其计划发车）时，正确候选可能被判为 `CROSSED_CURRENT_ROUND_ASSIGNMENT` 或越界而被拒，
-这类情形需要借助 `assignment_audit` 复核。
+**What this constraint implies.** Within a group, trips ordered by actual start time must receive
+scheduled trips in strictly increasing scheduled start order: no two vehicles may "cross" in the
+result, and each scheduled trip is used at most once per mode. This matches first-in-first-out
+operations and removes adjacent trips stealing each other's matches. The cost: with bunching or
+overtaking, or when a trip starts mid-route because of a data gap (its actual start is later than
+its scheduled departure), the correct candidate can be rejected as
+`CROSSED_CURRENT_ROUND_ASSIGNMENT` or as out of bounds. Such cases need review through
+`assignment_audit`.
 
-### 5.5 平台段与右截尾
+### 5.5 Plateaus and right-censoring
 
-问题：车辆在终点或中途长时间静止时，GPS 仍在上报，这段"平的 `s(t)`"如果全部参与评分，
-可以被任意大的延误"解释"掉，从而扭曲匹配。`plateau.py` 在投影之后、APC 挂接与计划匹配之前运行，
-它只会**缩短证据范围**，不会选择计划班次，也不会生成新的行程 ID。
+The problem: when a vehicle sits still for a long time at a terminal or mid-route, GPS keeps
+reporting. If this "flat `s(t)`" is scored in full, an arbitrarily large delay can "explain" it and
+distort the match. `plateau.py` runs after projection and before APC attachment and schedule
+matching. It can only **shorten the evidence extent**; it never picks a scheduled trip and never
+creates a new trip ID.
 
-**状态（基于不重叠的 60 s 原子窗口）：**
+**States (on non-overlapping 60 s atomic windows):**
 
-| 状态 | 含义 |
+| State | Meaning |
 |---|---|
-| `NORMAL` | 正常行进，或静止尚未达到持续时长 |
-| `STATIONARY_PLATEAU` | 原始坐标静止（半径 ≤ 25 m）且规范进度停滞（范围 ≤ 30 m） |
-| `TERMINAL_LAYOVER` | 持续静止并接近有效终点或短线折返点（150 m） |
-| `LONG_MIDROUTE_STOP` | 持续的途中停车，不自动截尾 |
-| `FROZEN_TELEMETRY` | ≥ 8 个完全相同的坐标与上报速度矛盾，只判定为遥测故障 |
-| `OFF_REFERENCE_MOVING` | 原始坐标在移动，但没有有效 reference 支持 |
-| `REFERENCE_MISMATCH` | 当前 reference 的进度不动，而原始位置或另一条 reference 显示在前进 |
-| `RECOVERED_AFTER_PLATEAU` | 之后恢复了连续的有效行进，保留原段 |
-| `RIGHT_CENSORED_TAIL` | 下列条件**全部**满足后，截去尾段 |
+| `NORMAL` | Normal progress, or stillness not yet long enough |
+| `STATIONARY_PLATEAU` | Raw coordinates still (radius ≤ 25 m) and canonical progress flat (range ≤ 30 m) |
+| `TERMINAL_LAYOVER` | Sustained stillness near a valid terminal or short-turn point (150 m) |
+| `LONG_MIDROUTE_STOP` | A sustained mid-route stop; not censored automatically |
+| `FROZEN_TELEMETRY` | ≥ 8 identical coordinates contradicted by the reported speed; judged a telemetry fault only |
+| `OFF_REFERENCE_MOVING` | Raw coordinates move but no valid reference supports them |
+| `REFERENCE_MISMATCH` | Progress on the current reference is flat while the raw position or another reference shows movement |
+| `RECOVERED_AFTER_PLATEAU` | Continuous valid progress resumes afterwards; the segment is kept |
+| `RIGHT_CENSORED_TAIL` | The tail is censored only when **all** conditions below hold |
 
-**截尾的必要条件：** (1) 静止或遥测冻结的证据成立；(2) 已检查全部 reference，而不只是当前方向；
-(3) 原始位置与规范进度都接近有效终点（包括所有计划班次的首末站，因此能覆盖短线折返）；
-(4) 没有时间缺口、模糊时间或之后的恢复；(5) 没有未解释的 APC 服务
-（同地点的有效上下客会把静止起点后移到最后一次 APC 离站）；(6) 静止持续时长达到
+**Necessary conditions for censoring:** (1) evidence of stillness or frozen telemetry; (2) all
+references were checked, not only the current direction; (3) both the raw position and canonical
+progress are near a valid terminal (including the first and last stops of every scheduled trip,
+which covers short turns); (4) no time gap, ambiguous time, or later recovery; (5) no unexplained
+APC service (valid boardings/alightings at the same location push the idle start to the last APC
+departure); (6) the stillness lasts at least
 
 ```text
-min(1800 s, max(600 s, 局部发车间隔 × 1.5 + 300 s))
+min(1800 s, max(600 s, local headway × 1.5 + 300 s))
 ```
 
-并有足够的连续观测覆盖 900 s 的恢复前瞻；(7) **反事实否决**：对每个仍适合检验的高召回 GTFS 假设，
-只用平台**之前**的真实、单调观测拟合延误，然后按最保守的时钟
+with enough continuous observation to cover a 900 s recovery look-ahead; (7) **counterfactual
+veto**: for every high-recall GTFS hypothesis still fit to test, delay is fitted using only real,
+monotone observations **before** the plateau, and the most conservative clock
 
 ```text
 t_schedule = t_observed − (delay_before_plateau + uncertainty + 0.1 · time_since_plateau)
 ```
 
-推算"按计划此时应到达的 `s`"。只有所有假设的推进量都 ≥ 250 m 时才允许截尾；
-一个仍能解释停站的长计划 dwell 就足以否决；没有可靠前序数据的假设会让结果弃判。
+gives the `s` the vehicle "should have reached by now". Censoring is allowed only if every
+hypothesis advances by at least 250 m. A single long scheduled dwell that still explains the stop
+is enough to veto, and a hypothesis without reliable prior data makes the decision abstain.
 
-截尾后只保留一个真实 AVL 端点和相关的 APC 区间，其余平台点标记为 `censored_tail = true`、
-`exclude_from_matching = true`，但仍保留在诊断中。`physical_trip_end_confirmed` 始终为 `false`：
-这里确认的是**证据适用范围**，而不是车辆实际结束了服务。
+After censoring, only one real AVL endpoint and the relevant APC intervals are kept; the other
+plateau points are marked `censored_tail = true` and `exclude_from_matching = true` but remain in
+diagnostics. `physical_trip_end_confirmed` is always `false`: what is confirmed is the **extent of
+usable evidence**, not that the vehicle actually ended service.
 
 ---
 
-## 6. TIDES 输出契约
+## 6. TIDES output contract
 
-**规范版本。** TIDES v1.0，固定到上游 commit `b2cb23178e00cb58dbdb1b9a5a8626818278ecbb`。
-原始 schema、package profile、Table Schema 引用、CC-BY-4.0 署名及其校验和都 vendored 在
-`schemas/experiment05/tides-v1/`，运行时逐文件核对哈希，运行期间不下载 schema。
+**Specification version.** TIDES v1.0, pinned to upstream commit
+`b2cb23178e00cb58dbdb1b9a5a8626818278ecbb`. The original schemas, package profile, Table Schema
+reference, CC-BY-4.0 attribution, and their checksums are vendored in
+`schemas/experiment05/tides-v1/`, verified file by file at runtime, and never downloaded during a run.
 
-### 6.1 包内文件
+### 6.1 Package contents
 
 ```text
 tides/<match_mode>/
-  datapackage.json          # profile 固定到上述 commit；每个资源带 sha256；标题与描述声明"推断的研究数据"
+  datapackage.json          # profile pinned to the commit above; sha256 per resource; title/description declare "inferred research data"
   trips_performed.csv
   vehicle_locations.csv
   stop_visits.csv
-  passenger_events.csv     # 当前显式 departure-proxy 策略；无合法事件时不写
+  passenger_events.csv     # current explicit departure-proxy policy; absent if no valid events
   vehicles.csv
-  schemas/                  # 包内自带的 TIDES schema 副本与 vendor.json
-  diagnostics.json          # 溯源、省略原因、行程观测包络（不是 TIDES 资源）
+  schemas/                  # the package's own copy of the TIDES schemas and vendor.json
+  diagnostics.json          # lineage, omission reasons, trip observation envelopes (not a TIDES resource)
   validation_report.json
   summary.json
-  completion.json           # 完成标记、run_binding、全部文件哈希
+  completion.json           # completion marker, run_binding, every file hash
 ```
 
-`devices.csv` 在当前配置下不写出。`passenger_events.csv` 的策略与假设写入包内元数据及诊断。
+`devices.csv` is not written under the current configuration. Passenger-event policy and
+assumptions are recorded in package metadata and diagnostics.
 
-### 6.2 字段映射
+### 6.2 Field mapping
 
-**`trips_performed`**（主键 `service_date` + `trip_id_performed`）
+**`trips_performed`** (primary key `service_date` + `trip_id_performed`)
 
-| 字段 | 取值 | 说明 |
+| Field | Value | Notes |
 |---|---|---|
-| `service_date` | 所选日期 | `YYYY-MM-DD` |
-| `trip_id_performed` | 稳定哈希 | 见 [§4.5](#45-segment_trips切分实际执行的行程) |
-| `vehicle_id` | 源车辆编号 | 字符串，保留前导零 |
-| `trip_id_scheduled` | 三轮分配结果 | 未分配时为真正的空值 |
-| `route_id` | 分配班次的 GTFS `route_id`；未分配时为所选 feed 的 29 路 `route_id` | 与 GTFS 版本相关 |
-| `direction_id` | 分配班次的方向；未分配时为投影方向 | `UNKNOWN` 导出为空 |
-| `shape_id`、`block_id` | 分配班次的 GTFS 字段 | `block_id` 来自 GTFS，而不是源数据 |
-| `schedule_trip_start` / `schedule_trip_end` | 分配班次首站 departure / 末站 arrival | UTC |
-| `schedule_relationship` | 已分配为 `Scheduled`，否则为空 | 未分配**不等于** `Added`、`Canceled` 或 `Missing` |
-| `actual_trip_start` / `actual_trip_end` | 空 | 观测包络不等于起点发车或终点到达事件 |
-| `route_type`、`ntd_mode`、`pattern_id`、`operator_id`、`trip_start_stop_id`、`trip_end_stop_id`、`trip_type` | 空 | 源数据没有依据，或尚未推导 |
+| `service_date` | The selected date | `YYYY-MM-DD` |
+| `trip_id_performed` | Stable hash | See [§4.5](#45-segment_trips-performed-trip-segmentation) |
+| `vehicle_id` | Source vehicle ID | String, leading zeros kept |
+| `trip_id_scheduled` | Three-round assignment result | Genuine null when unassigned |
+| `route_id` | GTFS `route_id` of the assigned trip; otherwise route 29's `route_id` in the selected feed | Version-specific |
+| `direction_id` | Direction of the assigned trip; otherwise the projected direction | `UNKNOWN` exported as null |
+| `shape_id`, `block_id` | GTFS fields of the assigned trip | `block_id` comes from GTFS, not from the source data |
+| `schedule_trip_start` / `schedule_trip_end` | First-stop departure / last-stop arrival of the assigned trip | UTC |
+| `schedule_relationship` | `Scheduled` when assigned, otherwise null | Unassigned **does not mean** `Added`, `Canceled`, or `Missing` |
+| `actual_trip_start` / `actual_trip_end` | Null | The observation envelope is not an origin departure or destination arrival event |
+| `route_type`, `ntd_mode`, `pattern_id`, `operator_id`, `trip_start_stop_id`, `trip_end_stop_id`, `trip_type` | Null | Unsupported by the sources or not yet derived |
 
-**`vehicle_locations`**（主键 `location_ping_id`）
+**`vehicle_locations`** (primary key `location_ping_id`)
 
-| 字段 | 取值 |
+| Field | Value |
 |---|---|
-| `location_ping_id` | 源行 `rid` |
-| `event_timestamp` | UTC ISO-8601（`Z` 后缀） |
-| `vehicle_id` | 源车辆编号 |
-| `latitude`、`longitude` | 原始 GPS（不使用投影后的坐标） |
-| `heading` | 原始值，不重算 |
-| `speed` | `KPH ÷ 3.6`，单位 m/s |
-| `service_date`、`trip_id_performed`、`trip_id_scheduled` | 由行程归属得到 |
-| 其余字段（`device_id`、`stop_id`、`current_status`、`trip_stop_sequence`、`gps_quality`、`odometer`、`schedule_deviation` 等） | 空 |
+| `location_ping_id` | Source-row `rid` |
+| `event_timestamp` | UTC ISO-8601 (`Z` suffix) |
+| `vehicle_id` | Source vehicle ID |
+| `latitude`, `longitude` | Raw GPS (projected coordinates are not used) |
+| `heading` | Raw value, not recomputed |
+| `speed` | `KPH ÷ 3.6`, in m/s |
+| `service_date`, `trip_id_performed`, `trip_id_scheduled` | From trip membership |
+| Other fields (`device_id`, `stop_id`, `current_status`, `trip_stop_sequence`, `gps_quality`, `odometer`, `schedule_deviation`, …) | Null |
 
-写出范围是具有合法时间和坐标的 29 路 AVL 行，包括 `OFF_REFERENCE` 与重复行；
-不因未匹配而删除 GPS。无有效时间或坐标的行保留于上游和诊断，不写入此资源。
-当前 APC 没有真实车辆 GPS，不被制造成 `vehicle_locations`。
+Route-29 AVL with valid time and coordinates is written, including `OFF_REFERENCE` and duplicate
+rows. Unmatched status does not delete GPS. Invalid time/coordinates remain upstream and in
+diagnostics, not this resource. Current APC has no genuine vehicle GPS and is not manufactured
+into `vehicle_locations`.
 
-**`stop_visits`**（主键 `service_date` + `trip_id_performed` + `trip_stop_sequence`）
+**`stop_visits`** (primary key `service_date` + `trip_id_performed` + `trip_stop_sequence`)
 
-| 字段 | 取值 |
+| Field | Value |
 |---|---|
-| `trip_stop_sequence` | 行程内按（到站, 离站, `rid`）排序，从 1 开始连续 |
-| `vehicle_id` | 行程车辆 |
-| `stop_id` | APC `StopID`（站码）→ 所选 feed 的 `stop_id` |
-| `actual_arrival_time`、`actual_departure_time` | APC 到站 / 离站时间（UTC） |
-| `dwell` | 离站 − 到站；只有整数秒才写出，否则置空并记录原因（不四舍五入） |
-| `scheduled_stop_sequence`、`schedule_arrival_time`、`schedule_departure_time`、`timepoint` | 当前为空：上游没有建立对最终候选的某次 scheduled stop occurrence 映射；导出器只接受显式且验证过的映射，不用最近站点补造 |
-| `boarding_1`、`alighting_1`、`departure_load` 等客流字段 | 空：APC 是整车计数，门别与粒度都未确认，不能放进 `boarding_1` |
+| `trip_stop_sequence` | Within the trip, ordered by (arrival, departure, `rid`), consecutive from 1 |
+| `vehicle_id` | Trip vehicle |
+| `stop_id` | APC `StopID` (stop code) → `stop_id` in the selected feed |
+| `actual_arrival_time`, `actual_departure_time` | APC arrival / departure times (UTC) |
+| `dwell` | Departure − arrival; written only for whole seconds, otherwise null with a reason (never rounded) |
+| `scheduled_stop_sequence`, `schedule_arrival_time`, `schedule_departure_time`, `timepoint` | Currently null: upstream does not map visits to an occurrence of a stop in the final candidate. The exporter only accepts an explicit, validated mapping, never a nearest-stop guess |
+| `boarding_1`, `alighting_1`, `departure_load`, and other passenger fields | Null: APC counts are whole-vehicle, with unconfirmed door allocation and grain, so they cannot go into `boarding_1` |
 
-**`passenger_events`：显式离站代理策略。** 当前配置为
-`apc_stop_interval_departure_proxy_v1`：把一条通过关联的 APC 行解释为一次停站、人数解释为
-停站累计值。这是用户确认的**研究映射假设**，不是厂商认证，也不是 TIDES 指定的时间规则。
+**`passenger_events`: explicit departure-proxy policy.** The current configuration selects
+`apc_stop_interval_departure_proxy_v1`: an attached APC row is treated as one stop visit and
+counts as visit totals. This is a user-authorized **research mapping assumption**, not a
+vendor certification or a TIDES-prescribed timestamp rule.
 
 | `event_type` | `event_timestamp` | `event_count` |
 |---|---|---|
-| `Vehicle arrived at stop` | APC 到站时间 | 1 |
-| `Vehicle departed stop` | APC 离站时间 | 1 |
-| `Passenger boarded` | APC 离站代理时间 | 正整数累计上车人数 |
-| `Passenger alighted` | APC 离站代理时间 | 正整数累计下车人数 |
+| `Vehicle arrived at stop` | Source APC arrival | 1 |
+| `Vehicle departed stop` | Source APC departure | 1 |
+| `Passenger boarded` | APC departure-time proxy | Positive integer boarding total |
+| `Passenger alighted` | APC departure-time proxy | Positive integer alighting total |
 
-不会生成逐乘客事件；0 人不生成该类事件，缺失不填零，负数或非整数不取整。
-缺原始 APC 溯源或完整合法到离站区间时拒绝并记录原因。事件使用所属 mode 的计划关联，
-未分配则为 null；没有显式计划站次或真实 ping 关联时，`scheduled_stop_sequence`、
-`location_ping_id` 为 null。不猜最近 AVL 点，也不把整车人数放进分门字段。
-`diagnostics.json` 逐事件保留源行、原始区间、`timestamp_is_proxy`、`semantics_assumed`
-与 `measured_individual_passenger_time = false`。GTFS 匹配仍使用 APC 区间，**不使用导出代理时间**。
-旧的 `omit_without_event_semantics` 仍可显式选择；独立导出 API 未传策略时保持旧保守行为。
-详见 [APC 停站与事件策略](experiment05-apc-events.md)。
+No individual passenger events are manufactured. Zero counts emit no event of that type;
+missing values are not zero-filled, and negative/fractional counts are not rounded. Missing APC
+lineage or an incomplete/invalid interval causes rejection with a reason. Events use their
+own mode's scheduled association, or null when unassigned. Without explicit scheduled-stop or
+real ping linkage, `scheduled_stop_sequence` and `location_ping_id` remain null; no nearest AVL
+ping or door is guessed. Per-event diagnostics retain source rows, original intervals,
+`timestamp_is_proxy`, `semantics_assumed` and `measured_individual_passenger_time = false`.
+Matching still uses the APC interval, **not the exported proxy timestamp**. The explicit
+`omit_without_event_semantics` option remains available, and standalone export calls without a
+policy retain the older conservative behavior. See the [APC policy](experiment05-apc-events.md).
 
-**`vehicles`**：去重后的 `vehicle_id`。**`devices`**：省略（`include_devices = false`，源数据也没有设备 ID）。
+**`vehicles`**: distinct `vehicle_id` values. **`devices`**: omitted (`include_devices = false`,
+and the sources have no device IDs).
 
-**空值编码。** CSV 中空单元格即 null，JSON 中使用真正的 `null`；不会输出字符串 `None`、`null` 或 `NA`；
-0 保留为 0。标识符始终是字符串，数值型标识符会被拒绝而不是强制转换。
+**Null encoding.** An empty CSV cell is null and JSON uses real `null`; the strings `None`, `null`,
+or `NA` are never emitted; zero stays zero. Identifiers are always strings, and numeric identifiers
+are rejected rather than coerced.
 
-### 6.3 校验层次
+### 6.3 Validation layers
 
-1. vendored schema 与 `vendor.json` 的 commit、tag 与逐文件 SHA-256 一致；
-2. 每行的列集合与 schema 字段**完全一致**（不能多也不能少）；
-3. 在内存中对每个资源运行 Frictionless schema 校验；
-4. **复合业务外键**（TIDES v1.0 schema 本身不声明 `foreignKeys`，通用校验器无法覆盖）：
-   车辆、设备、`(service_date, trip_id_performed)` 行程键、行程与车辆一致、计划关联一致、
-   停站复合键、`location_ping_id`、GTFS `stop_id`、GTFS 计划班次（以及 route、direction、shape、block 一致性）、
-   停站区间与 dwell 一致、实际站序从 1 开始连续；
-5. 用 Draft-07 校验 `datapackage.json` 是否符合 package profile；
-6. 对**写到磁盘的** CSV 再跑一次 Frictionless 校验；
-7. 先写入私有暂存目录，全部通过后再原子重命名；已存在的输出一律不覆盖。
+1. The vendored schemas and `vendor.json` match the expected commit, tag, and per-file SHA-256;
+2. every row's column set equals the schema fields **exactly** (nothing extra, nothing missing);
+3. each resource passes in-memory Frictionless schema validation;
+4. **composite business foreign keys** (TIDES v1.0 schemas declare no `foreignKeys`, so a generic
+   validator cannot cover them): vehicles, devices, the `(service_date, trip_id_performed)` trip key,
+   trip–vehicle consistency, scheduled-association consistency, the stop-visit composite key,
+   `location_ping_id`, GTFS `stop_id`, GTFS scheduled trips (plus route, direction, shape, and block
+   consistency), stop-visit interval and dwell consistency, and consecutive actual stop sequences
+   starting at 1;
+5. `datapackage.json` is validated against the package profile with Draft-07;
+6. Frictionless runs again on the CSVs **as written to disk**;
+7. everything is written to a private staging directory and atomically renamed only after all checks
+   pass; existing outputs are never overwritten.
 
-上游 shell 校验器的退出码不作为结论，因为它的清理与错误处理可能掩盖失败。
-**结构校验通过并不等于**行程边界、APC 粒度、代理时间精度或计划关联已获独立验证。
-本地的实际站序连续、同一计划班次只分配一次等检查，比 TIDES schema 更严格，属于项目契约，
-不能反过来称为标准要求。正式结构符合性与观测/推断/代理语义必须分别报告。
-当前四模式的独立结构、引用和来源审查 50/50 通过，代理策略重放 24/24 通过；
-结论与限制见 [TIDES 合规性与证据边界审计](experiment05-tides-compliance.md)。
-这不是官方认证或数据授权证明；源码与规范许可证不自动授予原始 AVL/APC/GTFS 的再分发权。
+The upstream shell validator's exit code is not used as a verdict, because its cleanup and error
+handling can mask failures. **Passing structural validation does not independently establish**
+trip boundaries, APC grain, proxy-time precision, or scheduled-association accuracy. Local
+requirements such as consecutive actual stop sequences and one-to-one assignment are stricter
+project contracts, not TIDES requirements. Report formal conformance separately from observed,
+inferred and proxy semantics.
+
+The independent current four-mode structural/reference/lineage audit passed 50/50 checks;
+proxy-policy replay passed 24/24. See the [TIDES evidence-boundary audit](experiment05-tides-compliance.md).
+This is neither official certification nor proof of data permissions: source-code and schema
+licenses do not automatically authorize redistribution of raw AVL/APC or GTFS archives.
 
 ---
 
-## 7. 可复现性、溯源与失败即停
+## 7. Reproducibility, lineage, and fail-closed execution
 
-| 机制 | 做法 |
+| Mechanism | How |
 |---|---|
-| 缓存键 | SHA-256（服务日、公共线路号、所选模式、`pipeline_version`、配置哈希、原始 AVL/APC 哈希、GTFS 压缩包哈希、manifest 哈希、依赖环境哈希） |
-| 代码身份 | `pipeline_version = experiment-05-v1+<16 位哈希>`，由 `tools/experiment05`、`tools/merge_review/gtfs_matching`、`src/ttc_tides`、vendored schema、`pyproject.toml`、`uv.lock` 等文件的哈希计算 |
-| 环境身份 | Python 版本与全部已安装包及其版本 |
-| 阶段固定 | 每个阶段记录输出 SHA-256；运行下一阶段前重新校验全部前置阶段；阶段运行期间代码、配置或环境变化即失败 |
-| 缓存复用 | 只有 `status = complete` 且 `validation_ok` 的运行才会被复用，并且复用前逐文件核对哈希；`--force-rerun` 会新建运行 |
-| 原子写入 | 使用唯一临时文件后重命名；失败的运行保留部分文件，但永远不会成为缓存 |
-| TIDES 包绑定 | `completion.json` 中的 `run_binding` 绑定运行 ID、缓存键、代码、配置、模式与上游阶段哈希，防止跨运行复用包 |
-| 安全 | 拒绝符号链接与路径穿越；运行目录权限 0700、文件 0600；网页只监听本机，不接受任意路径 |
-| 基线快照 | Git tag `pre-experiment-05-20260910`（commit `3809a76`）加 `releases/pre-experiment-05-20260910/` 中带哈希清单的最小复现集 |
+| Cache key | SHA-256 of (service date, public route number, selected modes, `pipeline_version`, config hash, raw AVL/APC hashes, GTFS archive hash, manifest hash, dependency-environment hash) |
+| Code identity | `pipeline_version = experiment-05-v1+<16-hex hash>`, computed from the hashes of `tools/experiment05`, `tools/merge_review/gtfs_matching`, `src/ttc_tides`, the vendored schemas, `pyproject.toml`, `uv.lock`, and related files |
+| Environment identity | Python version plus every installed package and version |
+| Stage pinning | Each stage records its output SHA-256; all prerequisite stages are re-verified before the next stage runs; a code, config, or environment change during a run fails it |
+| Cache reuse | Only runs with `status = complete` and `validation_ok` are reused, after verifying every file hash; `--force-rerun` creates a new run |
+| Atomic writes | Unique temporary files, then rename; a failed run keeps its partial files but never becomes a cache entry |
+| TIDES package binding | `run_binding` in `completion.json` binds the run ID, cache key, code, config, mode, and upstream stage hashes, preventing reuse of a package across runs |
+| Safety | Symlinks and path traversal are rejected; run directories are 0700 and files 0600; the web page listens on localhost only and accepts no arbitrary paths |
+| Baseline snapshot | Git tag `pre-experiment-05-20260910` (commit `3809a76`) plus the hash-inventoried minimal reproduction set in `releases/pre-experiment-05-20260910/` |
 
-**确定性范围：** 输入固定时，业务输出与 ID 必须一致；重新运行只会让运行元数据（时间戳、运行 ID）不同。
+**Scope of determinism:** with fixed inputs, business outputs and IDs must agree; a rerun changes
+only run metadata (timestamps, run ID).
 
 ---
 
-**历史产物可用性。** 已授权的精确清单清理删除了 03d–04c 的 1,252 个可再生 case、overview
-与 episode 文件，共 14,127,707,246 逻辑字节；原始 AVL/APC、GTFS、源码、配置、测试、reviews
-及最小复现快照保留。旧完整 UI 无法直接检查已退役结果，须先重建；保留的旧输出 pins 是历史
-审计记录，不能声称当前全量文件仍通过校验。Experiment 05 不读取这些旧 case，8767 服务当前 05。
-详见 [冻结执行与保留说明](frozen-workbench.md)。
+**Historical availability.** Authorized exact-list cleanup retired 1,252 regenerable 03d–04c
+case, overview and episode files (14,127,707,246 logical bytes). Raw AVL/APC, GTFS, code, config,
+tests, reviews and the minimal reproduction snapshot remain. The old full-result UI requires
+regeneration; retained output pins are historical audit records, not a currently passing full
+inventory. Experiment 05 does not ingest those old cases; port 8767 serves 05. See
+[frozen execution and retention](frozen-workbench.md).
 
-## 8. 实测运行
+## 8. Measured runs
 
-两个服务日均以 29 路、全部四种模式完整运行到 `validate_publish`，状态为 `complete`、
-`validation_ok = true`（运行目录 `run-2023-11-06-2cf05504dfcdf899` 与
-`run-2023-11-20-debe65bd31e3044b`）。以下数字取自各运行的 `run_manifest.json`、`summary.json`
-与阶段输出。它们是**描述性统计**，不是准确率。
+Both service dates ran all four modes for route 29 through `validate_publish`, with
+`status = complete` and `validation_ok = true` (run directories
+`run-2023-11-06-2cf05504dfcdf899` and `run-2023-11-20-debe65bd31e3044b`). The numbers below come
+from each run's `run_manifest.json`, `summary.json`, and stage outputs. They are **descriptive
+statistics**, not accuracy.
 
-### 8.1 阶段 1–6：从原始行到停站证据
+### 8.1 Stages 1–6: from raw rows to stop evidence
 
-| 阶段 | 指标 | 2023-11-06 | 2023-11-20 |
+| Stage | Metric | 2023-11-06 | 2023-11-20 |
 |---|---|---:|---:|
-| 初始化 | 选中的 GTFS 版本（29 路 `route_id`） | `ttc-d092742e6a5b`（70291） | `ttc-de8294439596`（70507） |
-| `load_raw` | 当日 AVL / APC 行（全部线路） | 213,895 / 19,090 | 198,490 / 18,048 |
-| `normalize` | 时间无效（歧义 / 不存在 / 缺失） | 0 | 0 |
-| `event_timeline` | 完全重复的 AVL 行（全部线路） | 36,257 | 34,661 |
-| | 29 路 AVL 行（其中完全重复） | 112,002（19,859） | 100,771（19,019） |
-| | 29 路 APC 行 | 13,862 | 13,064 |
-| `project_avl` | `ON_REFERENCE` / `OFF_REFERENCE` 点 | 90,848 / 1,295 | 80,375 / 1,377 |
-| | 规范 reference 数 | 3 | 3 |
-| `segment_trips` | performed trips（其中右截尾） | 352（0） | 313（1） |
+| Initialize | Selected GTFS version (route 29 `route_id`) | `ttc-d092742e6a5b` (70291) | `ttc-de8294439596` (70507) |
+| `load_raw` | AVL / APC rows that day (all routes) | 213,895 / 19,090 | 198,490 / 18,048 |
+| `normalize` | Invalid time (ambiguous / nonexistent / missing) | 0 | 0 |
+| `event_timeline` | Exact-duplicate AVL rows (all routes) | 36,257 | 34,661 |
+| | Route-29 AVL rows (exact duplicates among them) | 112,002 (19,859) | 100,771 (19,019) |
+| | Route-29 APC rows | 13,862 | 13,064 |
+| `project_avl` | `ON_REFERENCE` / `OFF_REFERENCE` points | 90,848 / 1,295 | 80,375 / 1,377 |
+| | Canonical references | 3 | 3 |
+| `segment_trips` | Performed trips (right-censored) | 352 (0) | 313 (1) |
 | `attach_apc` | `ATTACHED` / `NO_COMPATIBLE_PERFORMED_TRIP` | 13,599 / 263 | 12,764 / 300 |
 
-2023-11-06 的 29 路非重复 AVL 为 92,143 行（= 90,848 + 1,295），APC 为 13,862 行，
-这些计数用于核对当前 raw-to-TIDES 源记录守恒，不构成与历史匹配结果的比较（见 8.4）。
-APC 挂接率为 98.1%（13,599 / 13,862）与 97.7%（12,764 / 13,064），没有出现 `AMBIGUOUS_TRIP_MEMBERSHIP`。
+On 2023-11-06, the non-duplicate route-29 AVL rows number 92,143 (= 90,848 + 1,295) and the APC
+rows 13,862. These counts verify current raw-to-TIDES source conservation, not a comparison
+against historical matching results (see 8.4).
+APC attachment reaches 98.1% (13,599 / 13,862) and 97.7% (12,764 / 13,064), with no
+`AMBIGUOUS_TRIP_MEMBERSHIP`.
 
-### 8.2 阶段 7–8：候选与分配
+### 8.2 Stages 7–8: candidates and assignment
 
-| 指标 | 2023-11-06 | 2023-11-20 |
+| Metric | 2023-11-06 | 2023-11-20 |
 |---|---:|---:|
-| 候选排名行（四模式合计） | 35,157 | 32,108 |
-| 局部窗口证据行 | 4,593,488 | 4,161,683 |
-| 分配提案与审计事件 | 33,846 | 30,833 |
+| Candidate ranking rows (all four modes) | 35,157 | 32,108 |
+| Local window evidence rows | 4,593,488 | 4,161,683 |
+| Assignment proposals and audit events | 33,846 | 30,833 |
 
-| 模式 | 2023-11-06 已分配 / 352 | 第 1 / 2 / 3 轮 | 2023-11-20 已分配 / 313 | 第 1 / 2 / 3 轮 |
+| Mode | 2023-11-06 assigned / 352 | Rounds 1 / 2 / 3 | 2023-11-20 assigned / 313 | Rounds 1 / 2 / 3 |
 |---|---:|---:|---:|---:|
-| `global` | 244（69.3%） | 211 / 32 / 1 | 225（71.9%） | 193 / 23 / 9 |
-| `early` | 246（69.9%） | 223 / 22 / 1 | 227（72.5%） | 203 / 23 / 1 |
-| `middle` | 244（69.3%） | 209 / 28 / 7 | 223（71.2%） | 193 / 25 / 5 |
-| `late` | 227（64.5%） | 203 / 20 / 4 | 215（68.7%） | 190 / 18 / 7 |
+| `global` | 244 (69.3%) | 211 / 32 / 1 | 225 (71.9%) | 193 / 23 / 9 |
+| `early` | 246 (69.9%) | 223 / 22 / 1 | 227 (72.5%) | 203 / 23 / 1 |
+| `middle` | 244 (69.3%) | 209 / 28 / 7 | 223 (71.2%) | 193 / 25 / 5 |
+| `late` | 227 (64.5%) | 203 / 20 / 4 | 215 (68.7%) | 190 / 18 / 7 |
 
-`global` 模式未分配行程的原因（非互斥，一个行程可以有多个原因）：
+Reasons for unassigned trips in `global` mode (non-exclusive; one trip can have several):
 
-| 原因 | 2023-11-06（108 个未分配） | 2023-11-20（88 个未分配） |
+| Reason | 2023-11-06 (108 unassigned) | 2023-11-20 (88 unassigned) |
 |---|---:|---:|
 | `TOP3_EXHAUSTED` | 88 | 74 |
 | `CANDIDATE_ALREADY_USED` | 74 | 66 |
@@ -717,331 +827,393 @@ APC 挂接率为 98.1%（13,599 / 13,862）与 97.7%（12,764 / 13,064），没�
 | `CROSSED_CURRENT_ROUND_ASSIGNMENT` | 16 | 20 |
 | `INVALID_GTFS_REFERENCE` | 12 | 11 |
 
-几点解读：
+What this shows:
 
-- **约 30% 的行程在每个模式下都未分配，主因是冲突而不是没有候选。** 完全没有候选的只有 20 / 14 个；
-  更多行程是因为想要的计划班次已被占用、输掉了同一班次的竞争，或违反了顺序上下界。
-  这说明一对一加单调约束在起主导作用。可能的来源包括：同一次运行被切成了多个片段、
-  非营运移动、串车或超车，以及从中途开始的片段；具体是哪一种需要借助审计表复核，本文不做断言。
-- **分配结果对证据范围敏感。** 四个模式全部分配且给出相同计划班次的行程只有
-  101 / 352（28.7%）和 81 / 313（25.9%）；在 `global` 已分配的行程中，`early` 给出相同班次的比例为
-  161 / 244（66.0%）和 137 / 225（60.9%）。同时发布四个模式的意义正在于此。
-- **没有分数阈值的后果。** `global` 已分配结果的成本中位数为 1.06 / 1.03（P10 约 0.44，P90 约 2.2），
-  但成本中位数不能证明每个结果可靠。当前分配没有绝对质量门槛，消费者必须同时检查分项、
-  证据覆盖与歧义，而不能把 `ASSIGNED` 当成高置信认证。
+- **About 30% of trips stay unassigned in each mode, mostly because of conflicts rather than a lack
+  of candidates.** Only 20 / 14 trips have no candidate at all; more trips lose because the
+  scheduled trip they want is already taken, they lose a contest for the same scheduled trip, or
+  they violate the order bounds. The one-to-one plus monotone constraint dominates. Possible
+  sources include one operating run split into several fragments, non-revenue movement, bunching or
+  overtaking, and fragments that start mid-route; which applies needs review through the audit
+  tables, and this document makes no claim either way.
+- **Assignments are sensitive to the evidence scope.** Only 101 / 352 (28.7%) and 81 / 313 (25.9%)
+  trips are assigned in all four modes with the same scheduled trip. Among trips assigned in
+  `global`, `early` picks the same scheduled trip for 161 / 244 (66.0%) and 137 / 225 (60.9%). This
+  is exactly why all four modes are published.
+- **The consequence of having no score threshold.** Assigned `global` costs have a median of
+  1.06 / 1.03 (P10 about 0.44, P90 about 2.2), but a median cannot certify every assignment.
+  Without an absolute-quality gate, consumers must inspect components, coverage and ambiguity;
+  `ASSIGNED` is not high-confidence certification.
 
-### 8.3 阶段 9–10：TIDES 包
+### 8.3 Stages 9–10: TIDES packages
 
-下表记录上述**原始两日验收的旧保守导出策略**，不是当前 passenger policy 的行数。
-四个模式的行数相同，只有计划关联不同；历史包没有被覆盖。
+The table records the **original two-day acceptance under the old conservative export policy**,
+not current passenger-policy counts. All four modes have the same row counts; only scheduled
+associations differ. Historical packages have not been overwritten.
 
-| 资源 | 2023-11-06 | 2023-11-20 |
+| Resource | 2023-11-06 | 2023-11-20 |
 |---|---:|---:|
-| `trips_performed`（`global` 中带 `trip_id_scheduled` 的行） | 352（244） | 313（225） |
-| `vehicle_locations`（`global` 中带计划关联的行） | 112,002（91,184） | 100,771（85,752） |
+| `trips_performed` (rows with `trip_id_scheduled` in `global`) | 352 (244) | 313 (225) |
+| `vehicle_locations` (rows with a scheduled association in `global`) | 112,002 (91,184) | 100,771 (85,752) |
 | `stop_visits` | 13,599 | 12,764 |
 | `vehicles` | 31 | 29 |
-| `passenger_events`、`devices`（旧策略） | 未写出 | 未写出 |
-| 被省略的乘客事件（语义或时间未确认） | 11,013 | 10,378 |
-| 全流程不变量检查 | 1,459 项，0 失败 | 1,303 项，0 失败 |
+| `passenger_events`, `devices` (old policy) | Not written | Not written |
+| Omitted passenger events (semantics or time unconfirmed) | 11,013 | 10,378 |
+| Pipeline invariant checks | 1,459, 0 failed | 1,303, 0 failed |
 
-在 `global` 包中核对：所有行程的 `actual_trip_start` 均为空；`schedule_relationship` 在已分配时为
-`Scheduled`，其余为空；所有停站都有整数 `dwell`；`boarding_1` 全部为空。这些都与第 6 节的契约一致。
+Checked in the `global` packages: `actual_trip_start` is null for every trip;
+`schedule_relationship` is `Scheduled` when assigned and null otherwise; every stop visit has an
+integer `dwell`; `boarding_1` is always null. All of this matches the contract in Section 6.
 
-**后续版本化事件导出。** 2023-11-06 的 `run-2023-11-06-a39c5491eae9f48b` 采用
-`apc_stop_interval_departure_proxy_v1`，每模式输出 **38,211** 条事件：27,198 条车辆到/离站，
-以及 11,013 条累计上/下车事件。后者的时间是离站代理而非逐乘客测量；每条都可回溯到 APC visit。
-38,211 是事件行数，不是人数；累计上/下车事件的 `event_count` 合计分别为 21,122 / 19,347。
-旧表的“未写出”不适用于这些新包。该 run 的 1,483 项不变量通过，原前八阶段和四类既有 CSV
-保持不变；见本地 [策略验收](../outputs/experiment_05/acceptance/apc-events-policy/acceptance-summary.md)
-与 [导出不变量检查](../outputs/experiment_05/acceptance/apc-events-policy/export-invariance.json)。
-具体身份以 run manifest 为准；2023-11-20 历史包仍保留旧策略，直到显式重跑。
+**Later versioned event export.** November 6 run `run-2023-11-06-a39c5491eae9f48b` uses
+`apc_stop_interval_departure_proxy_v1` and exports **38,211** events per mode: 27,198 vehicle
+arrival/departure events and 11,013 aggregate boarding/alighting events. The latter use a
+departure proxy, not individually measured passenger times; all trace back to APC visits.
+38,211 is an event-row count, not a passenger total. Boarding/alighting `event_count` sums are
+21,122 / 19,347. This run passed 1,483 invariants; its first eight stages and four pre-existing
+CSV resources are unchanged from the earlier run.
+The older table's omissions do not apply to these new packages. That run's manifest pins its
+code, configuration and outputs; the November 20 packages still use the older policy until
+explicitly rebuilt. See the local [policy acceptance report](../outputs/experiment_05/acceptance/apc-events-policy/acceptance-summary.md)
+and [export invariance check](../outputs/experiment_05/acceptance/apc-events-policy/export-invariance.json).
 
-**耗时与资源。** 单日全流程分别约 11.8 分钟和 10.6 分钟。其中候选生成为 479 s 和 419 s，约占三分之二；
-TIDES 映射约 50 s，不变量校验约 30 s，前六个阶段合计约 2 分钟。进程常驻内存约 4 GB（8 个 worker）。
-同配置的前两次运行已被标记为 `ACCEPTANCE_SUPERSEDED`：一次为修正 APC 区间重叠与内存有界问题而主动停止，
-另一次在候选生成时被系统以退出码 137 终止；本节结果来自修正后的实现。
+**Runtime and resources.** A full day takes about 11.8 and 10.6 minutes. Candidate generation
+accounts for 479 s and 419 s — about two thirds; TIDES mapping takes about 50 s, invariant
+validation about 30 s, and the first six stages about 2 minutes combined. Resident memory is about
+4 GB (8 workers). Two earlier runs with the same configuration are marked `ACCEPTANCE_SUPERSEDED`:
+one was stopped deliberately to fix APC interval overlap and memory bounds, and the other was
+killed by the system with exit code 137 during candidate generation; the results in this section
+come from the corrected implementation.
 
-### 8.4 不与 04c 比较
+### 8.4 No comparison with 04c
 
-Experiment 05 从原始数据重新切分，与历史实验的分段不一一对应。本文不做 04c–05 的
-性能、分配率或准确率比较；描述性统计不能代替独立标签评估。
+Experiment 05 re-segments from raw data, so segments do not correspond one to one with historical
+experiments. This document makes no 04c–05 performance, assignment-rate or accuracy comparison;
+descriptive statistics do not replace independent labels.
 
 ---
 
-## 9. 演进历程与教训
+## 9. How we got here
 
-| 阶段 | 时间 | 内容 | 教训 |
+| Phase | When | What | Lesson |
 |---|---|---|---|
-| 前一项目的 notebook 流程 | 2026-08 之前（2026-08-07 记录） | 硬编码 2020 年 29 路北行 shape；在经纬度度数空间用 KD-tree 找最近顶点，覆盖原始坐标；用预先生成、来源不明的 `TripID` 做无容差的 `merge_asof`；把 `25:10` 改写为 `01:10`（[方法记录](previous_proj_data_integration_methodology.md)） | 身份、时间和几何的契约必须显式、可复现；不能依赖来路不明的清洗产物 |
-| GTFS 预处理 | 2026-08-05 | [ADR 0001](decisions/0001-offline-python-prototype.md)；`ttc-tides` CLI；manifest、流式 ZIP、隔离区、`p2` pattern；92 个合成测试；2023-11-05 验收：28,291 个计划班次、939,706 个计划停站事件，隔离 0 行（[评审](gtfs-implementation-review.md)） | 版本化 GTFS 与隔离模式可以稳定落地 |
-| 合并方案与评审 | 2026-08-06 | [实施计划](merge-implementation-plan.md) 与[评审](merge-plan-review.md)；[ADR 0002](decisions/0002-merge-plan-review-disposition.md) 批准架构，冻结 S3 及以后的阶段，要求解决 R1–R6 | 在联合求解与时间契约定清楚之前，不应写发布代码 |
-| R1 设计实验 01 / 02 / 02R | 2026-08-07 至 08-08 | 候选 / 空模型 / 边际框架；APC 辅助边界细化；内核修复（[01](r1-design-spike-findings.md)、[02](r1-boundary-refinement-spike-findings.md)、[02R](r1-spike02r-kernel-repair-findings.md)） | 仅靠区间证据无法区分 5–10 分钟发车间隔下的相邻班次；证据复用会虚高置信度；需要连续的时空证据与共享延误 |
-| 人工标注 v1 / v2 | 2026-08-09 至 08-14 | 18 个试点案例的首轮标注；审计结论为 0/18 可直接用于校准；v2 盲审协议已冻结（[协议](human-labeling-protocol-v2.md)、[状态](human-labeling-v2-run01-status.md)） | 没有独立标签就不能谈准确率或校准概率；这一限制一直延续到 Experiment 05 |
-| APC–AVL 覆盖研究 | 2026-09-08 | 全月数据上 21 种分割 × 融合 × 阈值组合（不使用 GTFS）：默认 AVL 上下文分割的时空直接关联覆盖 98.00% 的 APC（[方法比较](apc-avl-method-comparison-20260908.md)） | APC–AVL 时空关联在证据层面可行；APC 时钟偏移 ±60 s 会显著减少关联，时钟契约要先于放宽容差 |
-| 直接证据优化 | 2026-09-08 | 区分端点支持、部分支持与反证：`avl_context` 下 direct 为 95.53%，direct + partial 为 96.39%，8,165 条 APC 存在端点反证（[报告](apc-avl-direct-evidence-optimization-20260908.md)） | "关联上"要分等级，反证与弃判需要单独计数 |
-| 实验 03b–03d | 2026-09-09 | 离散对齐匹配器、四种模式、全天总览、审阅工作台（`tools/merge_review/gtfs_matching/RESULTS.md`） | 四模式有助于暴露边界不确定性；独立的时移惩罚过弱时，排序容易漂移 |
-| 实验 04 / 04b / 04c | 2026-09-10 | 连续通过时刻评分、共享 IRLS 延误、三层覆盖率；04b 做权重敏感性；04c 引入运营先验、班次位移与高召回检索（[04](experiment04-continuous-matching.md)、[04b](experiment04b-delay-weights.md)、[04c](experiment04c-occurrence-plausibility.md)） | 诊断排名不等于校准认证；05 另加分配层。TIDES 本身允许未分配时计划字段为空，不要求强选答案 |
-| **Experiment 05** | 2026-09-10 | 复用 04c 评分器，加上从原始数据开始的十阶段流水线、平台段 / 右截尾、三轮单调一对一分配，以及固定版本的 TIDES 导出与校验 | 当前版本 |
+| Earlier project's notebook workflow | Before 2026-08 (documented 2026-08-07) | A hard-coded 2020 route-29 northbound shape; KD-tree nearest-vertex search in degree space that overwrote raw coordinates; tolerance-free `merge_asof` on a precomputed `TripID` of unknown origin; `25:10` rewritten as `01:10` ([methodology record](previous_proj_data_integration_methodology.md)) | Identity, time, and geometry contracts must be explicit and reproducible; never depend on cleaned artifacts of unknown provenance |
+| GTFS preprocessing | 2026-08-05 | [ADR 0001](decisions/0001-offline-python-prototype.md); the `ttc-tides` CLI; manifest, streamed ZIP reads, quarantine, `p2` patterns; 92 synthetic tests; 2023-11-05 acceptance: 28,291 scheduled trips, 939,706 scheduled stop events, 0 rows quarantined ([review](gtfs-implementation-review.md)) | Versioned GTFS with quarantine can be delivered reliably |
+| Merge plan and review | 2026-08-06 | [Implementation plan](merge-implementation-plan.md) and [review](merge-plan-review.md); [ADR 0002](decisions/0002-merge-plan-review-disposition.md) approved the architecture, froze S3 onward, and required R1–R6 to be resolved | Do not write publication code before joint resolution and the time contract are settled |
+| R1 design spikes 01 / 02 / 02R | 2026-08-07 to 08-08 | Candidate / null model / margin framework; APC-assisted boundary refinement; kernel repair ([01](r1-design-spike-findings.md), [02](r1-boundary-refinement-spike-findings.md), [02R](r1-spike02r-kernel-repair-findings.md)) | Interval evidence alone cannot separate adjacent trips at 5–10 minute headways; evidence reuse inflates confidence; continuous spatiotemporal evidence and a shared delay are needed |
+| Human labeling v1 / v2 | 2026-08-09 to 08-14 | First-pass labels on 18 pilot cases; the audit found 0/18 directly usable for calibration; the v2 blind-review protocol is frozen ([protocol](human-labeling-protocol-v2.md), [status](human-labeling-v2-run01-status.md)) | Without independent labels there is no accuracy or calibrated probability; this limitation carries through to Experiment 05 |
+| APC–AVL coverage study | 2026-09-08 | 21 segmentation × fusion × threshold combinations over the full month (no GTFS): direct spatiotemporal association under default AVL-context segmentation covers 98.00% of APC ([method comparison](apc-avl-method-comparison-20260908.md)) | APC–AVL spatiotemporal association is feasible at the evidence level; a ±60 s APC clock shift sharply reduces associations, so the clock contract must come before wider tolerances |
+| Direct-evidence optimization | 2026-09-08 | Endpoint support, partial support, and counter-evidence separated: under `avl_context`, direct 95.53%, direct + partial 96.39%, and 8,165 APC rows with endpoint counter-evidence ([report](apc-avl-direct-evidence-optimization-20260908.md)) | "Associated" needs grades; counter-evidence and abstention need their own counts |
+| Experiments 03b–03d | 2026-09-09 | Discrete alignment matcher, four modes, whole-day overview, review workbench (`tools/merge_review/gtfs_matching/RESULTS.md`) | Four modes expose boundary uncertainty; with a weak standalone time-shift penalty, rankings drift |
+| Experiments 04 / 04b / 04c | 2026-09-10 | Continuous passage scoring, shared IRLS delay, three-level coverage; 04b weight sensitivity; 04c operational prior, occurrence displacement, high-recall retrieval ([04](experiment04-continuous-matching.md), [04b](experiment04b-delay-weights.md), [04c](experiment04c-occurrence-plausibility.md)) | Diagnostic ranking is not calibrated certification; 05 adds a separate assignment layer. TIDES itself permits null scheduled fields and does not require a forced answer |
+| **Experiment 05** | 2026-09-10 | Reuses the 04c scorer and adds a ten-stage pipeline from raw data, plateau / right-censoring, three-round monotone one-to-one assignment, and a pinned, validated TIDES export | Current version |
 
 ---
 
-## 10. 与其他机构 TIDES 实现的比较
+## 10. Comparison with other agencies' TIDES implementations
 
-### 10.1 参与比较的实现
+### 10.1 Implementations compared
 
-- **WMATA SMART Data Hub**（[`agencies/wmata/`](../../wmata/)）：USDOT SMART 资助的生产级原型。
-  Dagster 编排，dbt 转换（Trino 生产 / DuckDB 本地），Iceberg + Lakekeeper 存储，
-  OpenMetadata 编目，部署在 Azure Container Apps，基础设施用 OpenTofu 管理。数据源包括供应商 CAD/AVL
-  （"Bus info"日导出与准实时 Oracle 日志）、票务、地铁闸机和 GTFS。
-  参见 [bus_info.md](../../wmata/sdh-open-source/docs/warehouse/bus_info.md)
-  与[案例文章](../../wmata/sdh-writeup/wmata-sdh-writeup.md)。
-- **Mountain Line（Missoula）**（[`agencies/mountain-line/`](../../mountain-line/README.md)）：
-  "分析师一台笔记本"的 Level 0 模式，本仓库中只是指针条目，代码在外部仓库：
-  [`polar-tides`](https://github.com/WindfallLabs/polartides)（基于 dataframely 的 Polars TIDES schema 校验）
-  和 [`little_pipelines`](https://github.com/WindfallLabs/little_pipelines)（轻量编排）。
-  数据源为 ETA Transit 的 CAD/AVL、经 Swiftly 处理的 APC、Via 需求响应服务和自有 GTFS，重点用途是 NTD 报送。
-- **UT iROAM**（本地工作区 `agencies/ut/iROAM/`，**尚未合入本仓库**）：同样使用 TTC 数据，
-  但来源是持续采集的 **GTFS-Realtime VehiclePositions**（2026 年），PostgreSQL/PostGIS 追加写入，
-  配有 FastAPI 与 Streamlit，另有面向运营监控与串车预测的分析层；`apps/analytics/tides_export.py`
-  导出三张 TIDES 表（说明见 `docs/station_events_and_tides.md`）。
+- **WMATA SMART Data Hub** ([`agencies/wmata/`](../../wmata/)): a production-grade prototype funded
+  by a USDOT SMART grant. Dagster orchestration, dbt transformation (Trino in production, DuckDB
+  locally), Iceberg + Lakekeeper storage, OpenMetadata catalog, deployed on Azure Container Apps
+  with infrastructure in OpenTofu. Sources include vendor CAD/AVL (the "Bus info" daily export and
+  a near-real-time Oracle log), fare systems, rail faregates, and GTFS. See
+  [bus_info.md](../../wmata/sdh-open-source/docs/warehouse/bus_info.md) and the
+  [case study](../../wmata/sdh-writeup/wmata-sdh-writeup.md).
+- **Mountain Line (Missoula)** ([`agencies/mountain-line/`](../../mountain-line/README.md)): the
+  Level 0 "analyst on a laptop" pattern. In this repository it is a pointer entry only; the code lives
+  in external repositories: [`polar-tides`](https://github.com/WindfallLabs/polartides) (TIDES schema
+  validation for Polars, built on dataframely) and
+  [`little_pipelines`](https://github.com/WindfallLabs/little_pipelines) (lightweight orchestration).
+  Sources are ETA Transit CAD/AVL, APC processed by Swiftly, Via demand response, and self-published
+  GTFS; the main use case is NTD reporting.
+- **UT iROAM** (local workspace `agencies/ut/iROAM/`, **not yet merged into this repository**): also
+  uses TTC data, but from continuously collected **GTFS-Realtime VehiclePositions** (2026),
+  append-only PostgreSQL/PostGIS, FastAPI, and Streamlit, with an analytics layer for operations
+  monitoring and bunching prediction. `apps/analytics/tides_export.py` exports three TIDES tables
+  (described in `docs/station_events_and_tides.md`).
 
-### 10.2 逐维度对比
+### 10.2 Side-by-side comparison
 
-| 维度 | **TTC（本实现）** | **WMATA SDH** | **Mountain Line** | **UT iROAM** |
+| Dimension | **TTC (this implementation)** | **WMATA SDH** | **Mountain Line** | **UT iROAM** |
 |---|---|---|---|---|
-| 定位 | 离线研究原型；单线路按日批处理 | 生产级原型；多源多模式；云平台 | 小型机构的 Level 0 模式；NTD 报送 | 学术 / 运营监控平台 |
-| 数据 | 2023-11 历史 AVL + APC CSV；14 个 GTFS 版本 | 供应商 CAD/AVL（含 APC 门级计数、司机录入的班次信息）、票务、闸机、GTFS | 供应商 CAD/AVL、APC、需求响应、GTFS | GTFS-RT 车辆位置（约 20–30 s）+ 静态 GTFS |
-| **`trip_id_scheduled` 来源** | **源字段不可用 → 时空推断 + 一对一单调分配** | 供应商记录自带 `trip_id` 与 `pattern_id` | 依靠供应商数据中的 `trip_id_scheduled` 和 `stop_id` 连接（按其 README） | GTFS-RT 自带 `trip_id` |
-| `trip_id_performed` | 由服务日、feed、route、车辆、首末 `rid` 生成的稳定哈希；按确认的方向变化、AVL+APC 联合 30 分钟缺口、进度重置切分 | `trip_id_scheduled`-车辆-pattern-开始时间；遇当日首条记录或 ≥ 1 小时间隔时切分 | 未在本仓库公开 | `{trip_id}:{start_date}:{vehicle_id}` |
-| `stop_id` | APC 站码按 feed 的 `stop_code` 映射；有可比较的附近 AVL 时使用最小进度差 200 m 门控，无附近 AVL 为弱证据回退 | 源 `ta_geo_id` 连接；再对计划 / 跳站记录插补最近计划站（haversine × 站序差，300 m 框） | 未公开 | shape 投影后在站点 ±50 m 缓冲内检测停站 |
-| 服务日 | 本地日历日观测窗口；UTC 时间轴；GTFS"正午 − 12 h"锚点；DST 歧义不猜 | `event_time − 4 h` 取日期 | 未公开 | 使用 feed 提供的 `start_date` |
-| 停站来源 | APC 区间（一条 APC 记录 = 一次停站） | 供应商事件聚合（多条快照按规则合并为一次停站） | APC（按其 README 计划） | 仅 AVL：带滞回的平台分类器，边界补偿半个采样间隔 |
-| APC → TIDES | 停站时间、车辆到离站及累计客流事件；客流使用显式离站代理策略。分门计数与 `departure_load` 仍空 | 前后门计数 → `boarding_1/2`、`alighting_1/2`，载客 → `departure_load`；`passenger_events` 只由地铁闸机生成 | APC → `passenger_events`、`stop_visits`（计划中） | 没有 APC；这些列留空，作为日后连接的位置 |
-| `actual_trip_start/end` | **置空**：观测包络不等于起终点事件 | 有效 ping 的 `min/max(event_timestamp)`，即观测包络 | 未公开 | 终点站画像推荐值：`min(首次持续移动, 离开起点缓冲区)` |
-| `trip_type` | 置空；`PI`/`PO` 含义待确认 | 按供应商线路代码前缀映射：`PI` → `Pullin`、`PO` → `Pullout`、`DH` → `Deadhead` 等 | 未公开 | 置空 |
-| 质量模式 | 源行一律不删；原因码写在诊断 Parquet 与旁路 JSON；TIDES 核心表不加私有列 | `fct_*_quality` 模型：`is_valid`、`invalid_reason`、`has_*`；mart 只保留有效行 | `polar-tides` schema 校验 | TIDES CSV 内加 `_` 前缀诊断列与 `_is_valid` |
-| TIDES 校验 | vendored v1.0 schema（固定 commit）+ Frictionless + Draft-07 profile + 自定义复合外键 | dbt 测试 + 质量模型 | `polar-tides`（dataframely） | 写出 `datapackage.json`；以单元测试覆盖表构建 |
-| 时间表示 | UTC（`Z`） | 计划起止时间转换为本地 ET（America/New_York） | 未公开 | 带时区的 datetime |
-| 技术栈 | Python 3.12、Polars、Parquet、uv、本地 CLI 与网页 | Dagster、dbt、Iceberg/Lakekeeper、Trino/DuckDB、OpenMetadata、Azure、OpenTofu | Python、Polars、dataframely、little_pipelines | PostgreSQL/PostGIS、FastAPI、Streamlit、Docker Compose |
-| 增量与调度 | 无；按日按需，成功结果按指纹缓存 | dbt microbatch 增量；Dagster 传感器与自动化 | little_pipelines DAG | 采集器每 20–30 s 轮询；分析 worker 周期刷新 |
-| 可复现性 | 代码、配置、环境、输入的哈希都进入缓存键；阶段输出固定；失败即停 | Git、CI/CD、基础设施即代码；OpenMetadata 血缘 | 版本化代码库 | 原始数据追加写入、可重新规范化 |
+| Positioning | Offline research prototype; one route, daily batches | Production-grade prototype; many sources and modes; cloud platform | Level 0 pattern for small agencies; NTD reporting | Academic / operations monitoring platform |
+| Data | Historical 2023-11 AVL + APC CSVs; 14 GTFS versions | Vendor CAD/AVL (with per-door APC counts and operator-entered trip information), fares, faregates, GTFS | Vendor CAD/AVL, APC, demand response, GTFS | GTFS-RT vehicle positions (~20–30 s) + static GTFS |
+| **Source of `trip_id_scheduled`** | **Source field unusable → spatiotemporal inference + one-to-one monotone assignment** | Vendor records carry `trip_id` and `pattern_id` | Joined through `trip_id_scheduled` and `stop_id` in vendor data (per its README) | GTFS-RT carries `trip_id` |
+| `trip_id_performed` | Stable hash of service date, feed, route, vehicle, first/last `rid`; split on confirmed direction change, 30-minute joint AVL+APC gap, or progress reset | `trip_id_scheduled`-vehicle-pattern-start time; split at the day's first record or a gap ≥ 1 hour | Not published here | `{trip_id}:{start_date}:{vehicle_id}` |
+| `stop_id` | APC code mapped via feed `stop_code`; minimum progress error ≤ 200 m when nearby comparable AVL exists, otherwise a weaker-evidence fallback | Joined from source `ta_geo_id`; scheduled / skipped records imputed to the nearest scheduled stop (haversine × stop-sequence difference, 300 m box) | Not published | Stop detection within ±50 m of the stop after shape projection |
+| Service date | Local calendar-day observation window; UTC time axis; GTFS "noon − 12 h" anchor; DST ambiguity never guessed | Date of `event_time − 4 h` | Not published | `start_date` from the feed |
+| Stop-visit source | APC intervals (one APC record = one stop visit) | Aggregated vendor events (several snapshots merged into one visit by rule) | APC (planned, per its README) | AVL only: a plateau classifier with hysteresis; boundaries corrected by half the sampling interval |
+| APC → TIDES | Stop times, vehicle arrival/departure, and aggregate passenger events under the explicit departure-proxy policy; per-door counts and `departure_load` remain null | Front/back door counts → `boarding_1/2`, `alighting_1/2`; load → `departure_load`; `passenger_events` only from rail faregates | APC → `passenger_events`, `stop_visits` (planned) | No APC; these columns left empty as future join points |
+| `actual_trip_start/end` | **Null**: the observation envelope is not an origin/destination event | `min/max(event_timestamp)` of valid pings, i.e., the observation envelope | Not published | Terminal-profile recommendation: `min(first sustained move, leaving the start buffer)` |
+| `trip_type` | Null; the meaning of `PI`/`PO` is unconfirmed | Mapped from vendor route-code prefixes: `PI` → `Pullin`, `PO` → `Pullout`, `DH` → `Deadhead`, etc. | Not published | Null |
+| Quality pattern | No source row is ever deleted; reason codes in diagnostic Parquet and side-car JSON; no private columns in TIDES core tables | `fct_*_quality` models: `is_valid`, `invalid_reason`, `has_*`; marts keep only valid rows | `polar-tides` schema validation | `_`-prefixed diagnostic columns and `_is_valid` inside TIDES CSVs |
+| TIDES validation | Vendored v1.0 schemas (pinned commit) + Frictionless + Draft-07 profile + custom composite foreign keys | dbt tests + quality models | `polar-tides` (dataframely) | Writes `datapackage.json`; table builders covered by unit tests |
+| Timestamps | UTC (`Z`) | Scheduled start/end converted to local ET (America/New_York) | Not published | Timezone-aware datetimes |
+| Stack | Python 3.12, Polars, Parquet, uv, local CLI and web page | Dagster, dbt, Iceberg/Lakekeeper, Trino/DuckDB, OpenMetadata, Azure, OpenTofu | Python, Polars, dataframely, little_pipelines | PostgreSQL/PostGIS, FastAPI, Streamlit, Docker Compose |
+| Incremental processing and scheduling | None; on-demand per day, successful results cached by fingerprint | dbt microbatch increments; Dagster sensors and automation | little_pipelines DAG | Collector polls every 20–30 s; analytics worker refreshes periodically |
+| Reproducibility | Code, config, environment, and input hashes form the cache key; stage outputs pinned; fail-closed | Git, CI/CD, infrastructure as code; OpenMetadata lineage | Versioned code | Append-only raw storage that can be re-normalized |
 
-### 10.3 共同点
+### 10.3 What they have in common
 
-1. **GTFS 是计划与站点的主干。** 各实现都把 TIDES 行回链到 GTFS 的 `trip_id` 和 `stop_id`，
-   也都遇到了 GTFS 版本随日期变化的问题。
-2. **分层转换。** WMATA 的 staging → intermediate → quality → mart，与 TTC 的阶段化 Python 转换
-   概念一致；TTC 的[架构文档](architecture.md)逐项列出了从 WMATA 借鉴的层次。
-3. **标注而非静默删除。** WMATA 的质量模型、iROAM 的 `_is_valid`、TTC 的原因码与旁路诊断，
-   都是为了让被排除的数据可解释。
-4. **确定性的 `trip_id_performed`。** 都由服务日、车辆和时间等要素确定性地构造。
-5. **显式处理事件粒度。** WMATA 的 bus APC 按门聚合，其事件表仅实现闸机；TTC 当前采用
-   已注明假设的停站累计客流与离站代理时间，旧策略才是省略；iROAM 没有 APC。
-6. **一维线性参考。** TTC 与 iROAM 都把 GPS 投影到 shape 上得到行驶进度；WMATA 依赖供应商提供的站序与站点。
+1. **GTFS is the backbone for schedules and stops.** Every implementation links TIDES rows back to
+   GTFS `trip_id` and `stop_id`, and each has to deal with GTFS versions changing by date.
+2. **Layered transformation.** WMATA's staging → intermediate → quality → mart matches TTC's staged
+   Python transformations in concept; TTC's [architecture document](architecture.md) lists the layers
+   it borrowed from WMATA one by one.
+3. **Annotate, don't silently drop.** WMATA's quality models, iROAM's `_is_valid`, and TTC's reason
+   codes and side-car diagnostics all exist to make excluded data explainable.
+4. **Deterministic `trip_id_performed`.** Each is built deterministically from service date,
+   vehicle, and time elements.
+5. **Explicit event-grain choices.** WMATA's bus APC is door-aggregated and its event table covers
+   faregates; TTC now uses documented visit-total and departure-proxy assumptions, while its old
+   policy omitted events; iROAM has no APC.
+6. **One-dimensional linear referencing.** TTC and iROAM both project GPS onto shapes to get travel
+   progress; WMATA relies on vendor-supplied stop sequences and stops.
 
-### 10.4 关键差异解读
+### 10.4 Interpreting the key differences
 
-**(1) 计划关联：连接 vs 推断。** 这是最核心的差异。WMATA、Mountain Line 与 iROAM 的数据源在车辆端
-就带有计划班次标识（司机登录、CAD 或 GTFS-RT），`trip_id_scheduled` 的质量取决于上游系统；
-主要工作是字段映射、插补与清洗。TTC 的源标识与 GTFS 不对应，所以必须建立一个完整的推断层：
-候选检索、延误建模、分项成本和全局一致的分配。这也是 TTC 流水线的复杂度集中在第 4–8 阶段的原因。
+**(1) Scheduled association: join vs. inference.** This is the core difference. WMATA, Mountain
+Line, and iROAM receive a scheduled trip identifier at the vehicle (operator login, CAD, or
+GTFS-RT), so the quality of `trip_id_scheduled` depends on the upstream system, and the main work
+is field mapping, imputation, and cleaning. TTC's source identifier does not correspond to GTFS, so
+it needs a full inference layer: candidate retrieval, delay modeling, component costs, and a
+globally consistent assignment. That is why TTC's pipeline complexity is concentrated in stages 4–8.
 
-**(2) 行程切分的依据不同。** WMATA 以（计划班次, 车辆, pattern）为分区、以 1 小时间隔切分，
-前提是计划班次已知；iROAM 直接使用 feed 的 `trip_id` 粒度；TTC 在计划班次未知的条件下，
-只能依靠物理证据（方向、缺口、进度重置）切分，并用平台段机制确定可信终点。
+**(2) Different grounds for splitting trips.** WMATA partitions by (scheduled trip, vehicle,
+pattern) and splits at 1-hour gaps, which presumes the scheduled trip is known; iROAM uses the
+feed's `trip_id` grain directly; TTC, without a known scheduled trip, can only split on physical
+evidence (direction, gaps, progress resets) and uses the plateau mechanism to find a trustworthy end.
 
-**(3) APC 的 TIDES 映射保守程度不同。** WMATA 的 APC 有明确的门别语义（前门 / 后门上下客），
-映射到 `boarding_1/2` 有依据。TTC 的 APC 是整车计数，并且存在聚合粒度的疑问
-（`AvgSample`、`NoTrips`），把它写入 `boarding_1` 会制造不存在的门别语义，
-因此目前宁可让这些字段为空，也不写入无依据的值。
+**(3) Different degrees of caution in mapping APC to TIDES.** WMATA's APC has explicit door
+semantics (front / back door boardings and alightings), so mapping it into `boarding_1/2` is
+supported. TTC's APC counts are whole-vehicle, and their aggregation grain is in question
+(`AvgSample`, `NoTrips`); writing them into `boarding_1` would invent door semantics that do not
+exist, so for now these fields stay empty rather than holding unsupported values.
 
-**(4) `actual_trip_start` 的语义不同。** WMATA 用观测包络的最小 / 最大时间戳，iROAM 用终点站画像估计发车，
-TTC 则留空。三者写进同一个 TIDES 字段，含义并不相同，**跨机构对比行程时长或准点率时需要特别注意**。
+**(4) Different meanings of `actual_trip_start`.** WMATA uses the minimum / maximum timestamps of
+the observation envelope, iROAM estimates departure from a terminal profile, and TTC leaves it null.
+All three write the same TIDES field with different meanings, so **cross-agency comparisons of trip
+duration or on-time performance need particular care**.
 
-**(5) 诊断信息放在哪里。** iROAM 把 `_` 前缀的诊断列直接放进 TIDES CSV（沿用 WMATA 的做法），
-方便过滤使用；TTC 让 TIDES 核心表严格只有 schema 字段，诊断放在旁路文件，保证通用的 TIDES 校验器和
-消费者无需特殊处理。
+**(5) Where diagnostics live.** iROAM puts `_`-prefixed diagnostic columns directly into TIDES CSVs
+(following WMATA's convention), which is convenient for filtering. TTC keeps TIDES core tables to
+schema fields only and puts diagnostics in side-car files, so generic TIDES validators and consumers
+need no special handling.
 
-**(6) 平台规模与目标。** WMATA 解决的是多源、持续、增量、多用户的数据平台问题；TTC 解决的是
-在一台机器上"证据能否支撑发布"的问题。二者可以互补：TTC 的推断层未来可以作为 WMATA 式平台中的一个
-Python 资产运行。
+**(6) Platform scale and goals.** WMATA solves the problem of a multi-source, continuous,
+incremental, multi-user data platform; TTC solves "can the evidence support publication" on a single
+machine. The two are complementary: TTC's inference layer could later run as a Python asset in a
+WMATA-style platform.
 
-### 10.5 TTC 实现的亮点
+### 10.5 Highlights of the TTC implementation
 
-1. **在没有可用源标识时，把计划关联做成可审计的推断。** 候选的每个分项、权重、覆盖率、延误过程摘要与
-   全部名次都在分配前固定落盘，任何一个 `trip_id_scheduled` 都能追溯到"为什么是它、它打败了谁"。
-2. **严格的物理时间轴。** 全程使用 UTC 纪元秒；DST 歧义不猜；GTFS 超过 24 小时的时刻保留原值，
-   并用规范的正午减 12 小时锚点换算。
-3. **源记录守恒。** 每一行都有 `rid`，并由不变量检查"输入行数 = 输出行数、原始载荷未改动"；
-   重复行与离线点都保留，只是不参与评分。
-4. **把 APC 当作区间证据。** 匹配不伪造 GPS 点；导出把观测时间与累计客流代理时间明确区分，不伪造门别或逐乘客测量。
-5. **全局一致的一对一分配。** 通过三轮锁定与严格单调的加权最长递增子序列，从结构上排除
-   "一个计划班次被两辆车同时认领"和"相邻班次互相交叉"的结果，每个未分配结果都有原因审计。
-6. **四模式敏感性分析。** 同一行程在整段与前、中、后三段上独立匹配，得到四个独立的 TIDES 包，
-   结论是否依赖所用的观测范围一目了然。
-7. **有反事实否决的右截尾。** 终点长时间停留不能被"无限增长的延误"解释掉。
-8. **失败即停的可复现性。** 代码、配置、依赖与输入指纹共同构成缓存键，阶段输出固定，发布是原子的，
-   TIDES 包与运行绑定。
-9. **固定 TIDES 版本，并补上 schema 本身无法表达的复合外键校验。**
-10. **如实标注证据边界。** `datapackage.json` 的标题与描述、`summary.json` 和
-    `validation_report.json` 都声明这是研究推断、未经校准；不用"状态变化"去冒充准确率提升。
+1. **When no usable source identifier exists, the scheduled association becomes an auditable
+   inference.** Every candidate's components, weights, coverage, delay-process summary, and full rank
+   list are persisted before assignment, so any `trip_id_scheduled` can be traced back to "why this
+   one, and what it beat".
+2. **A strict physical time axis.** UTC epoch seconds throughout; DST ambiguity never guessed; GTFS
+   times past 24 hours kept as is and converted with the spec's noon-minus-12-hours anchor.
+3. **Source-record conservation.** Every row has a `rid`, and invariant checks prove "input rows =
+   output rows, raw payloads untouched"; duplicates and off-reference points are kept, only excluded
+   from scoring.
+4. **APC as interval evidence.** Matching invents no GPS pings; export distinguishes observed times
+   from visit-total proxy times and invents neither door allocations nor individual measurements.
+5. **Globally consistent one-to-one assignment.** Three locked rounds and a strictly monotone
+   weighted longest increasing subsequence structurally rule out "one scheduled trip claimed by two
+   vehicles" and "adjacent trips crossing", and every unassigned result carries audited reasons.
+6. **Four-mode sensitivity analysis.** The same trip is matched independently on the whole segment
+   and on its early, middle, and late thirds, producing four independent TIDES packages, so it is
+   immediately visible whether a conclusion depends on the evidence scope.
+7. **Right-censoring with a counterfactual veto.** Long terminal dwells cannot be "explained" by an
+   ever-growing delay.
+8. **Fail-closed reproducibility.** Code, config, dependency, and input fingerprints form the cache
+   key; stage outputs are pinned; publication is atomic; TIDES packages are bound to their run.
+9. **A pinned TIDES version, plus the composite foreign-key checks the schemas themselves cannot
+   express.**
+10. **Honest evidence boundaries.** The `datapackage.json` title and description, `summary.json`,
+    and `validation_report.json` all declare research inference without calibration; status changes
+    are never passed off as accuracy gains.
 
-### 10.6 可以相互借鉴的地方
+### 10.6 What each could borrow from the others
 
-- **TTC 可以向 WMATA 学习：** 为下游提供严格的 `is_valid` / `invalid_reason` 消费视图；在 TIDES 之上建立
-  客流与准点等指标层；在需要持续运行时引入增量（microbatch）处理、编排与数据目录；
-  在 `PI`/`PO` 语义确认后，参考 WMATA 的代码前缀 → `trip_type` 映射；环线的计划站序可以采用
-  "第 n 次访问同一站点"的做法。
-- **TTC 可以向 iROAM 学习：** 用 AVL 的停站 / dwell 检测补充没有 APC 的站点，从而填充更多 `stop_visits`；
-  借鉴终点站画像来估计 `actual_trip_start`（目前留空）。如果将来能拿到与 AVL/APC **同期**的
-  GTFS-RT，它自带的 `trip_id` 可以作为评估 TTC 匹配器的独立参照。
-- **TTC 可以向 Mountain Line 学习：** 用 `polar-tides` 作为第二个独立的 TIDES 校验器交叉检查；
-  NTD 报送是 TIDES 输出很自然的下游用例。
-- **TTC 能提供给其他实现的：** 当上游 `trip_id` 不可靠时（例如 WMATA 文档提到一个 `trip_id_performed`
-  可能对应多个车辆，iROAM 审计显示实时 `trip_id` 与静态计划的解析率约为 10%），TTC 的证据式匹配与
-  单调分配可以作为回退或校验手段；TTC 显式区分 `actual_trip_start` 的未知值、
-  `passenger_events` 的研究假设与逐事件溯源，可供跨机构说明口径时参考，而非已确认的语义标准。
+- **TTC from WMATA:** a strict `is_valid` / `invalid_reason` consumer view for downstream users; a
+  ridership and on-time metrics layer on top of TIDES; incremental (microbatch) processing,
+  orchestration, and a data catalog once continuous operation is needed; once `PI`/`PO` semantics are
+  confirmed, WMATA's route-code prefix → `trip_type` mapping; and the "nth visit to the same stop"
+  approach for scheduled stop sequence on loop routes.
+- **TTC from iROAM:** AVL-based stop / dwell detection to fill `stop_visits` at stops without APC;
+  a terminal profile to estimate `actual_trip_start` (currently null). If GTFS-RT **contemporaneous**
+  with the AVL/APC ever becomes available, its `trip_id` could serve as an independent reference for
+  evaluating the TTC matcher.
+- **TTC from Mountain Line:** `polar-tides` as a second, independent TIDES validator for cross-checks;
+  NTD reporting as a natural downstream use of TIDES output.
+- **What TTC offers the others:** when upstream `trip_id` is unreliable (WMATA's documentation notes
+  that one `trip_id_performed` can map to several vehicles, and iROAM's audit shows about 10% of
+  realtime `trip_id`s resolve against the static schedule), TTC's evidence-based matching and
+  monotone assignment can serve as a fallback or a check; its explicit treatment of unknown `actual_trip_start`
+  and explicit `passenger_events` assumptions and event lineage can help document cross-agency
+  definitions, without claiming independently established event semantics.
 
-### 10.7 对跨机构互操作的观察
+### 10.7 Observations on cross-agency interoperability
 
-- TIDES v1.0 的 schema 没有声明 `foreignKeys`，只用通用校验器无法发现行程键、停站键的悬空引用，
-  各实现都需要自己的复合键检查。
-- 同一个字段在不同实现中含义可能不同（`actual_trip_start` 取包络还是事件；时间戳用 UTC 还是本地时间；
-  `boarding_1` 是门别计数还是整车计数）。建议在 `datapackage.json` 或配套文档中显式说明这些口径。
-- "未匹配"不等于 `Added`、`Canceled` 或 `Missing`；三家都没有把"缺少计划关联"直接写成运营状态，
-  这一点值得在社区层面形成共识。
-
----
-
-## 11. 已知局限与开放问题
-
-**关于推断质量**
-
-1. **没有独立标签。** 分配结果是模型输出，不是真值；准确率、校准误差和各种精度指标都未定义。
-   v2 盲审标注协议已冻结，但第二轮人工审阅尚未开始。
-2. **分配不设分数阈值。** 只要存在可行的前三名候选就会被分配，即使绝对成本很高。下游应结合
-   `candidate_rankings` 的分数、`mode_results` 中评分器的状态，以及四种模式的一致性来判断可信度。
-3. **单调假设。** 串车、超车或从中途开始的分段，可能导致正确候选被拒（见 [§5.4](#54-三轮锁定单调分配)）。
-4. **运营先验未校准。** 先验参数是工程假设。
-
-**关于范围与语义**
-
-5. **观测窗口是本地日历日。** 跨午夜班次在次日的那部分不会被读入；把窗口扩展为完整的运营日
-   属于显式的未来策略变更。
-6. **只启用 29 路**（`allowed_routes = ["29"]`）；929 路以及 `PI`/`PO` 仅保留在诊断中。
-7. **GTFS manifest 仍是草稿**（全部为 `candidate`），版本优先级需要人工确认（D-15）。
-8. **站码 `1652`** 在当月有 13,881 行 APC 无法映射，是否为某个终点站仍待确认（D-10）。
-9. **APC 语义**（是否为多门合计、是否为聚合行、事件时间）尚未获厂商确认（D-06）。当前包按
-   显式研究假设提供累计客流；可审查这些总数，但不能把离站代理时间用于逐乘客事件时序分析，
-   也不能把重叠/重复 APC visit 默认视为互不重复的乘客活动。
-   2023-11-06 有 1,026 visits 标记 `grain_uncertain`，9 组双行同车同站同区间（5 组同分段、
-   4 组跨分段），可能是终端方向交接；不能直接认定两次物理停车，也不能未经确认便合并删除客流。
-10. **字段覆盖有限：** 2023-11-06 的 67/352 分段没有 APC visit，全部 13,599 visits 无计划站次映射。
-    `actual_trip_start/end`、`trip_type`、`stop_visits` 中的计划字段、
-    `vehicle_locations` 中与站点相关的字段都为空。
-11. **重复 AVL 行会写入 `vehicle_locations`。** 逐字段完全相同的 AVL 行各自以自己的 `rid` 作为
-    `location_ping_id` 写入 TIDES：2023-11-06 的 112,002 行中有 19,859 行属于这种情况（约 18%），
-    而"重复"标记只存在于诊断表中。按 ping 计数的下游需要自行去重；是否应在导出时省略这些行，
-    或在包内加以说明，值得明确决定。
-
-**关于工程**
-
-12. **性能与验证范围。** 单日全流程约 11 分钟、约 4 GB 内存，其中候选生成约占三分之二；
-    目前只有两个服务日完整跑通。
-13. **离线原始数据不随仓库分发**，能否再分发仍是开放问题。
+- TIDES v1.0 schemas declare no `foreignKeys`, so a generic validator cannot catch dangling trip or
+  stop-visit references; every implementation needs its own composite-key checks.
+- The same field can mean different things across implementations (`actual_trip_start` as envelope
+  or event; timestamps in UTC or local time; `boarding_1` as a per-door or whole-vehicle count). These
+  definitions should be stated explicitly in `datapackage.json` or accompanying documentation.
+- "Unmatched" is not `Added`, `Canceled`, or `Missing`. None of the implementations writes "no
+  scheduled association" directly as an operational status, and the community would benefit from
+  agreeing on this explicitly.
 
 ---
 
-## 12. 运行方式与代码地图
+## 11. Known limitations and open questions
 
-### 12.1 运行
+**Inference quality**
 
-在 `agencies/ttc/` 目录下：
+1. **No independent labels.** Assignments are model outputs, not ground truth; accuracy, calibration
+   error, and every precision metric are undefined. The v2 blind labeling protocol is frozen, but the
+   second human review pass has not started.
+2. **No score threshold in assignment.** Any feasible top-3 candidate is assigned, even with a high
+   absolute cost. Downstream users should judge credibility from `candidate_rankings` scores, the
+   scorer statuses in `mode_results`, and agreement across the four modes.
+3. **The monotone assumption.** Bunching, overtaking, or fragments starting mid-route can cause the
+   correct candidate to be rejected (see [§5.4](#54-three-locked-rounds-of-monotone-assignment)).
+4. **Uncalibrated operational prior.** Its parameters are engineering assumptions.
+
+**Scope and semantics**
+
+5. **The observation window is a local calendar day.** The next-day portion of a post-midnight trip
+   is not read; widening the window to a full operating day is an explicit future policy change.
+6. **Only route 29 is enabled** (`allowed_routes = ["29"]`); route 929 and `PI`/`PO` remain in
+   diagnostics only.
+7. **The GTFS manifest is still a draft** (every row `candidate`); version priority needs human
+   confirmation (D-15).
+8. **Stop code `1652`** leaves 13,881 APC rows in the month unmapped; whether it is a particular
+   terminal is still to be confirmed (D-10).
+9. **APC semantics** (multi-door totals, aggregate rows, event times) lack vendor confirmation
+   (D-06). Current packages expose totals under an explicit research assumption; departure proxies
+   cannot support individual passenger-timing analysis, and overlapping/duplicate visits must not
+   automatically be treated as disjoint passenger activity.
+   On 2023-11-06, 1,026 visits remain `grain_uncertain`; 9 two-row groups share vehicle, stop and
+   arrival/departure interval (5 within one segment, 4 across segments). They may represent terminal
+   direction handovers, not necessarily two physical stops or safe-to-delete duplicate counts.
+10. **Limited field coverage:** on 2023-11-06, 67/352 segments have no APC visit and all 13,599
+    visits lack scheduled-stop occurrence mapping. `actual_trip_start/end`, `trip_type`, the scheduled fields of
+    `stop_visits`, and the stop-related fields of `vehicle_locations` are all null.
+11. **Duplicate AVL rows are written to `vehicle_locations`.** Byte-for-byte identical AVL rows are
+    each written to TIDES with their own `rid` as `location_ping_id`: 19,859 of the 112,002 rows on
+    2023-11-06 (about 18%), while the "duplicate" flag exists only in the diagnostic tables.
+    Downstream users counting pings must deduplicate themselves; whether these rows should be omitted
+    at export, or at least documented inside the package, deserves an explicit decision.
+
+**Engineering**
+
+12. **Performance and validation scope.** A full day takes about 11 minutes and 4 GB of memory,
+    about two thirds of it in candidate generation; only two service dates have run end to end so far.
+13. **The offline raw data is not distributed with the repository**, and whether it may be
+    redistributed is still an open question.
+
+---
+
+## 12. Running it and code map
+
+### 12.1 Running
+
+From `agencies/ttc/`:
 
 ```sh
 uv sync --frozen
-./experiment05.sh availability                                   # 列出可用日期（原始数据与 GTFS 均具备）
+./experiment05.sh availability                                   # list dates with both raw data and GTFS
 ./experiment05.sh run --service-date 2023-11-06 --route-id 29 --match-mode all
 ./experiment05.sh run --service-date 2023-11-20 --match-mode early
 ./experiment05.sh run --service-date 2023-11-06 --match-mode all --force-rerun
-./experiment05.sh web --port 8767                                # 本地网页：选择日期与模式、查看阶段 / 原因 / 校验、下载
+./experiment05.sh web --port 8767                                # local page: pick date and modes, see stages / reasons / validation, download
 ```
 
-分阶段执行与校验：
+Stage by stage, with verification:
 
 ```sh
 ./experiment05.sh init --service-date 2023-11-06 --match-mode all
 ./experiment05.sh stage load_raw --run-dir outputs/experiment_05/runs/<run_id>
-# 依次运行其余阶段，或从任意已验证的边界续跑
+# run the remaining stages in order, or resume from any validated boundary
 ./experiment05.sh verify --run-dir outputs/experiment_05/runs/<run_id>
 ```
 
-原始 AVL/APC 与 GTFS 压缩包需要按 `config/experiment05-v1.toml` 中的路径另行提供，不随 Git 分发。
+The raw AVL/APC files and GTFS archives must be supplied separately at the paths in
+`config/experiment05-v1.toml`; they are not distributed through Git.
 
-### 12.2 可视化检查
+### 12.2 Visual inspection
 
-**处理后的只读检查。** 在 05 页面打开成功运行，按车辆、方向或文字筛选，逐 trip 前后浏览。
-地理图使用真实 AVL 经纬度、canonical reference 与站点位置，可缩放/平移，但没有外部街道底图；
-APC 图标是 GTFS 站点位置，不是车辆 GPS。双源时间线保留 AVL 时刻和 APC 到离站区间，
-并显示 GTFS 计划站点通过/停站；时空图按 reference 分面，最多切换三个已落盘候选。
-计划曲线使用**未按推断延误平移的原始计划时间**，assignment 指示可指向第 2/3 名。
+**Read-only post-run inspection.** Open a successful run in the 05 page, filter by vehicle,
+direction or text, and move between trips. The geographic view uses genuine AVL coordinates,
+canonical references and stops, with zoom/pan but no external street basemap. APC symbols are
+GTFS stop positions, not vehicle pings. The timeline preserves AVL timestamps and APC intervals
+alongside GTFS passages/dwells; per-reference time–distance panels toggle up to three saved
+candidates. Schedules retain their **original, unshifted clocks**, and the assigned candidate may
+be rank 2 or 3.
 
-逐 trip 时间窗口可选全范围或 5/15/30/60/120 分钟，横向滑条同步地图、时间线与进度图。
-全天概览可选全范围或 30/60/120/240 分钟，按方向和 reference 分面；每 trip 只显示一个计划：
-已分配者用 assignment，未分配者用明确标为诊断的 rank-1。不同 reference 的米轴不能直接混用，
-同一 trip 出现在多个分面不代表多个行程；无有效投影且无候选者仍在选择器/诊断中。
+Trip windows offer full extent or 5/15/30/60/120 minutes; horizontal pan synchronizes the map,
+timeline and progress views. The day overview offers full extent or 30/60/120/240 minutes,
+faceted by direction and reference, with one schedule per trip: its assignment or an explicitly
+diagnostic rank-1 fallback. Reference metre axes are not interchangeable; multiple facet entries
+are not extra trips. Trips without valid projection or a candidate remain in selectors/diagnostics.
 
-四模式读取已保存的距离三等分范围，不重算、不改变分段或 assignment；未发布模式不会伪造。
-原始、重复、`OFF_REFERENCE` 和截尾记录保留查看；有效曲线不跨 fragment/reference/分隔或
-超过该 run 配置阈值的缺口连接。全天图可能精简显示点，并标注原始/显示数量；精简不参与指标。
-未关联 APC 目前提供数量和审计下载，没有逐条孤立记录浏览器。读取校验保存文件的 SHA，
-不把新 UI 当成历史 run 的代码或策略升级。详见 [可视化契约](experiment05-visualization.md)。
+Modes read saved distance-third scopes without rerunning matching or changing segmentation or
+assignment; unpublished modes are not synthesized. Raw, duplicate, `OFF_REFERENCE` and censored
+records remain inspectable, while valid lines break at reference/fragment changes, separators or
+gaps beyond that run's pinned threshold. Day-view simplification reports original/display counts
+and never enters metrics. Unattached APC currently has counts and audit downloads, not a dedicated
+orphan-row explorer. Reads verify saved file hashes; a newer UI does not upgrade an older run's
+code or export policy. See the [visualization contract](experiment05-visualization.md).
 
-### 12.3 代码地图
+### 12.3 Code map
 
-| 路径 | 作用 |
+| Path | Role |
 |---|---|
-| `config/experiment05-v1.toml` | 唯一权威配置：路径、时区、切分、平台段、APC、执行、导出，以及全部继承自 04c 的匹配器参数 |
-| `tools/experiment05/pipeline.py` | 阶段编排、缓存键、代码与环境指纹、阶段固定、续跑、摘要 |
-| `tools/experiment05/sources.py` | 读取原始数据、规范化、UTC 与 DST、合并时间线、当日有效 GTFS |
-| `tools/experiment05/projection.py` | 投影任务切分与输入白名单 |
-| `tools/experiment05/segmentation.py` | 行程切分与稳定 ID |
-| `tools/experiment05/plateau.py` | 平台段状态机、右截尾、反事实否决 |
-| `tools/experiment05/apc.py` | APC 区间挂接与停站证据 |
-| `tools/experiment05/candidates.py` | 调用 04c 评分器，按模式固定排名与硬约束 |
-| `tools/experiment05/assignment.py` | 三轮锁定单调分配 |
-| `tools/experiment05/tides.py` | TIDES 映射、校验与原子发布 |
-| `tools/experiment05/validation.py` | 全流程不变量 |
-| `tools/experiment05/web.py`、`static05/` | 本地网页 |
-| `tools/merge_review/gtfs_matching/feed.py` | 按 manifest 选择 GTFS 版本并展开服务 |
-| `tools/merge_review/gtfs_matching/canonical.py` | 规范参考线的构建与校验 |
-| `tools/merge_review/gtfs_matching/projection.py` | 序列 Viterbi 投影与 APC 区间投影 |
-| `tools/merge_review/gtfs_matching/partial.py` | 四种模式的范围划分 |
-| `tools/merge_review/gtfs_matching/continuous/` | 连续评分：`schedule`、`retrieval`、`delay`（IRLS）、`operational_prior`、`occurrence`、`evidence`（覆盖率）、`integration`（8 项成本） |
-| `tools/merge_review/gtfs_matching/decision.py` | 保守的决策守卫 |
-| `src/ttc_tides/` | 早期 GTFS 预处理 CLI（`ttc-tides gtfs …`），以及服务日锚点等公用函数 |
-| `schemas/experiment05/tides-v1/` | vendored TIDES v1.0 schema 与校验和 |
-| `tests/test_experiment05_*.py` | 持续扩展的来源、平台段、候选、分配、TIDES、APC 事件、流水线、网页与清理测试；数量以当前测试收集结果为准 |
+| `config/experiment05-v1.toml` | The single authoritative configuration: paths, time zone, segmentation, plateau, APC, execution, export, and every matcher parameter inherited from 04c |
+| `tools/experiment05/pipeline.py` | Stage orchestration, cache key, code and environment fingerprints, stage pinning, resumption, summary |
+| `tools/experiment05/sources.py` | Raw reads, normalization, UTC and DST, merged timeline, date-active GTFS |
+| `tools/experiment05/projection.py` | Projection job partitioning and the input allowlist |
+| `tools/experiment05/segmentation.py` | Trip segmentation and stable IDs |
+| `tools/experiment05/plateau.py` | Plateau state machine, right-censoring, counterfactual veto |
+| `tools/experiment05/apc.py` | APC interval attachment and stop evidence |
+| `tools/experiment05/candidates.py` | Calls the 04c scorer; frozen per-mode rankings and hard constraints |
+| `tools/experiment05/assignment.py` | Three-round locked monotone assignment |
+| `tools/experiment05/tides.py` | TIDES mapping, validation, atomic publication |
+| `tools/experiment05/validation.py` | Pipeline invariants |
+| `tools/experiment05/web.py`, `static05/` | Local web page |
+| `tools/merge_review/gtfs_matching/feed.py` | Manifest-based GTFS version selection and service expansion |
+| `tools/merge_review/gtfs_matching/canonical.py` | Canonical reference construction and validation |
+| `tools/merge_review/gtfs_matching/projection.py` | Sequence Viterbi projection and APC interval projection |
+| `tools/merge_review/gtfs_matching/partial.py` | Scope partitioning for the four modes |
+| `tools/merge_review/gtfs_matching/continuous/` | Continuous scoring: `schedule`, `retrieval`, `delay` (IRLS), `operational_prior`, `occurrence`, `evidence` (coverage), `integration` (8 costs) |
+| `tools/merge_review/gtfs_matching/decision.py` | Conservative decision guard |
+| `src/ttc_tides/` | The earlier GTFS preprocessing CLI (`ttc-tides gtfs …`) and shared helpers such as the service-day anchor |
+| `schemas/experiment05/tides-v1/` | Vendored TIDES v1.0 schemas and checksums |
+| `tests/test_experiment05_*.py` | Growing source, plateau, candidate, assignment, TIDES, APC-event, pipeline, web and cleanup coverage; use current test collection for the count |
 
-相关文档：[设计与阶段契约](experiment05-design.md)、[平台段定义](experiment05-platform.md)、
-[TIDES 导出契约](tides05-contract.md)、[诊断表 schema](experiment05-output-schema.md)。
+Related documents: [design and stage contracts](experiment05-design.md),
+[plateau state definitions](experiment05-platform.md), [TIDES export contract](tides05-contract.md),
+[diagnostic table schema](experiment05-output-schema.md).
 
 ---
 
-## 13. 术语表
+## 13. Glossary
 
-| 术语 | 含义 |
+| Term | Meaning |
 |---|---|
-| performed trip（实际执行的行程） | 从观测切分出的运行片段假设，对应 `trip_id_performed`；不等于已独立确认的一次完整运营班次 |
-| scheduled occurrence（计划班次实例） | 某服务日、某 GTFS 版本中的一个 `trip_id` |
-| canonical reference（规范参考线） | 经过校验、带里程的 GTFS shape，用作一维坐标轴 |
-| `s`（进度） | 沿 reference 的里程，单位米 |
-| passage（通过） | 计划轨迹在某个 `s` 处的通过时刻（停站时为区间） |
-| residual interval（残差区间） | 观测时刻减去计划通过区间 |
-| delay process（延误过程） | 为一个（行程, 候选）拟合的延误随时间变化的函数 |
-| match mode（匹配模式） | `global`、`early`、`middle`、`late`，即用于匹配的观测范围 |
-| plateau（平台段） | `s(t)` 持续不变的一段 |
-| right-censoring（右截尾） | 把不可信的静止尾段排除在证据之外，而不是断言行程已结束 |
-| `rid` | 源行的不可变身份：来源、文件哈希、原始行号 |
-| run binding | 把 TIDES 包绑定到具体运行及其上游哈希的摘要值 |
+| Performed trip | An observed operating-segment hypothesis identified by `trip_id_performed`, not an independently confirmed complete scheduled operation |
+| Scheduled occurrence | One `trip_id` on one service date in one GTFS version |
+| Canonical reference | A validated GTFS shape with distances, used as a one-dimensional axis |
+| `s` (progress) | Distance along a reference, in metres |
+| Passage | The scheduled time at which a trip passes a given `s` (an interval at a stop) |
+| Residual interval | Observed time minus the scheduled passage interval |
+| Delay process | The delay-over-time function fitted for one (trip, candidate) pair |
+| Match mode | `global`, `early`, `middle`, or `late` — the observation scope used for matching |
+| Plateau | A stretch where `s(t)` stays flat |
+| Right-censoring | Excluding an untrustworthy stationary tail from the evidence, without asserting the trip ended |
+| `rid` | A source row's immutable identity: source, file hash, original row number |
+| Run binding | A digest binding a TIDES package to one specific run and its upstream hashes |

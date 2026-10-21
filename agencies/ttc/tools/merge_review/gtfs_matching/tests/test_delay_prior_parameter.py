@@ -7,10 +7,10 @@ from tools.merge_review.gtfs_matching.config import defaults, parameters, valida
 
 def test_delay_prior_parameter_explains_units_and_recomputation():
     spec = next(p for p in parameters() if p["key"] == "score_delay_prior_weight")
-    assert "每小时" in spec["label"]
+    assert "per hour" in spec["label"]
     assert "3600" in spec["description"]
-    assert "提前与晚点对称" in spec["description"]
-    assert "修改后需新运行" in spec["description"]
+    assert "early and late offsets are treated symmetrically" in spec["description"]
+    assert "changes require a new run" in spec["description"]
     assert spec["type"] == "number"
 
 

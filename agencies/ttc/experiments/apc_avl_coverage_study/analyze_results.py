@@ -69,14 +69,14 @@ STATUSES = (
 )
 ACCEPTED = ("direct", "inferred", "temporal_only")
 SEG_NAMES = {
-    "gap_only": "时间缺口分段",
-    "avl_context": "AVL 上下文分段",
-    "apc_assisted": "APC 辅助分段",
+    "gap_only": "Gap-only segmentation",
+    "avl_context": "AVL-context segmentation",
+    "apc_assisted": "APC-assisted segmentation",
 }
 MERGE_NAMES = {
-    "time_only": "仅时间基线",
-    "spatiotemporal": "时空约束关联",
-    "sequence_extension": "时空＋序列延续",
+    "time_only": "Time-only baseline",
+    "spatiotemporal": "Spatiotemporal association",
+    "sequence_extension": "Spatiotemporal + sequence extension",
 }
 
 
@@ -677,7 +677,7 @@ def n(value):
 
 
 def percent(value):
-    return "未定义" if value is None else f"{value:.2%}"
+    return "undefined" if value is None else f"{value:.2%}"
 
 
 def render_report(
@@ -696,21 +696,21 @@ def render_report(
     reference_direct = results["avl_context__spatiotemporal__nominal"]
     reference_sequence = results["avl_context__sequence_extension__nominal"]
     rows = [
-        "# APC–AVL 分割与融合方法比较（2026-09-08）",
+        "# APC–AVL segmentation and merge method comparison (2026-09-08)",
         "",
-        f"当前数据支持先构建可追溯的 APC–AVL 时空关联，但还不足以把观测片段认定为已验证的 `trip performed`。以 AVL 上下文分割＋默认参数为例，时空约束关联直接连接 {n(reference_direct['counts']['direct'])} 条 APC（占全部 APC 的 {percent(reference_direct['direct_rate_all_apc'])}），序列延续再增加 {n(reference_sequence['counts']['inferred'])} 条推断关联；这些比例表示证据覆盖，不表示准确率。",
+        f"The current data supports building traceable APC–AVL spatiotemporal associations first, but it is not yet sufficient to certify observed chunks as verified `trip performed` records. Taking AVL-context segmentation with nominal parameters as an example, spatiotemporal association directly links {n(reference_direct['counts']['direct'])} APC rows ({percent(reference_direct['direct_rate_all_apc'])} of all APC), and sequence extension adds a further {n(reference_sequence['counts']['inferred'])} inferred associations; these proportions represent evidence coverage, not accuracy.",
         "",
-        f"已完成全量 {n(counts['avl'])} 行 AVL、{n(counts['apc'])} 行 APC，覆盖 {manifest['selected_vehicles']} 辆源车辆编号并集，共 {len(results)} 个方法/阈值组合。分析对象是观测片段和关联假设。独立审定真值标签为 0，关联准确率和趟次边界准确率均为未定义。",
+        f"The full fixture of {n(counts['avl'])} AVL rows and {n(counts['apc'])} APC rows was processed, covering the union of {manifest['selected_vehicles']} source vehicle identifiers, across {len(results)} method/threshold combinations. The objects of analysis are observed chunks and association hypotheses. There are 0 independently reviewed truth labels; association accuracy and trip-boundary accuracy are both undefined.",
         "",
-        "本次研究依据用户的新请求独立开展，未读取旧盲标标签、未运行旧协议冻结的 factorial、未使用 GTFS，未生成生产 TIDES 数据。原始文件保持本地；本文仅含聚合统计，不含车辆轨迹、原始标识或行级时间。",
+        "This study was conducted independently under the user's new request: it did not read the old blind labels, did not run the factorial frozen under the old protocol, did not use GTFS, and did not generate production TIDES data. Raw files remain local; this document contains only aggregate statistics and no vehicle trajectories, raw identifiers or row-level timestamps.",
         "",
-        f"原始数据问题见 [raw 审计](apc-avl-raw-edge-cases-20260908.md)，规范与分母定义见 [TIDES 评价标准](apc-avl-coverage-evaluation-standard.md)，参数见 [study_config.json](../experiments/apc_avl_coverage_study/study_config.json)。受限完整结果见 [factorial_summary.csv](../artifacts/apc-avl-coverage-study-20260908/factorial02/factorial_summary.csv) 和 [{analysis_name}/assessment.json](../artifacts/apc-avl-coverage-study-20260908/{analysis_name}/assessment.json)。",
+        f"Raw-data issues are covered in the [raw audit](apc-avl-raw-edge-cases-20260908.md), the specification and denominator definitions in the [TIDES evaluation standard](apc-avl-coverage-evaluation-standard.md), and parameters in [study_config.json](../experiments/apc_avl_coverage_study/study_config.json). The access-restricted complete results are in [factorial_summary.csv](../artifacts/apc-avl-coverage-study-20260908/factorial02/factorial_summary.csv) and [{analysis_name}/assessment.json](../artifacts/apc-avl-coverage-study-20260908/{analysis_name}/assessment.json).",
         "",
-        "## 1. 默认阈值下的九种组合",
+        "## 1. Nine combinations at nominal thresholds",
         "",
-        "直接关联：有真实 AVL 点或短间隔插值特征的时空支持。序列推断：有冻结直接锚点支持，未生成 GPS 点。弱关联：仅时间基线的结果，不计为直接可信关联。歧义、未匹配和不合格记录均保留。所有行数以原始 APC 总量为共同分母；符合时间/结构准入条件的分母另记于完整结果。",
+        "Direct: spatiotemporal support from real AVL points or short-interval interpolation features. Inferred: supported by frozen direct anchors, with no GPS points generated. Weak: time-only baseline results, not counted as trusted direct associations. Ambiguous, unmatched and ineligible records are all retained. All row counts use the total raw APC count as the common denominator; the denominator of rows meeting the time/structure eligibility conditions is recorded separately in the complete results.",
         "",
-        "| 分割 | 融合 | 直接 | 推断 | 弱关联 | 歧义 | 不合格 | 未匹配 | 直接/全部 APC |",
+        "| Segmentation | Merge | Direct | Inferred | Weak | Ambiguous | Ineligible | Unmatched | Direct / all APC |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for r in nominal:
@@ -724,9 +724,9 @@ def render_report(
         rows.append("| " + " | ".join(cells) + " |")
     rows += [
         "",
-        "## 2. 分割结果的可解释性",
+        "## 2. Interpretability of segmentation results",
         "",
-        "| 分割 | 片段数 | 时长中位数/分钟 | 非DST中位数/分钟 | P95/分钟 | <2 分钟 | >2 小时 | 多方向片段 |",
+        "| Segmentation | Chunks | Median duration (min) | Non-DST median (min) | P95 (min) | < 2 min | > 2 h | Multi-direction chunks |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for method, c in chunks.items():
@@ -738,15 +738,15 @@ def render_report(
         )
     rows += [
         "",
-        "多方向片段表示同一观测片段中至少两个 APC 源方向各有至少 3 条直接关联记录。分母是该分割方法的全部片段；它用于提示可能需要进一步检查的边界。源方向未经权威验证，APC 辅助分割也使用了方向证据，因此该指标具有自我验证偏差，不能当作真实误合并率。片段越短或方向越纯均不自动代表质量更高。",
+        "A multi-direction chunk is one observed chunk in which at least two APC source directions each have at least 3 directly associated records. The denominator is all chunks of that segmentation method; the metric flags boundaries that may need further inspection. Source directions have not been authoritatively verified, and APC-assisted segmentation itself uses direction evidence, so this metric carries a self-validation bias and cannot be treated as a true over-merge rate. Shorter chunks or purer directions do not automatically indicate higher quality.",
         "",
-        f"三种分割均将 {n(chunks['gap_only']['time_ambiguous_chunks'])} 条 DST 歧义 GPS 保留为独立不确定片段，因此全体中位数会被零时长片段显著影响；非DST中位数另列。位置不确定点的保留也会增加短片段，不能将所有短片段解释为真实运行碎片化。APC 辅助分割仍有 {n(chunks['apc_assisted']['over_7200s'])} 个超过2小时的片段、{n(results['apc_assisted__spatiotemporal__nominal']['mixed_source_direction_chunks'])} 个多方向片段。结合共享终点的实测歧义，本轮尚未完成可靠的实际趟次边界恢复。",
+        f"All three segmentation methods retain the {n(chunks['gap_only']['time_ambiguous_chunks'])} DST-ambiguous GPS rows as separate uncertain chunks, so the overall median is strongly affected by zero-duration chunks; the non-DST median is listed separately. Retaining position-uncertain points also increases the number of short chunks, so not every short chunk can be interpreted as real operational fragmentation. APC-assisted segmentation still has {n(chunks['apc_assisted']['over_7200s'])} chunks longer than 2 hours and {n(results['apc_assisted__spatiotemporal__nominal']['mixed_source_direction_chunks'])} multi-direction chunks. Combined with the measured ambiguity at shared terminals, this round has not achieved reliable recovery of actual trip boundaries.",
         "",
-        "## 3. 严格、默认、宽松参数的取舍",
+        "## 3. Trade-offs between strict, nominal and wide parameters",
         "",
-        "所有数字阈值均为探索配置。严格/默认/宽松的时间容差为 30/60/120 秒，空间半径为 50/100/200 米，最大插值间隔为 60/90/180 秒，序列延续上限为 10/15/30 分钟。实际接受还受分数和候选差距规则约束；配置半径不是自动接受范围。",
+        "All numeric thresholds are exploratory configurations. The strict/nominal/wide time tolerances are 30/60/120 s, the spatial radii 50/100/200 m, the maximum interpolation intervals 60/90/180 s, and the sequence-extension horizons 10/15/30 min. Actual acceptance is further constrained by the score and candidate-margin rules; the configured radius is not an automatic acceptance range.",
         "",
-        "| 分割 | 参数 | 直接 | 序列新增推断 | 歧义（序列法） | >100m / 可测直接关联 | >60s / 可测直接关联 |",
+        "| Segmentation | Regime | Direct | Added by sequence extension | Ambiguous (sequence extension) | > 100 m / measurable direct | > 60 s / measurable direct |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for method in SEG_NAMES:
@@ -758,36 +758,36 @@ def render_report(
             )
     rows += [
         "",
-        "100 米/60 秒是跨配置统一参考线。宽松配置超过这两条参考线不等于违反自己的 200 米/120 秒规则。反过来，仅时间基线即使关联数量更多，也不能视为符合共同空间证据标准。残差是算法使用过的证据，因此较小残差不能独立证明关联正确。",
+        "100 m / 60 s are common reference lines across configurations. A wide configuration exceeding these two reference lines does not violate its own 200 m / 120 s rules. Conversely, the time-only baseline cannot be regarded as meeting the common spatial evidence standard even though it produces more associations. Residuals are evidence the algorithm already used, so a smaller residual cannot independently prove an association correct.",
         "",
-        "| 默认组合 | 空间 P50/P95（米） | 时间间隔 P95（秒） | 超过100m比例 | 超过60s比例 |",
+        "| Nominal combination | Spatial P50/P95 (m) | Temporal gap P95 (s) | Share > 100 m | Share > 60 s |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for r in nominal:
         d, t = r["sampled_spatial_residual_m"], r["sampled_temporal_gap_s"]
-        spatial = "未定义" if d["p50"] is None else f"{d['p50']:.1f}/{d['p95']:.1f}"
-        temporal = "未定义" if t["p95"] is None else f"{t['p95']:.1f}"
+        spatial = "undefined" if d["p50"] is None else f"{d['p50']:.1f}/{d['p95']:.1f}"
+        temporal = "undefined" if t["p95"] is None else f"{t['p95']:.1f}"
         rows.append(
-            f"| {SEG_NAMES[r['segmentation']]}＋{MERGE_NAMES[r['merge']]} | {spatial} | {temporal} | {percent(r['common_100m_excursion_rate'])} | {percent(r['common_60s_excursion_rate'])} |"
+            f"| {SEG_NAMES[r['segmentation']]} + {MERGE_NAMES[r['merge']]} | {spatial} | {temporal} | {percent(r['common_100m_excursion_rate'])} | {percent(r['common_60s_excursion_rate'])} |"
         )
     rows += [
         "",
-        "## 4. 覆盖不一致与缺失证据",
+        "## 4. Coverage inconsistency and missing evidence",
         "",
-        "| 默认序列法 | APC 前伸片段 | APC 尾伸片段 | 实際发生关联的片段分母 | APC 尾伸时长 P95/秒 |",
+        "| Nominal sequence extension | Chunks with APC lead | Chunks with APC tail | Denominator: chunks with any association | APC tail duration P95 (s) |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for method in SEG_NAMES:
         r = results[f"{method}__sequence_extension__nominal"]
         tail = r["apc_trailing_seconds"]["p95"]
         rows.append(
-            f"| {SEG_NAMES[method]} | {n(r['apc_leading_assigned_chunks'])} | {n(r['apc_trailing_assigned_chunks'])} | {n(r['coverage_denominator'])} | {tail if tail is not None else '未定义'} |"
+            f"| {SEG_NAMES[method]} | {n(r['apc_leading_assigned_chunks'])} | {n(r['apc_trailing_assigned_chunks'])} | {n(r['coverage_denominator'])} | {tail if tail is not None else 'undefined'} |"
         )
     rows += [
         "",
-        "序列推断还有一项需单独检验的物理证据问题：三个不同站码可能指向相近位置。当前内核检验了目标到锚点的距离，但没有要求三个锚点之间形成物理行进。以下为本次事后增加的 50 米探索性筛查，不作为已经校准的接受门槛。",
+        "Sequence inference also has a physical-evidence issue that needs separate checking: three distinct stop codes may point to nearby locations. The current kernel checks the distance from the target to its anchors, but does not require physical progression between the three anchors. The following is a 50 m exploratory screen added post hoc in this analysis; it is not a calibrated acceptance threshold.",
         "",
-        "| 默认序列法 | 全部推断行 | 锚点坐标完整行 | 三锚点两两均不足50米 |",
+        "| Nominal sequence extension | All inferred rows | Rows with complete anchor coordinates | All three anchors pairwise under 50 m |",
         "| --- | ---: | ---: | ---: |",
     ]
     for method in SEG_NAMES:
@@ -800,9 +800,9 @@ def render_report(
     ref = results["avl_context__sequence_extension__nominal"]
     rows += [
         "",
-        "下表以 AVL 上下文＋默认序列延续为例，各类可能交叉，不能相加当作互斥总数。",
+        "The following table uses AVL-context segmentation + nominal sequence extension as an example; the categories may overlap and cannot be summed as mutually exclusive totals.",
         "",
-        "| 证据情形 | APC 分母 | 直接 | 推断 | 弱关联 |",
+        "| Evidence condition | APC denominator | Direct | Inferred | Weak |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for tag in (
@@ -822,23 +822,23 @@ def render_report(
         )
     rows += [
         "",
-        "默认组合的最终候选片段数分布如下。序列推断会把最终 owner 记为单一候选；因此这不是原始候选全集的大小，不能用它证明没有被遗漏的趟次解释。",
+        "The distribution of final candidate chunk counts for the nominal combinations is as follows. Sequence inference records the final owner as a single candidate, so this is not the size of the original candidate universe and cannot be used to prove that no trip interpretation was missed.",
         "",
-        "| 默认组合 | 0 个候选 | 1 个候选 | 至少2个候选 | APC 分母 |",
+        "| Nominal combination | 0 candidates | 1 candidate | 2 or more candidates | APC denominator |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for r in nominal:
         cd = r["candidate_count_distribution"]
         rows.append(
-            f"| {SEG_NAMES[r['segmentation']]}＋{MERGE_NAMES[r['merge']]} | {n(cd.get(0, 0))} | {n(cd.get(1, 0))} | {n(sum(v for k, v in cd.items() if k >= 2))} | {n(r['apc_rows'])} |"
+            f"| {SEG_NAMES[r['segmentation']]} + {MERGE_NAMES[r['merge']]} | {n(cd.get(0, 0))} | {n(cd.get(1, 0))} | {n(sum(v for k, v in cd.items() if k >= 2))} | {n(r['apc_rows'])} |"
         )
     rows += [
         "",
-        "APC 含粒度不确定信号时仍可形成诊断时空候选，但不能关闭 APC 发布门槛。`AvgSample=1` 也不是单次停站的合同证明。未匹配可能来自覆盖缺失、物理不一致、候选不足或跨边界歧义；不得统一解释为错误数据。",
+        "APC rows carrying a grain-uncertainty signal can still form diagnostic spatiotemporal candidates, but this cannot close the APC publication gate. `AvgSample=1` is likewise not contractual proof of a single stop visit. Unmatched rows may result from missing coverage, physical inconsistency, insufficient candidates or cross-boundary ambiguity; they must not be uniformly interpreted as bad data.",
         "",
-        "真实点序列的首末时间仅构成观测范围。所有输出的 `actual_trip_start/end` 均保留为空。针对 AVL 13:00–14:00、APC 13:15–14:13，允许在独立直接锚点与连续性证据支持下保留 APC 尾段推断；13:00–14:13 不被命名为已验证的真实趟次起止。",
+        "The first and last timestamps of a real point sequence constitute only an observation envelope. All output `actual_trip_start/end` fields remain null. For the AVL 13:00–14:00, APC 13:15–14:13 case, an inferred APC tail may be retained when supported by independent direct anchors and continuity evidence; 13:00–14:13 is not designated as a verified actual trip start and end.",
         "",
-        "## 5. 鲁棒性检查与可信度边界",
+        "## 5. Robustness checks and credibility boundaries",
         "",
     ]
     validation = rubric["implementation_verification"]
@@ -848,17 +848,17 @@ def render_report(
             for p in rubric["probe_populations"].values()
         )
         rows += [
-            f"项目及研究实现测试共 {validation['tests']} 项，失败 {validation['failures']}、错误 {validation['errors']}，见 [JUnit 制品](../artifacts/apc-avl-coverage-study-20260908/{validation['filename']})。常规与定向探针另执行 {probe_count} 项限定范围检查。通过这些检查说明相应实现行为被验证；下述真实边界局限及构造反例仍然成立。",
+            f"The project and study implementation tests total {validation['tests']}, with {validation['failures']} failures and {validation['errors']} errors; see the [JUnit artifact](../artifacts/apc-avl-coverage-study-20260908/{validation['filename']}). The general and targeted probes additionally executed {probe_count} scoped checks. Passing these checks means the corresponding implementation behavior was verified; the real boundary limitations and constructed counterexamples described below still hold.",
             "",
         ]
     if probe:
         general = rubric["probe_populations"]["general"]
         rows += [
-            f"常规探针选取 {general['completion']['vehicle_windows']} 个固定 2 小时车辆窗口，按原始数据存在性选样，未按匹配结果选样。已纳入 {len(probe)} 个分割/融合/扰动配置、{general['completion']['probe_combinations']} 次窗口×配置比较，详见受限 [probes01/probe_summary.json](../artifacts/apc-avl-coverage-study-20260908/probes01/probe_summary.json)。掩蔽实验用未掩蔽算法输出作参照；统计原归属保持、弃判、直接转推断和不相交片段切换。这些是缺失条件下的稳定性指标，不能叫作真实匹配准确率。",
+            f"The general probes selected {general['completion']['vehicle_windows']} fixed 2-hour vehicle windows, sampled by raw-data presence rather than by matching outcome. They cover {len(probe)} segmentation/merge/perturbation configurations and {general['completion']['probe_combinations']} window × configuration comparisons; see the access-restricted [probes01/probe_summary.json](../artifacts/apc-avl-coverage-study-20260908/probes01/probe_summary.json). The masking experiments use the unmasked algorithm output as the reference and count retained ownership, abstentions, direct-to-inferred transitions and disjoint chunk switches. These are stability metrics under missing data and cannot be called true matching accuracy.",
             "",
         ]
         rows += [
-            "| 扰动 | 组合数 | 保留 APC 比较次数 | 原有关联后弃判 | 直接转同组推断 | 不相交片段切换 |",
+            "| Perturbation | Configurations | Retained APC comparisons | Reference-assigned then abstained | Direct to inferred, same membership | Disjoint chunk switches |",
             "| --- | ---: | ---: | ---: | ---: | ---: |",
         ]
         grouped = collections.defaultdict(collections.Counter)
@@ -880,7 +880,7 @@ def render_report(
             )
         rows += [
             "",
-            "表中比较次数跨算法重复计数，不能当作独立样本量。无幸存 GPS 支持可比较的片段单列为不可比较，不能给它虚构 Jaccard=0 或判定切换。完整探针检查状态另见 `checks.json`；部分扰动失败必须保留并解释。",
+            "Comparison counts in the table are repeated across algorithms and cannot be treated as independent sample sizes. Chunks with no surviving GPS support to compare against are listed separately as non-comparable; they must not be assigned a fabricated Jaccard=0 or counted as switches. The complete probe check status is in `checks.json`; any partial perturbation failures must be retained and explained.",
             "",
         ]
         negative = probe["apc_assisted__spatiotemporal__apc_clock_-60s"]
@@ -888,12 +888,12 @@ def render_report(
         negative_two = probe["apc_assisted__spatiotemporal__apc_clock_-120s"]
         positive_two = probe["apc_assisted__spatiotemporal__apc_clock_+120s"]
         rows += [
-            f"时钟偏移是明显的敏感点：常规窗口中，APC 辅助＋时空约束的参照直接关联为 {n(negative['reference_direct'])} 条；人为将 APC 时钟移动 −60/+60 秒后，关联降至 {n(negative['perturbed_assigned'])}/{n(positive['perturbed_assigned'])} 条，移动 −120/+120 秒后为 {n(negative_two['perturbed_assigned'])}/{n(positive_two['perturbed_assigned'])} 条。这个实验没有估计 TTC 的真实时钟偏移；它说明时钟合同与偏移诊断必须先于提高关联容差。",
+            f"Clock offset is a clear sensitivity point: in the general windows, the reference direct associations for APC-assisted segmentation + spatiotemporal association number {n(negative['reference_direct'])}; after artificially shifting the APC clock by -60/+60 s, associations drop to {n(negative['perturbed_assigned'])}/{n(positive['perturbed_assigned'])}, and after -120/+120 s to {n(negative_two['perturbed_assigned'])}/{n(positive_two['perturbed_assigned'])}. This experiment does not estimate the real TTC clock offset; it shows that a clock contract and offset diagnosis must precede any increase in association tolerance.",
             "",
         ]
     else:
         rows += [
-            "本报告生成时未发现已完成的 probes01；扰动恢复与全量重复运行确定性均标为未评估，不用合成测试代替。",
+            "No completed probes01 was found when this report was generated; perturbation recovery and full-fixture rerun determinism are both marked not evaluated, and synthetic tests are not substituted for them.",
             "",
         ]
     edge = rubric["probe_populations"].get("edge", {})
@@ -902,15 +902,15 @@ def render_report(
             "apc_assisted__sequence_extension__exact_avl_duplication"
         ]
         rows += [
-            "另外执行了按原始边界风险定向选样的探针，来源是共享终点重叠、DST 歧义、提取窗口末尾和内部 AVL 缺口。它与上述常规窗口是不同样本总体，最终结果保存在 [probes-edge02](../artifacts/apc-avl-coverage-study-20260908/probes-edge02/probe_summary.json)，不能混成一个总体准确率。此前 edge01 保留作诊断，不作为最终统计。",
+            "Targeted probes sampled by raw boundary risk were also executed, drawn from shared-terminal overlaps, DST ambiguity, extraction-window ends and internal AVL gaps. They form a different sample population from the general windows above; the final results are stored in [probes-edge02](../artifacts/apc-avl-coverage-study-20260908/probes-edge02/probe_summary.json) and cannot be pooled into a single overall accuracy. The earlier edge01 is retained for diagnostics and is not used as the final statistics.",
             "",
-            f"该定向探针执行 {edge['completion'].get('probe_combinations', '见制品')} 次窗口×配置比较；检查失败数为 {len(edge['completion'].get('failed_checks', []))}。完整分母、分层结果和任何失败均保留在其 manifest、summary 与 checks 中。",
+            f"These targeted probes executed {edge['completion'].get('probe_combinations', 'see artifact')} window × configuration comparisons; the number of failed checks is {len(edge['completion'].get('failed_checks', []))}. Complete denominators, stratified results and any failures are retained in their manifest, summary and checks.",
             "",
         ]
         rows += [
-            "下表固定使用 APC 辅助分割＋默认序列延续，并施加“APC 前缀15分钟、AVL 后缀13分钟”联合掩蔽。四种原始证据情形分别选取2个窗口；原先关联与扰动后关联均只是算法参照。",
+            'The following table uses APC-assisted segmentation + nominal sequence extension throughout, with the joint masking "APC prefix 15 min, AVL suffix 13 min" applied. 2 windows were selected for each of the four raw evidence conditions; both the reference and perturbed associations are algorithm references only.',
             "",
-            "| 定向原始证据 | 保留APC分母 | 原有关联 | 掩蔽后关联 | 直接转同组推断 | 原有关联后弃判 |",
+            "| Targeted raw evidence | Retained APC denominator | Reference assigned | Assigned after masking | Direct to inferred, same membership | Reference-assigned then abstained |",
             "| --- | ---: | ---: | ---: | ---: | ---: |",
         ]
         for stratum, values in edge.get("by_stratum_summary", {}).items():
@@ -920,22 +920,25 @@ def render_report(
             )
         rows += [
             "",
-            "定向真实样本中，同站、相反方向且区间重叠27秒的两条 APC 可同时直接关联到同一观测块。这说明直接 GPS 支持能成立，而实际趟次边界仍未解决。另一个共享终点样本仍为歧义/未匹配。月份末尾单源延续没有在这些掩蔽样本中恢复原关联，不能把所有覆盖尾部都视为可补全的同一趟次。",
+            "In the targeted real samples, two APC rows at the same stop in opposite directions with intervals overlapping by 27 seconds can both be directly associated with the same observed chunk. This shows that direct GPS support can hold while the actual trip boundary remains unresolved. Another shared-terminal sample remains ambiguous/unmatched. Single-source continuation at the end of the month did not recover the reference associations in these masked samples, so not every coverage tail can be treated as a completable same-trip continuation.",
             "",
-            f"在该次 APC 辅助＋序列法的 DST 定向窗口中，复制 GPS 后原始片段总数从 {n(dst_duplication['reference_chunk_count'])} 增加到 {n(dst_duplication['perturbed_chunk_count'])}；投影到幸存源记录集合后的已接受 owner 关系可以不变。这两个指标描述不同对象。{edge['completion']['checks']} 项定向检查只覆盖明确声明的规则，不等于重复数据对分割数量完全无影响。",
+            f"In that APC-assisted + sequence-extension DST targeted window, duplicating the GPS rows increased the raw chunk total from {n(dst_duplication['reference_chunk_count'])} to {n(dst_duplication['perturbed_chunk_count'])}; the accepted owner relations projected onto the surviving source-record set can remain unchanged. These two metrics describe different objects. The {edge['completion']['checks']} targeted checks cover only explicitly declared rules and do not mean that duplicate data has no effect on the chunk count.",
             "",
         ]
     if rubric["constructed_robustness_counterexamples"]:
         rows += [
-            "已核验独立构造案例的核心代码哈希、状态与结果，实际复现三个负面结果，见 [segmentation_counterexamples.json](../artifacts/apc-avl-coverage-study-20260908/segmentation_counterexamples.json)：复制一个 GPS 测量可使上下文分割从 1 块变 2 块；复制全部 GPS 行可使几何折返从 2 块变 1 块；前后角色共享终点且到离站区间重叠，可使 APC 方向切分从 2 块变 1 块。常规窗口的重复数据探针即使通过，也不能消除这些反例。它们限制分割方法的泛化鲁棒性，不能用“无运行异常”抵消。",
+            'The core code hashes, statuses and results of the independently constructed cases were verified, and three negative results were actually reproduced; see [segmentation_counterexamples.json](../artifacts/apc-avl-coverage-study-20260908/segmentation_counterexamples.json): duplicating a single GPS measurement can change context segmentation from 1 chunk to 2; duplicating all GPS rows can change a geometric reversal from 2 chunks to 1; and a shared terminal between consecutive roles with overlapping arrival/departure intervals can change the APC direction split from 2 chunks to 1. Even when the duplicate-data probes on the general windows pass, they do not eliminate these counterexamples. They limit the generalization robustness of the segmentation methods and cannot be offset by "no runtime anomalies".',
             "",
         ]
     else:
-        rows += ["本次分析缺少经过核验的构造反例制品；其结果未评估。", ""]
+        rows += [
+            "This analysis lacks a verified constructed-counterexample artifact; its results are not evaluated.",
+            "",
+        ]
     rows += [
-        "内核候选差距按观测块计算：同一长块内多个停站或相邻趟次的竞争会被折叠成一个 owner。因此长块的高直接关联率不等于趟次身份明确。APC 源粒度标记包含计数/载荷非整数信号，APC 辅助分割会排除这些记录；可以说未用客流数值作为正向匹配得分，不能说整个方法完全独立于计数字段。",
+        "The kernel computes candidate margin per observed chunk: competition between multiple stops or adjacent trips within the same long chunk is collapsed into one owner. A high direct association rate on long chunks therefore does not mean trip identity is clear. The APC source grain flag includes non-integer count/load signals, and APC-assisted segmentation excludes those records; it can be said that passenger-count values were not used as a positive matching score, but not that the whole method is entirely independent of the count fields.",
         "",
-        f"默认 AVL 上下文＋时空约束的直接关联中，仍有 {n(reference_direct['source_route_conflicts'])} 条 APC 与支持 GPS 的源线路标签不同。这里的直接关联只确认局部时空支持，不确认线路或趟次语义。",
+        f"Among the direct associations of nominal AVL-context segmentation + spatiotemporal association, {n(reference_direct['source_route_conflicts'])} APC rows still differ from the source route label of the supporting GPS. Direct association here confirms only local spatiotemporal support, not route or trip semantics.",
         "",
     ]
     fail_count = sum(
@@ -944,35 +947,35 @@ def render_report(
         for x in values
     )
     rows += [
-        f"机器可读 [rubric_check_results.json](../artifacts/apc-avl-coverage-study-20260908/{analysis_name}/rubric_check_results.json) 记录每项规则的实际范围、分母和未检查部分。本次观察到的硬规则失败为 {fail_count} 项（按配置×规则计）；部分完成或未执行的规则明确标为 `not_evaluated`，没有“全部 TIDES 门槛通过”的声明。",
+        f'The machine-readable [rubric_check_results.json](../artifacts/apc-avl-coverage-study-20260908/{analysis_name}/rubric_check_results.json) records the actual scope, denominator and unchecked portion of every rule. The number of hard-rule failures observed in this analysis is {fail_count} (counted per configuration × rule); partially completed or unexecuted rules are explicitly marked `not_evaluated`, and there is no claim that "all TIDES gates pass".',
         "",
-        "已核对每条 APC 的单一处理结果、全部 AVL 的片段归属、GPS 原始引用、推断不得伪造 GPS、时间不确定记录不得接受，以及输出不提升为实际趟次。完整的边界候选穷举、每个插值残差的独立重算、所有输入排列/分批不变性仍未完成。P02–P07 的时间合同、APC 粒度、事件含义、完整站序和实际趟次身份继续未解决；P01 无生产包可供发布验证。",
+        "The following were verified: a single disposition per APC row, chunk membership for all AVL rows, raw GPS references, no fabricated GPS in inferences, no acceptance of time-uncertain records, and no promotion of outputs to actual trips. Exhaustive enumeration of boundary candidates, independent recomputation of every interpolation residual, and invariance under all input permutations/batchings remain incomplete. The P02–P07 items (time contract, APC grain, event semantics, complete stop order and actual trip identity) remain unresolved; P01 has no production package available for publication validation.",
         "",
-        "## 6. 本地运行可行性",
+        "## 6. Local run feasibility",
         "",
-        f"完整 21 组合运行耗时 {completion['wall_seconds'] / 60:.1f} 分钟，进程峰值 RSS 为 {completion['peak_rss_mib'] / 1024:.2f} GiB，运行目录总量 {output_bytes / (1024**3):.2f} GiB。这是共享进程、共享支持候选和分割缓存下的整次运行峰值，不能分摊成每个算法的独立峰值。",
+        f"The full 21-combination run took {completion['wall_seconds'] / 60:.1f} minutes, with a peak process RSS of {completion['peak_rss_mib'] / 1024:.2f} GiB and a run directory totaling {output_bytes / (1024**3):.2f} GiB. This is the whole-run peak under a shared process, shared support candidates and segmentation caches; it cannot be apportioned into independent per-algorithm peaks.",
         "",
-        "| 默认组合 | 共享候选构建/秒 | 分割/秒 | 关联/秒 | 关联文件 MiB |",
+        "| Nominal combination | Shared candidate build (s) | Segmentation (s) | Association (s) | Assignment files (MiB) |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for r in nominal:
         runtime = r["runtime_seconds"]
         rows.append(
-            f"| {SEG_NAMES[r['segmentation']]}＋{MERGE_NAMES[r['merge']]} | {runtime['support_seconds']:.1f} | {runtime['segmentation_seconds']:.1f} | {runtime['merge_seconds']:.1f} | {r['assignment_output_bytes'] / 1024**2:.1f} |"
+            f"| {SEG_NAMES[r['segmentation']]} + {MERGE_NAMES[r['merge']]} | {runtime['support_seconds']:.1f} | {runtime['segmentation_seconds']:.1f} | {runtime['merge_seconds']:.1f} | {r['assignment_output_bytes'] / 1024**2:.1f} |"
         )
     rows += [
         "",
-        "共享候选构建在各行重复列示但实际每车只执行一次；同一种分割也由不同融合配置复用，不能把表格各列相加当总耗时。关联列含时空匹配前置步骤，写盘/读取和汇总开销体现在全程耗时。软件和机器信息保存在 manifest；CPU 时间及每方法独立内存峰值未测。单月结果支持本地批处理可行性，尚不能证明多月增量、并行或生产部署能力。",
+        "The shared candidate build is repeated on every row but actually executes once per vehicle; each segmentation is likewise reused across merge configurations, so the table columns cannot be summed as total runtime. The association column includes the spatiotemporal matching pre-step; disk write/read and aggregation overheads appear in the wall-clock time. Software and machine information is stored in the manifest; CPU time and per-method independent memory peaks were not measured. The single-month result supports local batch feasibility; it does not yet demonstrate multi-month incremental, parallel or production deployment capability.",
         "",
-        "## 7. 条件性建议",
+        "## 7. Conditional recommendations",
         "",
-        "可以继续 APC–AVL 优先路线：把时空约束关联作为直接证据层，保留独立原始记录，再把序列延续作为可修订的推断层。融合不能把一个 APC 记录按多个 GPS 点重复累计，也不能把 AVL 缺失处补成观测点。",
+        "The APC–AVL-first route can continue: use spatiotemporal association as the direct evidence layer, preserve independent raw records, and then treat sequence extension as a revisable inference layer. The merge must not repeat-count one APC record across multiple GPS points, nor fill AVL gaps with fabricated observation points.",
         "",
-        "仅时间方法适合作为宽候选基线；它的较高关联量不能作为可信覆盖。时间缺口分割适合生成连续观测块；长块和多方向块提示它不足以直接声明一趟运行。AVL 上下文与 APC 辅助方法可作为边界候选的两种补充：使用它们的实测覆盖/弃判/碎片化取舍选择下一轮复核范围，不按方向纯度或关联数量直接封为最佳方法。",
+        "The time-only method is suitable as a wide candidate baseline; its higher association count cannot be taken as trusted coverage. Gap-only segmentation is suitable for producing continuous observation chunks; long and multi-direction chunks indicate that it is insufficient to declare a single trip directly. The AVL-context and APC-assisted methods can serve as two complementary sources of boundary candidates: use their measured coverage/abstention/fragmentation trade-offs to select the next review scope, rather than crowning a best method by direction purity or association count.",
         "",
-        "先保留严格/默认设置作为人工复核候选，同时把宽松设置新增的关联和所有单源前后缀单列抽样。需要分别标注同车不同趟次、折返、内部缺口、时钟偏移和汇总 APC 情形，冻结规则后再做独立车辆日留出验证。没有这些标签之前，本次只能给出证据一致性与工程可行性的条件结论，不能给出各种方法真实准确率的优劣排序。",
+        "Retain the strict/nominal settings as human-review candidates for now, while sampling separately the associations added by the wide setting and all single-source prefixes/suffixes. Same-vehicle different-trip, reversal, internal-gap, clock-offset and aggregated-APC cases need to be labeled separately, followed by independent vehicle-day holdout validation after the rules are frozen. Without these labels, this study can only offer conditional conclusions on evidence consistency and engineering feasibility, not a ranking of the methods by true accuracy.",
         "",
-        "本次没有打开旧标签/留出制品，但已经观察了当前整月 raw 数据。与本次研究重叠的车辆日不能再被称为对本轮规则选择完全未见的原始数据留出集。未来独立验证需要新的、事先声明的评估设计，优先采用新的源数据窗口；旧协议及旧标签状态本次不修改。",
+        "This study did not open the old label/holdout artifacts, but it did inspect the entire current raw month. Vehicle-days overlapping this study can no longer be called a raw-data holdout set completely unseen by this round's rule selection. Future independent validation needs a new, pre-declared evaluation design, preferably using fresh source-data windows; the old protocol and old label status are not modified in this round.",
         "",
     ]
     return "\n".join(rows)

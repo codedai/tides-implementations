@@ -88,7 +88,7 @@ def continuous_gate_checks(candidate, config, result=None):
     for metric, label, actual, threshold, operator, unit, passed in (
         (
             "score",
-            "连续时空综合成本",
+            "Continuous time–space aggregate cost",
             candidate.get("score"),
             c["continuous_match_cost_max"],
             "<=",
@@ -109,19 +109,19 @@ def continuous_gate_checks(candidate, config, result=None):
             for key, label, threshold, gate in (
                 (
                     "projection",
-                    "投影覆盖率（相邻区间时长）",
+                    "Projection coverage (adjacent-interval duration)",
                     "continuous_min_projection_ratio",
                     "projection_coverage",
                 ),
                 (
                     "schedule",
-                    "计划对齐覆盖率（相邻区间时长）",
+                    "Schedule alignment coverage (adjacent-interval duration)",
                     "continuous_min_schedule_ratio",
                     "schedule_coverage",
                 ),
                 (
                     "end_to_end",
-                    "端到端覆盖率（相邻区间时长）",
+                    "End-to-end coverage (adjacent-interval duration)",
                     "continuous_min_end_to_end_ratio",
                     "end_to_end_coverage",
                 ),
@@ -129,7 +129,7 @@ def continuous_gate_checks(candidate, config, result=None):
         ),
         (
             "quality_gates.adequate_observations",
-            "有效点数、持续时间和进度证据",
+            "Adequate valid points, duration and progress",
             quality.get("adequate_observations"),
             True,
             "==",
@@ -161,7 +161,7 @@ def continuous_gate_checks(candidate, config, result=None):
     checks.append(
         dict(
             metric="calibrated_credible_set",
-            label="独立校准的班次可信集",
+            label="Independently calibrated occurrence credible set",
             actual=verified_set,
             threshold=True,
             operator="==",
@@ -212,7 +212,7 @@ def gate_checks(candidate, config, result=None):
     specifications = (
         (
             "score",
-            "综合成本",
+            "Aggregate cost",
             candidate.get("score"),
             config["aggregation_match_cost_max"],
             "<=",
@@ -221,7 +221,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "coverage",
-            "有效投影点比例",
+            "Valid projection point ratio",
             candidate.get("coverage"),
             coverage,
             ">=",
@@ -230,7 +230,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "schedule_supported_window_weight_ratio",
-            "窗口支持权重比例",
+            "Supported-window weight ratio",
             candidate.get("schedule_supported_window_weight_ratio"),
             coverage,
             ">=",
@@ -239,7 +239,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "whole_alignment.status",
-            "整段对齐状态",
+            "Whole-segment alignment status",
             candidate.get("whole_alignment", {}).get("status"),
             "EVIDENCE",
             "==",
@@ -248,7 +248,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "schedule_aligned_point_ratio",
-            "整段对齐点覆盖率",
+            "Whole-segment aligned point coverage",
             candidate.get("schedule_aligned_point_ratio"),
             coverage,
             ">=",
@@ -257,7 +257,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "schedule_aligned_duration_ratio",
-            "整段对齐时长覆盖率",
+            "Whole-segment aligned duration coverage",
             candidate.get("schedule_aligned_duration_ratio"),
             coverage,
             ">=",
@@ -266,7 +266,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "support_score",
-            "支持分须为 0–1 的有限数值",
+            "Support score must be finite and between 0 and 1",
             candidate.get("support_score"),
             [0, 1],
             "in",
@@ -275,7 +275,7 @@ def gate_checks(candidate, config, result=None):
         ),
         (
             "finite_aggregate_cost",
-            "成本须为非负有限数值",
+            "Cost must be finite and nonnegative",
             gates["finite_aggregate_cost"],
             True,
             "==",

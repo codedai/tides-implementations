@@ -949,9 +949,11 @@ class ReviewData:
                 )
                 for row in display_avl + payload["apc"]
             ),
-            "title": "车辆日源观测流 · AVL 完全重复副本已合并"
-            if self.avl_deduplication
-            else "车辆日源观测流 · 仅 VehicleID 合并",
+            "title": (
+                "Vehicle-day source observations · exact AVL duplicates collapsed"
+                if self.avl_deduplication
+                else "Vehicle-day source observations · grouped by VehicleID only"
+            ),
             "date_clipped_start": False,
             "date_clipped_end": False,
             "scope_limited": True,
@@ -1236,11 +1238,13 @@ class ReviewData:
                 "removed_avl": len(payload["avl"]) - len(representatives),
                 "filtered_avl_pi_po": len(filtered),
                 "avl_deduplication": True,
-                "title": f"方向候选片段 · {direction or '未知方向'}"
-                if segment
-                else "未归入方向候选片段的源记录"
-                if rows
-                else "车辆日排除记录审计 · 无候选片段",
+                "title": (
+                    f"Direction candidate segment · {direction or 'Unknown direction'}"
+                    if segment
+                    else "Source records not assigned to a direction candidate segment"
+                    if rows
+                    else "Vehicle-day excluded-record audit · no candidate segment"
+                ),
                 "candidate_only": bool(segment),
                 "complete_trip": False,
                 "date_clipped_start": clipped_start,
@@ -1732,9 +1736,12 @@ class ReviewData:
                 bool(_warning_flags(row, decisions[row["rid"]])) for row in rows
             ),
             "title": {
-                "segment": "候选 trip · 冻结 AVL 片段",
-                "apc_only": "未关联 APC · 审查窗口（不表示没有 GPS）",
-                "unresolved": "待判定 · 非唯一片段归属 / 未接受关联",
+                "segment": "Candidate trip · frozen AVL segment",
+                "apc_only": "Unassociated APC · review window (does not imply no GPS)",
+                "unresolved": (
+                    "Undetermined · non-unique segment membership / "
+                    "unaccepted association"
+                ),
             }[kind],
         }
 

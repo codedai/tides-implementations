@@ -69,9 +69,9 @@ def fig_timeline(
     # (row label, start, end, color, hover note, bar width, opacity)
     rows: list[tuple[str, int, int, str, str, float, float]] = []
     for ci, color, name in [
-        (bundle.prev_chunk, PREV_COLOR, "前一个 chunk（相邻上下文）"),
-        (bundle.chunk, CURRENT_COLOR, "当前标注窗口"),
-        (bundle.next_chunk, NEXT_COLOR, "后一个 chunk（相邻上下文）"),
+        (bundle.prev_chunk, PREV_COLOR, "Previous chunk (adjacent context)"),
+        (bundle.chunk, CURRENT_COLOR, "Current labeling window"),
+        (bundle.next_chunk, NEXT_COLOR, "Next chunk (adjacent context)"),
     ]:
         if ci is not None and ci.start_epoch is not None and ci.end_epoch is not None:
             note = f"{name}: {fmt_duration_s(ci.end_epoch - ci.start_epoch)}"
@@ -141,7 +141,7 @@ def fig_timeline(
             fig.add_annotation(
                 x=axis.x(mid),
                 y="AVL chunks",
-                text=f"间隔 {fmt_duration_s(z.start_epoch - a.end_epoch)}",
+                text=f"gap {fmt_duration_s(z.start_epoch - a.end_epoch)}",
                 showarrow=False,
                 yshift=18,
                 font=dict(size=10, color="#666666"),
@@ -162,7 +162,7 @@ def fig_timeline(
                         size=11,
                         line=dict(width=1.5, color=APC_COLOR),
                     ),
-                    name="APC 事件",
+                    name="APC events",
                     text=[
                         f"stop {sc} {local_str(e)}"
                         for sc, e in zip(

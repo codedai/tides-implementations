@@ -1,105 +1,150 @@
-# Experiment 05：APC 停站与乘客事件的版本化映射约定
+# Experiment 05: versioned mapping convention for APC stop visits and passenger events
 
-## 适用范围与假设
+## Scope and assumptions
 
-本版本按用户确认的研究假设，将一条通过关联校验的 APC 记录解释为
-同一车辆在一个站点的一次停站；该记录的 boarding/alighting 是这次停站的
-累计上下车人数。这个假设不是已获得供应商认证的源数据定义，也不是 TIDES
-要求所有 APC 厂商采用的粒度。原始 `grain_uncertain` 等诊断不被改成已验证。
+Under the user-confirmed research assumption, this version interprets one APC
+record that passes attachment validation as one stop visit by the same vehicle
+at one stop; that record's boarding/alighting are the aggregate boardings and
+alightings for that visit. This assumption is not a vendor-certified definition
+of the source data, nor a grain that TIDES requires all APC vendors to adopt.
+Original diagnostics such as `grain_uncertain` are not changed to verified.
 
-生产配置 `config/experiment05-v1.toml` 明确选择：
+The production configuration `config/experiment05-v1.toml` explicitly selects:
 
 ```toml
 [export]
 passenger_event_policy = "apc_stop_interval_departure_proxy_v1"
 ```
 
-旧的 `omit_without_event_semantics` 仍可显式选择；standalone 导出 API 在没有
-提供 policy 时保持旧的保守行为。策略变化改变 config hash、代码内容版本和
-cache key，不修改已经发布的旧运行。原始数据、匹配前证据、trip 分割、候选
-评分/排序与三轮 assignment 不受这项**导出策略**影响。
+The former `omit_without_event_semantics` can still be selected explicitly; the
+standalone export API keeps the former conservative behavior when no policy is
+supplied. The policy change alters the config hash, the code content version and
+the cache key; it does not modify already published earlier runs. Raw data,
+pre-matching evidence, trip segmentation, candidate scoring/ranking and the
+three-round assignment are not affected by this **export policy**.
 
-## 时间、数量和事件类型
+## Time, counts and event types
 
-只对有可追溯 APC source row、有效到离站区间、唯一停站/实际行程归属的 visit
-应用此策略。保留真实 source row identity，不将 APC 伪装成 AVL 坐标点。
+This policy is applied only to visits with a traceable APC source row, a valid
+arrival/departure interval, and unique stop/performed-trip attribution. Genuine
+source row identity is preserved; APC is not disguised as AVL coordinate points.
 
-| TIDES event_type | event_timestamp | event_count | 时间含义 |
+| TIDES event_type | event_timestamp | event_count | Time meaning |
 |---|---|---|---|
-| `Vehicle arrived at stop` | APC 原始到站时间 | 1 | 源记录的车辆到站时间 |
-| `Vehicle departed stop` | APC 原始离站时间 | 1 | 源记录的车辆离站时间 |
-| `Passenger boarded` | APC 原始离站时间 | 本次停站累计上车人数 | 以离站时刻记账的代表时间，不是逐乘客实测时刻 |
-| `Passenger alighted` | APC 原始离站时间 | 本次停站累计下车人数 | 同上，不声称下车全部发生在离站瞬间 |
+| `Vehicle arrived at stop` | APC original arrival time | 1 | Vehicle arrival time from the source record |
+| `Vehicle departed stop` | APC original departure time | 1 | Vehicle departure time from the source record |
+| `Passenger boarded` | APC original departure time | Aggregate boardings for this stop visit | Representative time booked at the departure instant, not a measured per-passenger instant |
+| `Passenger alighted` | APC original departure time | Aggregate alightings for this stop visit | As above; does not claim all alightings occurred at the departure instant |
 
-例如 APC 记录表示到站 10:00、离站 10:01、上车 5 人、下车 2 人，则生成到站、
-离站和两条累计客流事件；两条客流事件均标记在 10:01。不会制造七条逐乘客事件，
-也不会假定上车与下车的先后顺序。时间经既有时区归一化后按 UTC 导出。
+For example, if an APC record indicates arrival at 10:00, departure at 10:01,
+5 boardings and 2 alightings, then an arrival event, a departure event and two
+aggregate passenger events are generated; both passenger events are timestamped
+at 10:01. Seven per-passenger events are not fabricated, and no ordering between
+boarding and alighting is assumed. Times are exported in UTC after the existing
+timezone normalization.
 
-人数为零不生成该类型的客流事件；缺失不填零，负数、非整数、不完整或倒置时间
-等问题仍要拒绝/记录诊断，不能用本假设绕过数据完整性检查。停站累计人数不按
-裁剪后的业务时长分摊。GTFS 匹配继续使用 APC 时间**区间**，而不是导出的代理时间。
+A zero count generates no passenger event of that type; missing values are not
+filled with zero, and problems such as negative values, non-integers, incomplete
+or inverted times must still be rejected/recorded in diagnostics. This
+assumption cannot be used to bypass data-integrity checks. Aggregate counts for
+a stop visit are not prorated over the clipped business duration. GTFS matching
+continues to use the APC time **interval**, not the exported proxy time.
 
-每条导出事件的诊断保留 source row IDs、stop visit、原始到离站区间、策略 ID、
-时间来源及是否为代理时间/未经独立确认的语义假设。这些信息写入 package 的
-`diagnostics.json`，不添加到 TIDES core CSV 字段。没有真实事件级位置关联时，
-`location_ping_id` 保持 null；不随意选择最近 AVL ping 或车门。
+The diagnostics for each exported event retain the source row IDs, stop visit,
+original arrival/departure interval, policy ID, time source, and whether the
+time is a proxy / the semantics are an assumption not independently confirmed.
+This information is written to the package's `diagnostics.json` and is not added
+to TIDES core CSV fields. Without a genuine event-level location association,
+`location_ping_id` remains null; the nearest AVL ping or a door is not chosen
+arbitrarily.
 
-TIDES v1.0 允许 `event_count` 表示多次同类事件，同时要求事件时间戳；但并没有
-规定停站累计客流必须用离站时间。本文件定义的是本项目的显式研究映射约定。
-结构 validator 通过不等于源字段语义或时间精度已被独立证实。
+TIDES v1.0 allows `event_count` to represent multiple events of the same type
+and requires an event timestamp; it does not, however, prescribe that aggregate
+passenger counts for a stop visit must use the departure time. What this
+document defines is this project's explicit research mapping convention.
+Passing the structural validator does not mean that the source field semantics
+or time precision have been independently verified.
 
-## 当前 stop_visits 到底如何确定
+## How stop_visits are actually determined at present
 
-生成发生在 pipeline 第 6 阶段，早于 GTFS 候选生成和最终 assignment：
+Generation happens in pipeline stage 6, before GTFS candidate generation and
+final assignment:
 
 ```text
-独立归一化的 APC 原始行
-  → 映射站点到 canonical reference 的停站位置/区间
-  → 在同车 performed trips 中检查时间、reference、站点、方向和进度
-  → 唯一最优 trip + 唯一 stop_id
-  → 一条 source APC 行生成一条 stop_visit
-  → trip 内按原始到站时间、离站时间、source row ID 排序并编号
+independently normalized raw APC rows
+  → map the stop to its position/interval on the canonical reference
+  → check time, reference, stop, direction and progress against same-vehicle performed trips
+  → unique best trip + unique stop_id
+  → one source APC row generates one stop_visit
+  → order and number within the trip by original arrival time, departure time, source row ID
 ```
 
-具体规则与当前默认值均以 `[apc]` 及 matcher/projection 配置为准：
+The specific rules and current defaults are governed by the `[apc]` and
+matcher/projection configuration:
 
-1. 到站/离站时间均有效，离站不早于到站；区间长度不超过
-   `maximum_service_interval_s = 1800` 秒。
-2. 只在相同 vehicle ID 的 performed segments 中寻找归属。APC 区间与 segment
-   有效业务区间可以重叠；不重叠时，两区间之间的距离不能超过
-   `attach_time_buffer_s = 120` 秒。已确认删失的尾段不得因关联而被重新引入匹配。
-3. 必须存在与该 trip 有效 AVL reference 一致的、非歧义 canonical stop 映射。
-   没有真实 APC 车辆坐标并不导致删除；它仍是站点加时间区间证据，不是 GPS ping。
-4. 若区间附近有可比较的有效 AVL 点，站点与 AVL 的最小 canonical progress
-   差不得超过 `attach_progress_tolerance_m = 200` 米。这不是“每个点都必须在
-   200 米内”，也不是用最近的 AVL 时间覆盖 APC 到离站时间。
-5. 按 `(方向冲突, 时间间隔, -重叠时长, 进度误差)` 从小到大选择。方向冲突是
-   软惩罚；有并列最优 trip 时保留歧义，不凭文件行序硬选。没有附近 AVL 时，
-   仍可能依靠其他证据关联，不把缺少局部进度比较说成已观测一致。
-6. trip 归属选定后，只有 stop 映射能收敛到唯一 stop_id 才生成 visit。
-   `stop_visit_id` 由稳定 performed trip ID 与 source row ID 构造；
-   `trip_stop_sequence` 从 1 开始连续编号。重复访问同一站不会仅因 stop_id
-   相同而合并。
-7. 实际到离站时间直接来自该 APC 行，dwell 是两者差；不从 GTFS schedule
-   倒推实际停站。导出为整数秒 dwell 时不任意舍入无法表示的值。
+1. Arrival and departure times are both valid, and departure is not earlier
+   than arrival; the interval length does not exceed
+   `maximum_service_interval_s = 1800` seconds.
+2. Attribution is sought only among performed segments with the same vehicle
+   ID. The APC interval may overlap the segment's effective business interval;
+   when it does not, the distance between the two intervals must not exceed
+   `attach_time_buffer_s = 120` seconds. A confirmed censored tail must not be
+   reintroduced into matching through attachment.
+3. An unambiguous canonical stop mapping consistent with that trip's valid AVL
+   reference must exist. The absence of genuine APC vehicle coordinates does
+   not cause deletion; the row remains stop-plus-time-interval evidence, not a
+   GPS ping.
+4. If comparable valid AVL points exist near the interval, the minimum
+   canonical progress difference between the stop and the AVL must not exceed
+   `attach_progress_tolerance_m = 200` meters. This is not "every point must be
+   within 200 meters", nor does it overwrite the APC arrival/departure times
+   with the nearest AVL time.
+5. Selection is ascending by
+   `(direction conflict, time gap, -overlap duration, progress error)`.
+   Direction conflict is a soft penalty; when best trips tie, the ambiguity is
+   retained rather than forced by file row order. Without nearby AVL,
+   attachment may still rely on other evidence; the lack of a local progress
+   comparison is not reported as observed consistency.
+6. After trip attribution is selected, a visit is generated only if the stop
+   mapping converges to a unique stop_id. `stop_visit_id` is constructed from
+   the stable performed trip ID and the source row ID; `trip_stop_sequence` is
+   numbered consecutively from 1. Repeated visits to the same stop are not
+   merged merely because the stop_id is the same.
+7. Actual arrival/departure times come directly from that APC row, and dwell is
+   their difference; actual stop visits are not back-derived from the GTFS
+   schedule. When exporting dwell as integer seconds, values that cannot be
+   represented are not rounded arbitrarily.
 
-## 当前边界与已知限制
+## Current boundaries and known limitations
 
-- 这是一套 **APC 驱动的 observed stop-visit hypothesis**，不是从 AVL 轨迹独立
-  识别出的完整停站清单。缺 APC 的实际停站不会自动补造；没有匹配 GTFS scheduled
-  trip 并不妨碍一个有证据的 performed trip 保留 stop_visits。
-- 目前一条 APC 源行对应一条 visit，不把邻近行合并或对 APC 做不可逆去重。
-  配置中的 `visit_merge_gap_s` 目前没有用于合并逻辑，不能理解成正在执行 30 秒
-  停站合并。重复/重叠 APC 区间需要独立审查，不能自动理解成不同乘客活动。
-- 实际停站编号是**观察顺序**，不是 GTFS `stop_sequence`。当前 stage 6 不自动
-  将 visit 映射到最终候选的某一次 scheduled stop occurrence；没有明确映射时，
-  scheduled_stop_sequence 和计划到离站时间保持 null。事件通过 actual trip 和
-  stop visit 关联，并采用所属 mode 的 trip_id_scheduled，不跨 mode 借用 assignment。
-- `boarding_1/2`、`alighting_1/2` 有车门语义；没有车门分配证据时不把整车人数
-  随意填入某个车门字段。人数在 passenger_events 的 event_count 和共享 APC 证据中保留。
-- 后续如获得厂商字典或设备时间语义，应以新 policy ID 修订，而不是静默改变本版本。
+- This is an **APC-driven observed stop-visit hypothesis**, not a complete list
+  of stop visits independently identified from the AVL trajectory. Actual stop
+  visits lacking APC are not automatically fabricated; the absence of a matched
+  GTFS scheduled trip does not prevent an evidenced performed trip from
+  retaining its stop_visits.
+- Currently one APC source row corresponds to one visit; adjacent rows are not
+  merged and APC is not irreversibly deduplicated. `visit_merge_gap_s` in the
+  configuration is not currently used by any merge logic and must not be
+  understood as a 30-second stop-visit merge being performed.
+  Duplicate/overlapping APC intervals require independent review and cannot
+  automatically be understood as distinct passenger activity.
+- Actual stop-visit numbering is the **observation order**, not the GTFS
+  `stop_sequence`. The current stage 6 does not automatically map a visit to a
+  specific scheduled stop occurrence of the final candidate; without an
+  explicit mapping, scheduled_stop_sequence and the scheduled arrival/departure
+  times remain null. Events are linked through the actual trip and stop visit
+  and use the trip_id_scheduled of their own mode; assignments are not borrowed
+  across modes.
+- `boarding_1/2` and `alighting_1/2` carry door semantics; without
+  door-allocation evidence, whole-vehicle counts are not arbitrarily placed in a
+  door field. Counts are retained in the passenger_events event_count and in
+  the shared APC evidence.
+- If a vendor dictionary or device time semantics are obtained later, the
+  revision should be made under a new policy ID rather than silently changing
+  this version.
 
-实现入口：`tools/experiment05/apc.py:attach_apc`、
-`tools/experiment05/tides.py:build_tides_rows`。标准固定版本及验证方式见
-[TIDES 导出契约](tides05-contract.md)，各 stage 的数据结构见
-[输出 schema](experiment05-output-schema.md)。
+Implementation entry points: `tools/experiment05/apc.py:attach_apc` and
+`tools/experiment05/tides.py:build_tides_rows`. See the
+[TIDES export contract](tides05-contract.md) for the pinned standard version and
+validation method, and the [output schema](experiment05-output-schema.md) for
+the data structures of each stage.

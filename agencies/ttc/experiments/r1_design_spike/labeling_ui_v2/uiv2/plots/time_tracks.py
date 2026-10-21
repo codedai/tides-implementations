@@ -108,7 +108,7 @@ def fig_time_tracks(bundle: CaseBundleV2) -> go.Figure | None:
             fillcolor=AMBIG_FILL,
             opacity=0.12,
             line_width=0,
-            annotation_text="回拨重叠导致的墙钟歧义",
+            annotation_text="Wall-clock ambiguity from the fall-back overlap",
             annotation_position="top left",
             annotation_font=dict(size=10, color="#8a6d00"),
         )
@@ -128,6 +128,6 @@ def fig_time_tracks(bundle: CaseBundleV2) -> go.Figure | None:
         height=280,
         margin=dict(l=10, r=10, t=60, b=10),
         yaxis=dict(categoryorder="array", categoryarray=[track_b, track_a]),
-        xaxis=dict(title="按各时间轨读数计算的、距 chunk 起点的分钟数"),
+        xaxis=dict(title="Minutes since chunk start, as read on each time track"),
     )
     return fig

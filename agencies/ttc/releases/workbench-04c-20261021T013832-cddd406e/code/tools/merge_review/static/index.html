@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>TIDES · APC–AVL trip-by-trip review</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23118879'/%3E%3Ctext x='16' y='24' text-anchor='middle' fill='white' font-size='25' font-family='serif'%3ET%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TIDES review home"><span class="brand-icon">T</span><strong>TIDES</strong><span class="brand-divider"></span><span>Merge review</span></a>
+    <div class="top-meta"><span class="local-dot"></span> Local evidence workbench <span class="version">DIRECT EVIDENCE · v2</span></div>
+  </header>
+  <div id="global-error" class="global-error" role="alert" hidden></div>
+  <div class="workspace">
+    <aside class="sidebar" aria-label="Filters and candidate trips">
+      <div class="sidebar-heading"><div><span class="eyebrow">REVIEW QUEUE</span><h1>Trip review</h1></div><span id="case-count" class="count-pill">—</span></div>
+      <div class="filters">
+        <label><span id="method-select-label">Segmentation context</span><select id="method-select" aria-label="Segmentation method"></select></label>
+        <label>Vehicle<select id="vehicle-select" aria-label="Vehicle"></select></label>
+        <div class="filter-pair"><label>Date<select id="date-filter"><option value="">All dates</option></select></label><label>Route<select id="route-filter"><option value="">All routes</option></select></label></div>
+        <div class="filter-pair"><label>Association status<select id="status-filter"><option value="">All statuses</option><option value="direct">Direct support</option><option value="partial">Partial support</option><option value="ambiguous">Ambiguous</option><option value="unmatched">Unassociated</option><option value="ineligible">Ineligible</option></select></label><label>Review status<select id="review-filter"><option value="">All reviews</option><option value="unreviewed">Not reviewed</option><option value="accepted">Acceptable</option><option value="problem">Problematic</option><option value="uncertain">Uncertain</option></select></label></div>
+        <div id="direction-filters" class="filter-pair" hidden><label>Candidate direction<select id="direction-filter"><option value="">All directions</option></select></label><label>Direction conflicts<select id="direction-conflict-filter"><option value="">All candidates</option><option value="with">With direction conflicts</option><option value="without">No flagged conflicts</option></select></label></div>
+        <label class="search-label"><span class="sr-only">Search candidate trips</span><input id="case-search" type="search" placeholder="Search segment IDs, routes, dates…" autocomplete="off"></label>
+      </div>
+      <div class="queue-progress"><div><span id="review-progress-text">Not loaded</span><span id="review-progress-percent">—</span></div><progress id="review-progress" max="100" value="0" aria-label="Review progress for current filters"></progress></div>
+      <div id="case-list" class="case-list" role="list" aria-label="Candidate trip list"><div class="empty-small">Loading data catalog…</div></div>
+      <button id="load-more" class="text-button load-more" hidden>Show more</button>
+      <footer class="sidebar-footer"><a href="/api/reviews/export" id="export-reviews" download>↓ Export reviews</a><span>J / K to switch trips</span></footer>
+    </aside>
+    <main class="main" id="main-content">
+      <section id="debug-console" class="panel debug-console" aria-label="One-day experiment console" hidden>
+        <div class="panel-header"><div><span class="eyebrow">ONE-DAY DEBUG LAB</span><h3><span id="debug-mode-title">One-day segmentation and association experiment</span> · <span id="debug-date">2023-11-06</span></h3><span class="panel-subtitle">Source evidence is fixed. Each rerun creates a separate run without overwriting the baseline or human reviews.</span></div><span class="count-pill">Experimental results</span></div>
+        <div class="debug-body">
+          <div class="debug-run-controls"><label>Run under review<select id="debug-run-select"></select></label><label>Comparison baseline<select id="debug-base-select"></select></label><button id="debug-refresh" type="button" class="subtle-button">Refresh runs</button></div>
+          <p id="debug-run-loading" class="stream-notice" role="status" hidden>Loading the selected run. Experiment settings are temporarily disabled; edit and submit them after loading completes.</p>
+          <form id="debug-form">
+            <div class="debug-run-controls"><label>Experiment name<input id="debug-label" maxlength="80" placeholder="Example: group by VehicleID only · no matching" autocomplete="off"></label><label>Processing method<select id="debug-method"></select></label><button id="debug-reset" type="button" class="subtle-button">Restore current run settings</button></div>
+            <p id="vehicle-only-config-note" class="stream-notice" hidden>Collect daily APC and AVL by VehicleID, retain every source row and sort by time. No trip segmentation, spatiotemporal matching, interpolation or threshold decision is performed. Sharing a vehicle does not imply the same trip or stop visit.</p>
+            <details class="debug-parameters"><summary>Segmentation settings <span>Source time gaps, persistent context, and geometric reversals</span></summary><div id="debug-segmentation-parameters" class="parameter-grid"></div></details>
+            <details class="debug-parameters"><summary>Direct-evidence association settings <span>Spatiotemporal support, interpolation, counterevidence, and competing candidates</span></summary><div id="debug-merge-parameters" class="parameter-grid"></div></details>
+            <details id="debug-gtfs-settings" class="debug-parameters" hidden><summary>GTFS evidence and candidate settings <span>Full settings are stored with each version; these are not browsing-window sizes or calibrated probabilities</span></summary><div id="debug-gtfs-parameters" class="parameter-grid"></div></details>
+            <div class="debug-submit"><small>Thresholds are experimental settings, not TIDES requirements or accuracy estimates. Day edges indicate data truncation, not confirmed trip endpoints.</small><button id="debug-submit" type="submit" class="primary-button">Rerun 2023-11-06 →</button></div>
+          </form>
+          <div id="debug-job" class="debug-job" role="status" aria-live="polite" hidden><div><strong id="debug-job-title">Running</strong><span id="debug-job-message"></span></div><progress id="debug-job-progress" max="100" value="0" aria-label="One-day rerun progress"></progress><button id="debug-load-ready" class="subtle-button" hidden>Load completed run</button></div>
+          <details class="debug-provenance"><summary>Run summary and pinned data sources</summary><pre id="debug-provenance"></pre></details>
+        </div>
+      </section>
+      <section id="matching-view-toolbar" class="panel matching-view-toolbar" aria-label="GTFS decision mode and review pages" hidden>
+        <div class="matching-page-tabs" role="tablist" aria-label="GTFS review pages"><button id="trip-detail-tab" type="button" role="tab" aria-selected="true" aria-controls="trip-detail-page">Trip review</button><button id="day-overview-tab" type="button" role="tab" aria-selected="false" aria-controls="day-overview-page">Day overview</button></div>
+        <label>GTFS decision mode<select id="matching-mode-select" aria-label="GTFS decision mode"><option value="global">Global · full segment</option><option value="early">Early · first 1/3</option><option value="middle">Middle · middle 1/3</option><option value="late">Late · last 1/3</option></select></label>
+        <p id="matching-mode-note" role="status">Loading this run's available decision modes…</p>
+      </section>
+      <section id="day-overview-page" class="day-overview-page" role="tabpanel" aria-labelledby="day-overview-tab" hidden>
+        <div class="case-header"><div><span class="eyebrow">VEHICLE-DAY · TIME / DISTANCE</span><h2>All-day observed and scheduled trips</h2><p class="muted">All vehicles and segments, faceted by direction and canonical reference. Distances on different reference axes are not mixed.</p></div><button id="day-overview-refresh" type="button" class="subtle-button">Refresh overview</button></div>
+        <div class="panel overview-controls"><label>Visible time window<select id="overview-window-size" aria-label="Day overview window length"><option value="86400">Full day · 24 hours</option><option value="43200">12 hours</option><option value="21600">6 hours</option><option value="10800">3 hours</option><option value="3600">1 hour</option><option value="1800">30 minutes</option><option value="custom">Custom minutes…</option></select></label><label id="overview-custom-label" hidden>Minutes<input id="overview-custom-minutes" type="number" min="1" max="1440" value="120" aria-label="Custom day overview window in minutes"></label><button id="overview-previous" type="button" class="icon-button small" aria-label="Previous overview window">←</button><button id="overview-next" type="button" class="icon-button small" aria-label="Next overview window">→</button><output id="overview-window-label">00:00 – 24:00</output><input id="overview-pan" type="range" min="0" max="1000" step="1" value="0" aria-label="Pan the day overview time window" disabled></div>
+        <p id="day-overview-status" class="stream-notice" role="status">Loading all-day projections and GTFS candidates…</p>
+        <div class="overview-legend"><span><i class="legend-line teal-bg"></i>Valid AVL projections · solid</span><span><i class="legend-line overview-schedule-key"></i>Original GTFS schedule · dashed</span><span><i class="legend-line overview-fallback-key"></i>Below threshold · first diagnostic candidate</span><span><i class="legend-line overview-apc-key"></i>APC stop-time intervals</span><span>Faded lines show context outside the decision scope, excluded from this mode's score.</span></div>
+        <p class="stream-order-note">Each segment shows one candidate that passes the gates. If none passes, the first scored, below-threshold candidate is shown and flagged. No candidate is fabricated when none was scored. GTFS uses original scheduled times, without an estimated-delay shift. Click a trajectory or entry below to review the segment in the same mode.</p>
+        <div id="day-overview-facets" aria-label="All-day time–distance charts by direction and reference axis"></div>
+        <details class="panel overview-case-panel"><summary>All candidate segments <span id="overview-case-count"></span> · including segments without projections or schedule candidates</summary><div id="overview-case-list" class="overview-case-list"></div></details>
+      </section>
+      <div id="trip-detail-page" role="tabpanel" aria-labelledby="trip-detail-tab">
+      <section class="case-header">
+        <div><div class="eyebrow" id="case-kicker">OBSERVATION-LEVEL REVIEW</div><h2 id="case-title">APC × AVL direct evidence</h2><div id="case-subtitle" class="muted">Select a candidate trip to inspect its spatiotemporal associations record by record.</div></div>
+        <div class="case-navigation"><span id="case-position">— / —</span><button id="previous-case" class="icon-button" aria-label="Previous trip" title="Previous · K" disabled>←</button><button id="next-case" class="icon-button" aria-label="Next trip" title="Next · J" disabled>→</button></div>
+      </section>
+      <div class="evidence-notice"><span class="notice-icon">i</span><p id="evidence-notice-copy"><strong>Here, a “trip” is a candidate segment, not a confirmed performed trip.</strong> Maps and curves show observed evidence; GTFS has not been introduced. Times are source-local wall-clock times. Inter-source clock offsets are not corrected, and DST ambiguities are not inferred.</p></div>
+      <section id="debug-diff" class="panel debug-diff" aria-label="Cross-run differences for the current vehicle" hidden>
+        <div class="panel-header"><div><h3>Baseline comparison · identical raw APC / AVL evidence</h3><span class="panel-subtitle">Compare source rids and AVL membership, without forcing old and new segment IDs to align. Green marks added boundaries; red marks removed boundaries.</span></div><span id="debug-diff-status" class="chart-caption"></span></div>
+        <div id="debug-diff-summary" class="diff-summary"></div>
+        <div class="chart-wrap"><svg id="debug-boundary-svg" role="img" aria-label="Timeline of segmentation boundary differences between baseline and current run"></svg></div>
+        <div id="debug-diff-list" class="diff-list" aria-label="Changes by APC source rid"></div>
+        <details class="debug-provenance"><summary>Full source-rid differences and boundary provenance</summary><pre id="debug-diff-json"></pre></details>
+      </section>
+      <section class="metrics" aria-label="Current candidate segment statistics">
+        <div class="metric"><span>Valid GPS in loaded window</span><strong id="metric-avl">—</strong><small id="metric-avl-note" class="teal">Segment members and nearby context counted separately</small></div>
+        <div class="metric"><span>APC records to inspect</span><strong id="metric-apc">—</strong><small>Full-segment count · passenger counts not summed</small></div>
+        <div class="metric"><span>Direct / partial support</span><strong id="metric-support">—</strong><small>Evidence levels, not confidence probabilities</small></div>
+        <div class="metric"><span>Records needing attention</span><strong id="metric-attention">—</strong><small id="metric-attention-note">Ambiguous · unassociated · ineligible</small></div>
+      </section>
+      <div id="dedup-summary" class="stream-notice dedup-summary" role="status" hidden></div>
+      <div id="case-loading" class="loading-line" hidden>Loading vehicle trajectories and full evidence…</div>
+      <div id="no-case" class="empty-panel" hidden>No candidate segments match the filters. Adjust the filters on the left.</div>
+      <div id="case-workspace" hidden>
+        <section id="gap-segmentation-panel" class="panel gap-segmentation-panel" aria-label="Joint-observation gap segmentation and parent-segment provenance" hidden>
+          <div class="panel-header"><div><span class="eyebrow">JOINT APC + AVL GAP</span><h3 id="gap-fragment-title">Joint-observation gap fragment</h3><span id="gap-parent-id" class="panel-subtitle mono"></span></div></div>
+          <p id="gap-segmentation-note" class="stream-order-note"></p>
+          <div id="gap-boundary-list" class="gap-boundary-list"></div>
+          <details class="direction-rules"><summary>Parent boundaries, gap evidence, and original conflict provenance</summary><pre id="gap-segmentation-audit"></pre></details>
+        </section>
+        <section class="window-toolbar" aria-label="Linked display time range"><div><strong>Visible time window</strong><span id="window-label">Full segment</span></div><div class="window-actions"><select id="window-size" aria-label="Display window length"><option value="full">Full segment</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="900">15 minutes</option><option value="1800">30 minutes</option><option value="3600">60 minutes</option><option value="7200">120 minutes</option><option value="custom">Custom length…</option></select><span id="window-custom-controls" class="window-custom-controls" hidden><input id="window-custom-value" type="number" min="0.001" step="any" value="5" aria-label="Custom time window length"><select id="window-custom-unit" aria-label="Custom time window unit"><option value="60">Minutes</option><option value="1">Seconds</option></select><button id="window-custom-apply" class="subtle-button" type="button">Apply</button></span><button id="window-previous" class="icon-button small" aria-label="Previous time window">←</button><button id="window-next" class="icon-button small" aria-label="Next time window">→</button><button id="window-focus" class="subtle-button">Focus APC ±5 minutes</button><select id="context-size" aria-label="Nearby context range"><option value="0">No nearby context</option><option value="180" selected>Context ±3 minutes</option><option value="900">Context ±15 minutes</option><option value="1800">Context ±30 minutes</option></select></div><small>Changes only the viewing range, not trip segmentation. The figures above cover the full segment; nearby context is separate from accepted associations.</small></section>
+        <section id="gtfs-candidate-panel" class="panel gtfs-candidate-panel" aria-label="Final GTFS candidates and evidence" hidden>
+          <div class="panel-header"><div><span class="eyebrow">GTFS SCHEDULE COMPARISON</span><h3>GTFS candidates <span id="gtfs-candidate-count" class="inline-count"></span></h3><span id="gtfs-result-summary" class="panel-subtitle"></span></div><span id="gtfs-result-status" class="status-badge"></span></div>
+          <p id="gtfs-uncertainty-note" class="stream-order-note">Candidate scores are not calibrated probabilities. Without independent ground truth, matching accuracy and confidence probabilities are unknown. MATCHED is still an experimental algorithm decision, not a verified trip identity.</p>
+          <div id="gtfs-evidence-summary" class="diff-summary" aria-label="GTFS support and coverage summary, not calibrated probabilities"></div>
+          <div id="gtfs-candidate-list" class="gtfs-candidate-list" aria-label="Zero to three final GTFS candidates"></div>
+          <section id="gtfs-diagnostic-candidates" class="gtfs-diagnostic-section" aria-label="Below-threshold GTFS diagnostic candidates">
+            <h4>Below-threshold diagnostic candidates (up to 3)<span id="gtfs-diagnostic-count" class="inline-count"></span></h4>
+            <p id="gtfs-diagnostic-note" class="stream-order-note"></p>
+            <div id="gtfs-diagnostic-list" class="gtfs-candidate-list" aria-label="Below-threshold candidates for diagnosis only, excluded from final results"></div>
+          </section>
+          <div class="gtfs-reference-controls"><label>Shared distance reference axis<select id="gtfs-reference-select" aria-label="GTFS canonical distance reference axis"></select></label><span id="gtfs-reference-note"></span></div>
+          <p id="gtfs-coverage" class="stream-order-note"></p>
+          <details id="gtfs-windows-panel" class="direction-rules"><summary>Valid coverage and NO_EVIDENCE windows <span id="gtfs-window-count"></span></summary><label class="gtfs-window-filter">Window evidence<select id="gtfs-window-filter"><option value="">All windows</option><option value="NO_EVIDENCE">NO_EVIDENCE</option><option value="EVIDENCE">EVIDENCE</option></select></label><div id="gtfs-window-list" class="gtfs-window-list" aria-label="Multiscale evidence windows; click to locate"></div></details>
+          <details class="direction-rules"><summary>Diagnostics, coverage, and traceable candidate evidence</summary><pre id="gtfs-diagnostics"></pre></details>
+        </section>
+        <section id="direction-panel" class="panel direction-panel" aria-label="Direction candidates and conflict evidence" hidden>
+          <div class="panel-header"><div><h3>Direction candidates and conflicts <span id="direction-conflict-count" class="inline-count"></span></h3><span id="direction-conflict-summary" class="panel-subtitle"></span></div><label class="direction-toggle"><input id="direction-conflicts-visible" type="checkbox" checked>Show conflict windows on charts</label></div>
+          <p id="direction-candidate-note" class="stream-order-note"></p>
+          <div id="direction-conflict-list" class="direction-conflict-list" aria-label="Direction conflicts and source records on both sides"></div>
+          <details class="direction-rules"><summary>Experiment 02 fixed rules and candidate-boundary provenance</summary><pre id="direction-rules"></pre></details>
+          <details id="direction-filter-audit" class="direction-rules"><summary>Vehicle-day PI/PO exclusion audit <span id="direction-filtered-count"></span> · original fields retained</summary><p class="stream-order-note">The following are excluded representative AVL records for this vehicle-day and their deduplication provenance, not members of the current candidate. Original CSV files are unchanged.</p><pre id="direction-filtered-json"></pre></details>
+        </section>
+        <div class="primary-grid">
+          <section class="panel map-panel" aria-label="Geographic trajectory map">
+            <div class="panel-header"><div><h3>Geographic trajectories</h3><span class="panel-subtitle">Observed trajectories and APC locations</span></div><div class="map-controls"><button id="map-basemap" class="subtle-button" aria-pressed="false">Street basemap</button><button id="map-fit" class="subtle-button" title="Fit all visible evidence">Fit</button><button id="map-zoom-out" class="icon-button small" aria-label="Zoom out">−</button><button id="map-zoom-in" class="icon-button small" aria-label="Zoom in">+</button></div></div>
+            <div class="map-stage" id="map-stage"><svg id="map-svg" role="img" aria-label="AVL geographic trajectory and associated APC records" tabindex="0"></svg><div class="map-mode" id="map-mode">Offline coordinate map · Drag to pan / Scroll to zoom</div><div id="map-scale" class="map-scale"></div><a id="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" hidden>© OpenStreetMap contributors</a><div id="map-tooltip" class="map-tooltip" hidden></div></div>
+            <div class="map-legend"><span><i class="legend-line teal-bg"></i>Observed AVL trajectories</span><span>APC colored by evidence status</span><span><i class="legend-dot teal-bg"></i>Direct</span><span><i class="legend-dot amber-bg"></i>Partial</span><span><i class="legend-line dashed"></i>Derived interpolation</span><span><i class="legend-dot red-bg"></i>Ambiguity / counterevidence</span><label><input id="layer-context" type="checkbox" checked>Context</label><label><input id="layer-pings" type="checkbox">All GPS points</label><label><input id="layer-counters" type="checkbox" checked>Counterevidence</label></div>
+          </section>
+          <section class="panel inspector-panel" aria-label="Evidence for selected APC record">
+            <div class="panel-header"><div><span class="eyebrow">EVIDENCE INSPECTOR</span><h3>Observed evidence</h3></div><span id="selected-status" class="status-badge">Not selected</span></div>
+            <div id="inspector" class="inspector-body"><div class="inspector-empty"><span class="empty-crosshair">⌖</span><strong>Select an APC record</strong><p>Click the map, timeline, or table below to inspect the evidence linking the record to observed GPS.</p></div></div>
+          </section>
+        </div>
+        <section class="panel timeline-panel" aria-label="Source data timeline">
+          <div class="panel-header"><div><h3>Dual-source timeline</h3><span class="panel-subtitle">AVL coverage · APC arrival/departure intervals · evidence anchors for the selected record</span></div><div class="chart-caption" id="cursor-label">Move the time cursor to inspect observed GPS</div></div>
+          <div class="chart-wrap"><svg id="timeline-svg" role="img" aria-label="AVL and APC coverage timeline"></svg></div>
+          <div class="timeline-pan-controls" aria-label="Pan the time window">
+            <div class="timeline-pan-heading"><label for="timeline-pan" id="timeline-pan-title">Browse the full day horizontally</label><output id="timeline-pan-label" for="timeline-pan">—</output><button id="timeline-pan-detail" type="button" class="subtle-button" hidden>Switch to a 30-minute detail window</button></div>
+            <svg id="timeline-pan-overview" role="img" aria-label="All-day observations from both sources and the visible time window"></svg>
+            <input id="timeline-pan" type="range" min="0" max="1000" step="1" value="0" aria-label="Browse the full day horizontally" aria-describedby="timeline-pan-help timeline-pan-label" disabled>
+            <small id="timeline-pan-help">Drag the visible window horizontally; the map and progress curves move with it. Source ordering is unchanged. The cursor below changes only the inspection time within the window.</small>
+          </div>
+          <div class="time-scrubber"><span>Time cursor</span><input id="time-scrubber" type="range" min="0" max="1000" value="0" aria-label="Time cursor"><output id="scrubber-time">—</output></div>
+        </section>
+        <section id="gtfs-schedule-panel" class="panel gtfs-schedule-panel" aria-label="GTFS schedule compared with observed times from both sources" hidden>
+          <div class="panel-header"><div><h3>GTFS schedule × AVL / APC times</h3><span class="panel-subtitle">A shared source-local time axis. Scheduled stops and observations appear side by side; schedule data is not treated as observed evidence.</span></div><span id="gtfs-schedule-caption" class="chart-caption"></span></div>
+          <div class="chart-wrap"><svg id="gtfs-schedule-svg" role="img" aria-label="GTFS candidate schedules compared with AVL and APC times"></svg></div>
+        </section>
+        <section class="panel progress-panel" aria-label="Observed cumulative travel distance">
+          <div class="panel-header"><div><h3>Time–distance progress curves</h3><span class="panel-subtitle">Cumulative distance within continuous observation runs × source-local time. Distance resets at breaks; no lines are filled across gaps. This is not scheduled-trip completion percentage.</span></div><span class="chart-caption">● Observed support · ◇ Interpolated support</span></div>
+          <div class="chart-wrap"><svg id="progress-svg" role="img" aria-label="Observed GPS cumulative distance and APC support points"></svg></div>
+        </section>
+        <section id="gtfs-progress-panel" class="panel gtfs-progress-panel" aria-label="Time–distance comparison on a shared GTFS reference axis" hidden>
+          <div class="panel-header"><div><h3>Canonical s × time · schedule and valid evidence</h3><span class="panel-subtitle">Valid AVL projections, APC stop arrival/departure intervals, and GTFS scheduled trajectories share the selected reference. Separate fragments are not connected.</span></div><span class="chart-caption">OFF_REFERENCE is diagnostic only and excluded from s–t curves</span></div>
+          <div class="chart-wrap"><svg id="gtfs-progress-svg" role="img" aria-label="Valid AVL and APC evidence and scheduled trajectories on the GTFS canonical s axis"></svg></div>
+          <p id="gtfs-progress-note" class="stream-order-note"></p>
+        </section>
+        <section id="observation-stream-panel" class="panel table-panel observation-stream-panel" aria-label="All same-vehicle APC and AVL records in shared time order" hidden>
+          <div class="panel-header"><div><h3>Combined vehicle observation timeline <span id="observation-count" class="inline-count"></span></h3><span class="panel-subtitle">UNION ALL · No matching, deduplication or trip segmentation; table ordinals preserve the server's full source-record order.</span></div></div>
+          <div class="observation-controls"><label>Source<select id="observation-source-filter"><option value="">APC + AVL</option><option value="apc">APC</option><option value="avl">AVL</option></select></label><label class="observation-search-label">Search<input id="observation-search" type="search" placeholder="Source ID, route, Branch, original time…" autocomplete="off"></label><label class="observation-window-label"><input id="observation-window-only" type="checkbox">Current viewing window only</label><label id="observation-conflicts-label" class="observation-window-label" hidden><input id="observation-conflicts-only" type="checkbox">Direction-conflict records only</label></div>
+          <p class="stream-order-note">event_time is used for display ordering without changing source timestamps. Stable ordering of equal timestamps is a reproducibility rule, not evidence of physical sequence; records with missing times are retained. Clicking AVL shows only its original location and fields, without creating an APC match.</p>
+          <div class="table-scroll observation-table-scroll"><table><thead><tr><th>Source order / source</th><th>event_time / time basis</th><th>Source record ID</th><th>Route / name / Branch</th><th id="observation-direction-heading" hidden>Direction / candidate membership (not a match)</th><th>Original location</th><th>Source times</th></tr></thead><tbody id="observation-table-body"></tbody></table></div>
+          <div class="observation-pagination"><span id="observation-page-info" aria-live="polite"></span><label>Per page<select id="observation-page-size"><option value="100">100 rows</option><option value="250">250 rows</option><option value="500">500 rows</option></select></label><button id="observation-first" class="subtle-button" type="button">First page</button><button id="observation-previous" class="icon-button small" aria-label="Previous observation page" type="button">←</button><label class="observation-page-label">Page<input id="observation-page" type="number" min="1" step="1" value="1" aria-label="Go to observation page"></label><button id="observation-next" class="icon-button small" aria-label="Next observation page" type="button">→</button><button id="observation-last" class="subtle-button" type="button">Last page</button></div>
+          <div id="observation-selection-note" class="table-limit" hidden></div>
+        </section>
+        <section id="apc-detail-panel" class="panel table-panel" aria-label="APC record details">
+          <div class="panel-header"><div><h3>APC observation details <span class="inline-count" id="table-count"></span></h3><span class="panel-subtitle">Count fields retain source values. “—” means unknown, not zero.</span></div><input type="search" id="apc-search" class="table-search" placeholder="Find stop, APC ID, reason…" aria-label="Search APC records"></div>
+          <div class="table-scroll"><table><thead><tr><th>Observation / stop</th><th>Arrival → departure</th><th>Route / name / Branch / direction</th><th>Evidence status</th><th>Boarding / alighting</th><th>Load on arrival / departure</th><th>Context relationship</th></tr></thead><tbody id="apc-table-body"></tbody></table></div>
+          <div id="table-limit" class="table-limit" hidden></div>
+        </section>
+        <div class="bottom-grid">
+          <section class="panel review-panel" aria-label="Human review record">
+            <div class="panel-header"><div><h3>Review this candidate segment</h3><span class="panel-subtitle">Independent human judgment; association results and source data are unchanged</span></div><span id="review-save-state" class="save-state">Not reviewed</span></div>
+            <div class="review-body"><fieldset id="review-verdict"><legend class="sr-only">Human review verdict</legend><label><input type="radio" name="verdict" value="accepted"><span>✓ Acceptable</span></label><label><input type="radio" name="verdict" value="problem"><span>! Problematic</span></label><label><input type="radio" name="verdict" value="uncertain"><span>? Uncertain</span></label><label><input type="radio" name="verdict" value="unreviewed" checked><span>Not reviewed</span></label></fieldset><label class="notes-label" for="review-notes">Review notes · up to 10,000 characters</label><textarea id="review-notes" rows="3" placeholder="Example: AVL missing near the APC tail; two terminal visits; counterevidence may reflect a clock offset…" maxlength="10000"></textarea><div class="review-actions"><span>Ctrl / ⌘ + S to save</span><button id="save-review" class="subtle-button">Save</button><button id="save-next" class="primary-button">Save and next trip →</button></div></div>
+          </section>
+          <section class="panel provenance-panel"><div class="panel-header"><h3>Provenance and caveats</h3></div><div class="provenance-body"><ul id="case-warnings"></ul><details><summary>View run provenance and data scope</summary><pre id="case-provenance"></pre></details></div></section>
+        </div>
+      </div>
+      </div>
+      <footer class="main-footer"><span>TIDES · Direct evidence review</span><span id="run-label">LOCAL DATA · READ-ONLY SOURCES</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

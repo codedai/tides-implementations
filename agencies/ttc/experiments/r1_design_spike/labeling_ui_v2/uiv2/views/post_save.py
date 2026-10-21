@@ -41,7 +41,7 @@ def _blind_summary(save: dict[str, Any]) -> list[dict[str, Any]]:
         "evidence_quality",
     )
     return [
-        {"字段": key, "你的盲审判断": save.get(key)}
+        {"Field": key, "Your blind judgment": save.get(key)}
         for key in keys
         if save.get(key) is not None
     ]
@@ -52,25 +52,28 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
     case_state = review_store.case_state(case_id)
     save = case_state.blind_save or {}
     st.success(
-        "盲审判断已存盘，且不可修改。下方的任何操作都会另存为一条独立的、"
-        "带日志的记录 —— 这次盲审存盘本身不会被改动。"
+        "Blind judgment saved and immutable. Anything you do below is stored as "
+        "a separate, logged record — the blind save itself is never altered."
     )
     show_table(_blind_summary(save))
     comparison = case_state.comparison
     if comparison is not None:
         outcome = comparison.get("outcome")
-        st.markdown(f"**一审 / 二审比对结果：** `{outcome}`")
+        st.markdown(f"**First / second pass comparison outcome:** `{outcome}`")
         st.caption(comparison.get("basis", ""))
         if outcome in ("FIRST_SECOND_DISAGREE", "NOT_EVALUABLE_AT_CURRENT_GRAIN"):
-            st.warning("该案例已进入裁决队列。系统不会自动偏袒任何一遍的判断。")
+            st.warning(
+                "This case has entered the adjudication queue. The system does "
+                "not automatically favor either pass."
+            )
     if bundle.is_child:
-        st.caption("子案例：不存在可比对的一审判断。")
+        st.caption("Child case: there is no first-pass judgment to compare against.")
 
     if not bundle.is_child:
-        with st.expander("揭示一审判断（会记录日志）"):
+        with st.expander("Reveal first-pass judgment (logged)"):
             reveal_key = f"fprevealed::{case_id}"
             if st.button(
-                "揭示该案例的一审标签",
+                "Reveal this case's first-pass label",
                 key=f"fpreveal::{case_id}",
             ):
                 try:
@@ -78,22 +81,22 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
                         case_id, reviewer_id=review_store.reviewer_id
                     )
                 except (KeyError, OSError) as error:
-                    st.warning(f"一审记录不可用：{error}")
+                    st.warning(f"First-pass record unavailable: {error}")
             first = st.session_state.get(reveal_key)
             if first:
                 show_table(
                     [
-                        {"字段": field, "一审": first.get(field)}
+                        {"Field": field, "First pass": first.get(field)}
                         for field in FIRST_PASS_FIELDS
                     ]
                 )
 
-    with st.expander("揭示模型诊断（会记录日志）"):
+    with st.expander("Reveal model diagnostics (logged)"):
         st.caption(
-            "仅供学习与审计之用。这次揭示会写入评审历史；你已存盘的盲审判断"
-            "不受任何影响。"
+            "For learning and audit only. This reveal is written to the review "
+            "history; your saved blind judgment is unaffected."
         )
-        if st.button("揭示诊断信息", key=f"diagreveal::{case_id}"):
+        if st.button("Reveal diagnostics", key=f"diagreveal::{case_id}"):
             review_store.record_diagnostics_reveal(case_id)
             st.session_state[f"diagrevealed::{case_id}"] = True
         if st.session_state.get(f"diagrevealed::{case_id}"):
@@ -105,19 +108,20 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
             if scores:
                 show_table(scores, max_rows=20)
             if not anchor and not scores:
-                st.info("没有可用的诊断产物")
+                st.info("No diagnostic artifacts available")
 
-    with st.expander("记录「看过之后改变了想法」（另存为新记录）"):
+    with st.expander("Record a post-reveal change of mind (stored as a new record)"):
         st.caption(
-            "如果在看到比对结果或诊断信息之后你的判断会不同，请在这里描述"
-            "修正后的判断。它会以 post_reveal_revision 的形式存储，只引用"
-            "盲审存盘记录，绝不替换它。"
+            "If your judgment would differ after seeing the comparison outcome or "
+            "the diagnostics, describe the revised judgment here. It is stored as "
+            "a post_reveal_revision that only references the blind save record "
+            "and never replaces it."
         )
         revised = st.text_area(
-            "修正后的判断（自由文字；结构化的修正在裁决环节进行）",
+            "Revised judgment (free text; structured revisions happen in adjudication)",
             key=f"prtext::{case_id}",
         )
-        if st.button("记录这条事后说明", key=f"prsave::{case_id}"):
+        if st.button("Record this post-reveal note", key=f"prsave::{case_id}"):
             if revised.strip():
                 review_store.log_event(
                     {
@@ -128,18 +132,21 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
                         "revised_judgment_text": revised.strip(),
                     }
                 )
-                st.success("已作为一条独立的事后事件记录")
+                st.success("Recorded as a separate post-reveal event")
             else:
-                st.info("请先写出修正后的判断")
+                st.info("Write the revised judgment first")
 
     if "REQUIRES_ADJUDICATION" in case_state.states:
-        with st.expander("裁决（第三条记录；两遍原始判断都不覆盖）"):
+        with st.expander(
+            "Adjudication (third record; overwrites neither original pass)"
+        ):
             st.caption(
-                "最终判断由你选择的处理方式派生：采信某一遍，就记录那一遍的"
-                "判断；选择暂缓，则不记录任何最终判断。"
+                "The final judgment is derived from the resolution you choose: "
+                "upholding a pass records that pass's judgment; deferring records "
+                "no final judgment."
             )
             resolution = st.selectbox(
-                "处理方式",
+                "Resolution",
                 [
                     "second_pass_upheld",
                     "first_pass_upheld",
@@ -152,7 +159,7 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
             adjudication: dict = {"case_id": case_id, "resolution": resolution}
             if resolution == "new_judgment":
                 adjudication["resolved_case_grain"] = st.selectbox(
-                    "裁定的案例粒度",
+                    "Resolved case grain",
                     [
                         "single_trip_candidate",
                         "multi_trip_chunk",
@@ -166,7 +173,7 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
                     key=f"adjgrain::{case_id}",
                 )
                 adjudication["resolved_scheduled_judgment"] = st.selectbox(
-                    "裁定的计划班次判断",
+                    "Resolved scheduled-trip judgment",
                     [
                         "not_applicable",
                         "matched",
@@ -183,7 +190,7 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
                         if c.kind == "complete_scheduled_trip"
                     ]
                     alias = st.selectbox(
-                        "裁定的候选（取自冻结的候选全集）",
+                        "Resolved candidate (from the frozen candidate universe)",
                         [c.alias for c in complete],
                         key=f"adjalias::{case_id}",
                     )
@@ -192,22 +199,22 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
                         picked.candidate_key if picked else None
                     )
             rationale = st.text_area(
-                "裁决理由（必填）",
+                "Adjudication rationale (required)",
                 key=f"adjrat::{case_id}",
             )
-            if st.button("保存裁决", key=f"adjsave::{case_id}"):
+            if st.button("Save adjudication", key=f"adjsave::{case_id}"):
                 adjudication["resolution_rationale"] = rationale.strip()
                 try:
                     review_store.save_adjudication(adjudication)
                 except Exception as error:  # noqa: BLE001 - surfaced to user
                     st.error(str(error))
                 else:
-                    st.success("裁决已记录")
+                    st.success("Adjudication recorded")
                     st.rerun()
 
-    with st.expander("申请追加一个子案例"):
+    with st.expander("Request an additional child case"):
         task = st.selectbox(
-            "子案例任务类型",
+            "Child-case task type",
             [
                 "subtrip_scheduled_match",
                 "boundary_interval",
@@ -222,19 +229,22 @@ def render_post_save(bundle: CaseBundleV2, review_store, store_ctx) -> None:
             key=f"ccr::task::{case_id}",
         )
         detail = st.text_input(
-            "这个子案例需要评审什么？",
+            "What should this child case review?",
             key=f"ccr::detail::{case_id}",
         )
-        if st.button("记录子案例申请", key=f"ccr::save::{case_id}"):
+        if st.button("Record child-case request", key=f"ccr::save::{case_id}"):
             if detail.strip():
                 review_store.record_child_case_request(
                     bundle.parent_case_id,
                     child_task_type=task,
                     detail=detail.strip(),
                 )
-                st.success("申请已写入评审历史（并未因此创建任何子案例标签）")
+                st.success(
+                    "Request written to the review history (no child-case label "
+                    "was created)"
+                )
             else:
-                st.info("请先描述这个申请的内容")
+                st.info("Describe the request first")
 
-    with st.expander("存盘记录原文（restricted-local，仅本地）"):
+    with st.expander("Raw save record (restricted-local; local only)"):
         st.code(json.dumps(save, indent=2, sort_keys=True, default=str))

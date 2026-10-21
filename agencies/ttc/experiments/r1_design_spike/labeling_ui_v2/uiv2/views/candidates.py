@@ -19,18 +19,22 @@ from ..tables import show_table
 
 PAGE_SIZE = 12
 
-# 候选全集产物里存的警告是英文原文（见 r1spike.labeling_v2_universe）。
-# 这里只在显示层翻译，产物本身一个字节都不动；未收录的原文原样显示。
+# The candidate-universe artifact stores its warnings as the original English
+# text (see r1spike.labeling_v2_universe). They are reworded here at the
+# display layer only; the artifact itself is not touched by a single byte,
+# and unlisted originals are shown as-is.
 _WARNING_LABELS = {
-    "explicit no-scheduled-trip alternative": "显式的「无计划班次」替代项",
+    "explicit no-scheduled-trip alternative": (
+        "Explicit 'no scheduled trip' alternative"
+    ),
     "contract-unresolved sentinel component; shown with warning": (
-        "含契约未解析的哨兵字段；仍然显示，但带警告"
+        "Contains a contract-unresolved sentinel component; still shown, with a warning"
     ),
     "unparseable service date; shown with warning": (
-        "服务日期无法解析；仍然显示，但带警告"
+        "Unparseable service date; still shown, with a warning"
     ),
     "key has no identity component; shown with warning": (
-        "该 key 没有任何身份字段；仍然显示，但带警告"
+        "Key has no identity component; still shown, with a warning"
     ),
 }
 
@@ -42,7 +46,7 @@ def _warning_text(warning: str | None) -> str:
         return _WARNING_LABELS[warning]
     if warning.startswith("key has ") and "expected 5" in warning:
         parts = warning.split()[2]
-        return f"该 key 有 {parts} 个字段，应为 5 个"
+        return f"Key has {parts} components; expected 5"
     return warning
 
 
@@ -85,14 +89,16 @@ def render_candidate_browser(bundle: CaseBundleV2, review_store) -> dict[str, An
     real = bundle.real_candidates
     case_id = bundle.case_id
     with st.expander(
-        f"候选全集 —— 共 {len(real)} 个候选（完整、中性排序）",
+        f"Candidate universe — {len(real)} candidates (complete, neutrally ordered)",
         expanded=True,
     ):
         st.caption(
-            "排序依据：服务日期 → feed → 线路 → 计划发车时刻。别名字母是排序"
-            "之后才分配的，因此只反映时间先后，不含任何模型偏好。全集始终完整"
-            "可见，此处不存在任何模型筛选出的短名单；判断表单里也始终提供"
-            "「没有对应计划班次」这个空选项。"
+            "Ordered by: service date → feed → route → scheduled start time. "
+            "Alias letters are assigned only after ordering, so they reflect "
+            "chronological position only and carry no model preference. The "
+            "universe is always fully visible; there is no model-selected "
+            "shortlist here, and the judgment form always offers the "
+            "'no corresponding scheduled trip' null option."
         )
         columns = st.columns(5)
         dates = sorted({c.service_date or "?" for c in real})
@@ -100,38 +106,41 @@ def render_candidate_browser(bundle: CaseBundleV2, review_store) -> dict[str, An
         routes = sorted({c.route_mapping_id or "?" for c in real})
         polarities = sorted({c.polarity_hypothesis_id or "null" for c in real})
         selected_dates = columns[0].multiselect(
-            "服务日期", dates, placeholder="不限", key=f"fd::{case_id}"
+            "Service date", dates, placeholder="Any", key=f"fd::{case_id}"
         )
         selected_feeds = columns[1].multiselect(
-            "feed", feeds, placeholder="不限", key=f"ff::{case_id}"
+            "feed", feeds, placeholder="Any", key=f"ff::{case_id}"
         )
         selected_routes = columns[2].multiselect(
-            "线路", routes, placeholder="不限", key=f"fr::{case_id}"
+            "Route", routes, placeholder="Any", key=f"fr::{case_id}"
         )
         selected_polarities = columns[3].multiselect(
-            "极性", polarities, placeholder="不限", key=f"fp::{case_id}"
+            "Polarity", polarities, placeholder="Any", key=f"fp::{case_id}"
         )
         starts = [c.sched_start_epoch for c in real if c.sched_start_epoch is not None]
         start_range = None
         if starts and min(starts) < max(starts):
             low, high = columns[4].slider(
-                "计划发车时刻范围",
+                "Scheduled start time range",
                 min_value=min(starts),
                 max_value=max(starts),
                 value=(min(starts), max(starts)),
                 key=f"fs::{case_id}",
                 format="",
-                help="按计划发车时刻筛选；非计划班次的替代项永远不会被这个筛选器隐藏",
+                help=(
+                    "Filter by scheduled start time; non-scheduled-trip "
+                    "alternatives are never hidden by this filter"
+                ),
             )
             if (low, high) != (min(starts), max(starts)):
                 start_range = (low, high)
         reset_col, show_all_col = st.columns(2)
-        if reset_col.button("重置筛选", key=f"freset::{case_id}"):
+        if reset_col.button("Reset filters", key=f"freset::{case_id}"):
             for prefix in ("fd", "ff", "fr", "fp", "fs"):
                 st.session_state.pop(f"{prefix}::{case_id}", None)
             st.rerun()
         show_all = show_all_col.toggle(
-            "显示全部候选（忽略筛选）",
+            "Show all candidates (ignore filters)",
             key=f"fall::{case_id}",
         )
         filters = {
@@ -146,12 +155,13 @@ def render_candidate_browser(bundle: CaseBundleV2, review_store) -> dict[str, An
         hidden = len(real) - len(visible)
         if hidden:
             st.warning(
-                f"共 {len(real)} 个候选，其中 {hidden} 个被**你自己设置的筛选条件**"
-                "隐藏了 —— 这只是审阅便利，不是系统给的短名单；点「显示全部」"
-                "或「重置筛选」即可看到全部"
+                f"{len(real)} candidates in total, {hidden} of them hidden by "
+                "**filters you set yourself** — this is a reviewer convenience, "
+                "not a system-provided shortlist; click 'Show all' or "
+                "'Reset filters' to see all of them"
             )
         elif active and not show_all:
-            st.caption(f"当前筛选条件没有隐藏任何候选（共 {len(real)} 个）")
+            st.caption(f"The current filters hide no candidates ({len(real)} in total)")
         previous = state.current_filters(case_id)
         state.note_filters(case_id, active, hidden)
         if active != previous.get("filters", {}):
@@ -164,7 +174,7 @@ def render_candidate_browser(bundle: CaseBundleV2, review_store) -> dict[str, An
         page = 1
         if page_count > 1:
             page = st.number_input(
-                f"页码（按时间顺序，共 {page_count} 页）",
+                f"Page (chronological order, {page_count} pages)",
                 min_value=1,
                 max_value=page_count,
                 value=1,
@@ -176,8 +186,9 @@ def render_candidate_browser(bundle: CaseBundleV2, review_store) -> dict[str, An
         )
         if len(visible) > len(page_rows):
             st.caption(
-                f"当前第 {page} / {page_count} 页 —— 另有 "
-                f"{len(visible) - len(page_rows)} 个可见候选在其他页"
+                f"Page {page} / {page_count} — "
+                f"{len(visible) - len(page_rows)} more visible candidates on other "
+                "pages"
             )
     return {"visible": visible, "hidden_count": hidden, "filters": active}
 
@@ -192,20 +203,24 @@ def _candidate_row(bundle: CaseBundleV2, c: CandidateInfo) -> dict[str, Any]:
         else None
     )
     return {
-        "别名": c.alias,
-        "服务日期": c.service_date or "—",
+        "Alias": c.alias,
+        "Service date": c.service_date or "—",
         "feed": (c.feed_id or "—")[-12:],
-        "线路": c.route_mapping_id or "—",
-        "trip": c.scheduled_trip_id or "（无计划班次）",
-        "极性": c.polarity_hypothesis_id
-        or ("显式空值" if c.explicit_null_polarity else "—"),
-        "计划发车": fmt_local(c.sched_start_epoch) if c.sched_start_epoch else "—",
-        "计划时长": fmt_duration_s(sched_duration) if sched_duration else "—",
-        "重叠": fmt_duration_s(overlap) if overlap is not None else "—",
-        "起点残差": fmt_duration_s(start_resid) if start_resid is not None else "—",
-        "终点残差": fmt_duration_s(end_resid) if end_resid is not None else "—",
-        "计划停站数": c.sched_n_stops if c.sched_n_stops is not None else "—",
-        "警告": _warning_text(c.unresolved_warning),
+        "Route": c.route_mapping_id or "—",
+        "trip": c.scheduled_trip_id or "(no scheduled trip)",
+        "Polarity": c.polarity_hypothesis_id
+        or ("explicit null" if c.explicit_null_polarity else "—"),
+        "Scheduled start": fmt_local(c.sched_start_epoch)
+        if c.sched_start_epoch
+        else "—",
+        "Scheduled duration": fmt_duration_s(sched_duration) if sched_duration else "—",
+        "Overlap": fmt_duration_s(overlap) if overlap is not None else "—",
+        "Start residual": fmt_duration_s(start_resid)
+        if start_resid is not None
+        else "—",
+        "End residual": fmt_duration_s(end_resid) if end_resid is not None else "—",
+        "Scheduled stops": c.sched_n_stops if c.sched_n_stops is not None else "—",
+        "Warning": _warning_text(c.unresolved_warning),
     }
 
 
@@ -216,7 +231,7 @@ def alias_selector(
     key: str,
     label: str,
     allow_none: bool = True,
-    none_label: str = "— 无 / 未解决 —",
+    none_label: str = "— none / unresolved —",
 ) -> str | None:
     """Alias picker over the visible candidates (plus an explicit none)."""
 

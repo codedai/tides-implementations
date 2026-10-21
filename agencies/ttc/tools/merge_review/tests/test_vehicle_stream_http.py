@@ -121,7 +121,7 @@ def test_vehicle_only_job_roundtrip_preserves_rows_without_claiming_matches(
             "vehicle": vehicle,
             "case_id": case["id"],
             "verdict": "uncertain",
-            "notes": "未执行匹配",
+            "notes": "Matching not performed",
             "revision": 0,
         },
     )

@@ -53,7 +53,7 @@ async function inspectCase(meta, label, id) {
     assert(detail.apc.every(r => r.progress_m == null && r.status === 'not_evaluated'), id + ' APC remains original interval evidence without fabricated progress');
     assert(detail.window.start >= c.source_start - 180 && detail.window.end <= c.source_end + 180, id + ' browse window follows observed coverage not inherited day edges');
     assert(await cdp.evaluate(`!document.querySelector('#gap-segmentation-panel').hidden && document.querySelector('#gap-segmentation-panel').dataset.parentCaseId===${JSON.stringify(c.parent_case_id)} && document.querySelector('#gap-fragment-title').textContent.includes(${JSON.stringify(`${c.gap_fragment_index} / ${c.gap_fragment_count}`)})`), id + ' child part and exact parent ID visible');
-    assert(await cdp.evaluate("!document.querySelector('#direction-candidate-note').textContent.includes('方向边界沿用父实验') && document.querySelector('#direction-candidate-note').textContent.includes('review_candidate_ids')"), id + ' no false unchanged-boundary claim');
+    assert(await cdp.evaluate("!document.querySelector('#direction-candidate-note').textContent.includes('Direction boundaries are inherited from the parent') && document.querySelector('#direction-candidate-note').textContent.includes('review_candidate_ids')"), id + ' no false unchanged-boundary claim');
     for (const [side, boundary] of [['before', c.gap_boundary_before], ['after', c.gap_boundary_after]]) if (boundary) {
       assert(boundary.duration_s > boundary.threshold_s && boundary.operator === '>', id + ' strict greater-than threshold');
       assert(await cdp.evaluate(`document.querySelector('.gap-boundary[data-side=${side}]')?.dataset.durationSeconds===${JSON.stringify(String(boundary.duration_s))}`), id + ' exact ' + side + ' gap duration visible');
@@ -62,7 +62,7 @@ async function inspectCase(meta, label, id) {
     const selected = detail.observations.find(r => r.source === 'apc' && r.in_focus) || focus[0];
     await set('observation-search', selected.rid); await waitFor("document.querySelectorAll('#observation-table-body tr[data-rid]').length>0");
     await cdp.evaluate(`document.querySelector('#observation-table-body tr[data-rid="${selected.rid}"][data-source="${selected.source}"]').click()`);
-    assert(await cdp.evaluate(`document.querySelector('#inspector .record-id').textContent===${JSON.stringify(selected.rid)} && document.querySelector('#inspector').textContent.includes('原父方向候选 IDs') && document.querySelector('#inspector').textContent.includes('当前 review_candidate_ids')`), id + ' raw row selection shows both parent and review lineage');
+    assert(await cdp.evaluate(`document.querySelector('#inspector .record-id').textContent===${JSON.stringify(selected.rid)} && document.querySelector('#inspector').textContent.includes('Original parent direction candidate IDs') && document.querySelector('#inspector').textContent.includes('Current review_candidate_ids')`), id + ' raw row selection shows both parent and review lineage');
     await set('observation-search', '');
     await cdp.evaluate("document.querySelector('#gap-segmentation-panel').scrollIntoView({block:'start'})"); await screenshot(id.replaceAll(':', '-') + '.png');
     if (!c.avl_count) {
@@ -100,7 +100,7 @@ try {
   assert(await cdp.evaluate("document.documentElement.scrollWidth<=innerWidth+2"), 'gap lineage and boundary evidence fit mobile without horizontal overflow');
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 1100, deviceScaleFactor: 1, mobile: false });
   await inspectCase(meta, '9028', 'direction:9028:0004');
-  await switchRun(legacy); assert(await cdp.evaluate("document.querySelector('#gap-segmentation-panel').hidden && document.querySelector('#direction-candidate-note').textContent.includes('方向边界沿用父实验')"), 'legacy run preserves original boundary interpretation and hides gap panel');
+  await switchRun(legacy); assert(await cdp.evaluate("document.querySelector('#gap-segmentation-panel').hidden && document.querySelector('#direction-candidate-note').textContent.includes('Direction boundaries are inherited from the parent')"), 'legacy run preserves original boundary interpretation and hides gap panel');
   const after = await read('/api/reviews/export?run=' + run); assert(JSON.stringify(before.reviews) === JSON.stringify(after.reviews), 'review notes unchanged');
   assert(!requests.some(r => r.method !== 'GET'), 'zero non-GET browser requests; no experiment or note mutation');
   assert(errors.length === 0 && external.length === 0, 'zero console HTTP or external-request errors', { errors, external });

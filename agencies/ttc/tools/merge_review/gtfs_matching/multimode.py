@@ -666,7 +666,8 @@ def main():
             ),
         )
     parser.add_argument(
-        "--label", default="实验 03c · Route 29 · 全局／前期／中期／后期决策"
+        "--label",
+        default="Experiment 03c · Route 29 · Global/Early/Middle/Late decisions",
     )
     args = parser.parse_args()
     result = create_multimode_run(

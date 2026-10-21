@@ -93,7 +93,7 @@ def fig_time_progress(
             y=arc_km(cur),
             mode="markers",
             marker=dict(size=5, color=list(range(cur.height)), colorscale="Viridis"),
-            name="当前 chunk 的 AVL",
+            name="Current chunk AVL",
             text=hover_times(cur),
             hovertemplate="%{text}<extra>current chunk AVL</extra>",
         )
@@ -115,7 +115,7 @@ def fig_time_progress(
             x=0,
             y=1.14,
             showarrow=False,
-            text="琥珀色带 = 停留（30 米范围内超过 90 秒）",
+            text="Amber band = dwell (more than 90 s within 30 m)",
             font=dict(size=10, color="#8a6d00"),
         )
 
@@ -141,7 +141,7 @@ def fig_time_progress(
                     line=dict(color=color, width=1.5, dash="dash"),
                     marker=dict(size=4, color=color),
                     opacity=0.7,
-                    name=f"候选 {detail.alias} 的计划时刻",
+                    name=f"Candidate {detail.alias} scheduled times",
                     text=[local_str(e) for e in arrs],
                     hovertemplate=("%{text}<extra>cand " + detail.alias + "</extra>"),
                 )
@@ -170,7 +170,7 @@ def fig_time_progress(
                         symbol="x-thin",
                         line=dict(width=2, color=APC_COLOR),
                     ),
-                    name="APC 事件",
+                    name="APC events",
                     text=[local_str(e) for e in arrs],
                     hovertemplate="%{text}<extra>APC</extra>",
                 )
@@ -181,9 +181,9 @@ def fig_time_progress(
     fig.update_layout(
         height=460,
         margin=dict(l=10, r=10, t=40, b=10),
-        title=f"沿候选 {alias} 线形的行进进度",
+        title=f"Travel progress along candidate {alias} shape",
         xaxis=dict(title=axis.title),
-        yaxis=dict(title=f"沿线形里程 km（候选 {alias}）"),
+        yaxis=dict(title=f"Distance along shape, km (candidate {alias})"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
     add_context_note(fig)
@@ -225,7 +225,7 @@ def _fallback_cumulative(
             y=dist / 1000.0,
             mode="markers",
             marker=dict(size=5, color=list(range(cur.height)), colorscale="Viridis"),
-            name="当前 chunk 的 AVL",
+            name="Current chunk AVL",
             text=hover_times(cur),
             hovertemplate="%{text}<br>%{y:.2f} km<extra></extra>",
         )
@@ -234,9 +234,9 @@ def _fallback_cumulative(
     fig.update_layout(
         height=420,
         margin=dict(l=10, r=10, t=40, b=10),
-        title="未加载候选线形 —— 显示各段的累计里程",
+        title="No candidate shape loaded — showing cumulative distance per segment",
         xaxis=dict(title=axis.title),
-        yaxis=dict(title="距该段起点的里程 km"),
+        yaxis=dict(title="Distance from segment start, km"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
     add_context_note(fig)

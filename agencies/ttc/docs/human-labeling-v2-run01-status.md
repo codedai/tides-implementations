@@ -10,12 +10,20 @@ live in the gitignored, owner-only `artifacts/human-labeling-v2-run01/`.
   contract, child-case generation contract, promotion contract, and blind
   review protocol are hashed into `protocol_freeze_manifest.json`; every
   saved label must reference that hash.
-- **Human review: not started.** The live label zone is initialized empty
-  and schema-valid; no second-pass label exists, no label was generated
-  automatically, and no first-pass label was modified. First/second-pass
-  agreement is therefore undefined, honestly reported as zero comparisons.
-- **Factorial: NO-GO.** The mechanical readiness report fails on every
-  human-dependent condition and can never trigger execution.
+- **Human review: started, far from complete.** As of 2026-10-20 the live
+  label zone holds blind second-pass saves for **2 of the 18 parent cases**
+  (`C-913f7d4c` and `C-ba617064`, both answered at grain `local_fragment`),
+  each referencing the frozen protocol hash. No child task has been reviewed,
+  no disagreement has been adjudicated (the adjudicated-label set is empty),
+  and none of the seven cases routed to a scheduled-trip blind second pass is
+  finished. No label was generated automatically and no first-pass label was
+  modified. First/second-pass agreement remains undefined: the two saved cases
+  are not a sample from which agreement may be reported.
+- **Factorial: NO-GO.** The mechanical readiness report fails 6 of its 14
+  conditions, all of them human-dependent (completion of the seven scheduled
+  second passes, required child reviews, adjudication of disagreements,
+  full candidate-key verification, calibration/holdout membership validation,
+  and Phase B labeling). It can never trigger execution on its own.
 
 ## Frozen inputs and preservation
 

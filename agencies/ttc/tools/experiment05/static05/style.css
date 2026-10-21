@@ -17,7 +17,7 @@ select { width:100%; padding:8px 30px 8px 12px; border:1px solid #bacbd0; backgr
 button { cursor:pointer; border:1px solid transparent; padding:8px 18px; background:var(--accent); color:#fff; font-weight:650; }
 button:hover { filter:brightness(.94); }
 button:disabled { opacity:.45; cursor:not-allowed; }
-button.secondary,#language-switch { background:#fff; color:var(--accent); border-color:var(--line); }
+button.secondary { background:#fff; color:var(--accent); border-color:var(--line); }
 :focus-visible { outline:3px solid #43bcb780; outline-offset:3px; }
 .run-options { display:flex; flex-wrap:wrap; gap:12px 25px; align-items:center; margin-top:16px; }
 .check { flex-direction:row; align-items:center; font-weight:400; }

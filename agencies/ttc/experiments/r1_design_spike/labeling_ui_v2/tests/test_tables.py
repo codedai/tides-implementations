@@ -50,9 +50,9 @@ def test_truncation_reports_exact_hidden_count():
     rows = [{"n": i} for i in range(30)]
     capture = _run(rows, max_rows=12)
     assert capture.markdown_calls[0].count("\n") == 12 + 1  # header + sep + 12
-    assert capture.caption_calls == ["…… 另有 18 行未显示"]
+    assert capture.caption_calls == ["… 18 more rows hidden"]
 
 
 def test_empty_rows_render_placeholder():
     capture = _run([])
-    assert capture.caption_calls == ["（空）"]
+    assert capture.caption_calls == ["(empty)"]

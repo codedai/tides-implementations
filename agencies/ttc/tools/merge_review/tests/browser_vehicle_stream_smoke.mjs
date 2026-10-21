@@ -133,8 +133,8 @@ async function runChecks() {
   } else {
     await setValue('#debug-label',`VehicleID stream browser ${startedAt}`);
     await click('#debug-submit');
-    await waitFor("document.querySelector('#debug-job-title').textContent.includes('重跑完成') || document.querySelector('#debug-job-title').textContent.includes('重跑失败')",600000);
-    assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('重跑完成')"), 'pure source stream experiment completes');
+    await waitFor("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete') || document.querySelector('#debug-job-title').textContent.includes('Reprocessing failed')",600000);
+    assert(await cdp.evaluate("document.querySelector('#debug-job-title').textContent.includes('Reprocessing complete')"), 'pure source stream experiment completes');
     await waitFor(`document.querySelector('#debug-run-select').value!==${JSON.stringify(base)} && document.querySelector('#case-loading').hidden`); await ready();
     const experimentPosts = requests.filter(request=>request.method==='POST'&&request.url.endsWith('/api/debug/runs'));
     assert(experimentPosts.length===1,'exactly one stream experiment submitted');
@@ -208,13 +208,13 @@ async function runChecks() {
     const originalTime = row.source==='avl' ? row.time : (row.arrival ?? row.departure);
     const readableOriginalTime = new Date(originalTime*1000).toISOString().slice(0,19).replace('T',' ');
     assert(await cdp.evaluate(`document.querySelector('#observation-table-body tr.selected td:last-child').textContent.includes(${JSON.stringify(readableOriginalTime)})`),`${row.source} original-time table column shows a readable complete local date and clock, not epoch seconds`);
-    const originalTimeLabel = row.source==='avl' ? '来源定位时刻' : (row.arrival==null ? '来源离站' : '来源到站');
+    const originalTimeLabel = row.source==='avl' ? 'Source location time' : (row.arrival==null ? 'Source departure' : 'Source arrival');
     assert(await cdp.evaluate(`[...document.querySelectorAll('#inspector .record-dl dt')].find(e=>e.textContent===${JSON.stringify(originalTimeLabel)})?.nextElementSibling?.textContent.includes(${JSON.stringify(readableOriginalTime)})`),`${row.source} inspector original timestamp is human-readable without timezone conversion`);
     assert(typeof row.source_fields.payload_hash==='string' && /^\d+$/.test(row.source_fields.payload_hash),`${row.source} UInt64 payload hash is encoded as an exact decimal string`);
     const inspectorFields = await cdp.evaluate("JSON.parse(document.querySelector('#inspector pre').textContent)");
     assert(inspectorFields.payload_hash===row.source_fields.payload_hash,`${row.source} inspector preserves the exact API payload hash without JS rounding`);
     if(row.source==='apc'){
-      assert(await cdp.evaluate("document.querySelector('#selected-status').textContent.includes('未执行匹配')"),'APC inspector clearly says matching was not performed');
+      assert(await cdp.evaluate("document.querySelector('#selected-status').textContent.includes('Matching not performed')"),'APC inspector clearly says matching was not performed');
       assert(await cdp.evaluate(`!document.querySelector('#progress-svg [data-rid="${row.rid}"]')`),'APC is not projected onto GPS progress');
       assert(await cdp.evaluate(` [...document.querySelectorAll('#map-svg [data-rid="${row.rid}"]')].some(e=>e.getAttribute('fill')==='#8296a4')`),'APC geographic observation has neutral unmatched-evaluation styling');
       assert(await cdp.evaluate(`(() => {const root=document.querySelector('#map-svg'),dot=root.querySelector('[data-rid="${row.rid}"][data-selected="true"]'),v=root.viewBox.baseVal;return dot&&Math.abs(Number(dot.getAttribute('cx'))-v.width/2)<1&&Math.abs(Number(dot.getAttribute('cy'))-v.height/2)<1})()`),'APC click centers the map on its own raw coordinates, not nearest AVL');
@@ -223,14 +223,14 @@ async function runChecks() {
       assert(await cdp.evaluate(`document.querySelector('#scrubber-time').textContent.includes(${JSON.stringify(clock)})`),'AVL source click positions the actual observation time cursor');
     }
   }
-  assert(await cdp.evaluate("document.querySelector('.progress-panel .chart-caption').textContent.includes('APC 不投影')"),'progress chart explicitly excludes APC projection');
+  assert(await cdp.evaluate("document.querySelector('.progress-panel .chart-caption').textContent.includes('APC is not projected')"),'progress chart explicitly excludes APC projection');
   await setValue('#observation-search',''); await click('#observation-first');
   await cdp.evaluate("document.querySelector('#observation-stream-panel').scrollIntoView({block:'start'})"); await screenshot('vehicle-source-stream.png');
   await cdp.evaluate("document.querySelector('.timeline-panel').scrollIntoView({block:'start'})"); await screenshot('vehicle-time-progress.png');
   await setValue('#debug-base-select',base);
   const diff = await read(`/api/debug/compare?base=${encodeURIComponent(base)}&run=${encodeURIComponent(current)}&vehicle=${encodeURIComponent(vehicle)}`);
   assert(diff.comparable===false && diff.not_comparable===true && diff.summary===null,'stream versus matching correctly refuses algorithm-quality comparison');
-  await waitFor("document.querySelector('#debug-diff-status').textContent.includes('不可') || document.querySelector('#debug-diff-status').textContent.includes('不比较')");
+  await waitFor("document.querySelector('#debug-diff-status').textContent.includes('not comparable') || document.querySelector('#debug-diff-status').textContent.includes('Not matching performance') || document.querySelector('#debug-diff-status').textContent.includes('Matching not performed')");
   assert(await cdp.evaluate("!document.querySelector('#debug-diff-summary .diff-stat')"),'incomparable representations do not show fabricated improvement statistics');
   const hiddenBoundary = await cdp.evaluate("(() => {const svg=document.querySelector('#debug-boundary-svg');return {display:getComputedStyle(svg).display,height:svg.getBoundingClientRect().height,hiddenAttribute:svg.hasAttribute('hidden')}})()");
   assert(hiddenBoundary.height===0,'incomparable boundary SVG is actually removed from layout, not merely assigned a JS hidden property',hiddenBoundary);

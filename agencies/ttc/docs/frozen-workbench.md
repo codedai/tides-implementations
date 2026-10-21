@@ -2,7 +2,9 @@
 
 The current reproducible profile is **04c**, derived from **04**, not 04b.
 The release retains complete 03d, 04, 04b and 04c settings, including all
-thresholds and all four decision modes. Earlier frozen snapshots remain intact.
+thresholds and all four decision modes. The six superseded 2026-09-10 release
+snapshots were removed from the working tree on 2026-10-20; they remain in git
+history at `878089a`.
 This is a diagnostic experiment, not independently calibrated trip certification.
 
 ## One command
@@ -19,14 +21,22 @@ exits. `--workers 1` reduces CPU concurrency; the default is 8. Each run writes 
 new directory under `artifacts/workbench-builds/`; existing results are never
 overwritten. `--output` can specify another **new** directory.
 
-To inspect the retained 03d/04/04b/04c workspace instead of rebuilding it:
+To cold-load the surviving 03d/04/04b/04c workspace instead of rebuilding it:
 
 ```sh
-./workbench.sh serve
+./workbench.sh serve --port 8781
 ```
 
-Open `http://127.0.0.1:8767`. This serves saved results without regenerating an
-obsolete baseline. Existing review notes remain in the existing review database.
+Open `http://127.0.0.1:8781`. The default port is 8767, which the Experiment 05
+inspector (`./experiment05.sh web`) also defaults to, so pass `--port` to keep
+the two apart. This loads the latest completed run under
+`artifacts/merge-debug-20231106/` without regenerating an obsolete baseline, but
+the approved 2026-09-10 cleanup deleted the case and overview files of all four
+retired runs, so no saved case or overview results remain for it to present —
+only manifests, configurations, output-hash inventories, summaries and the
+retained shadow reports. Full browsing needs a rebuild first
+(`./workbench.sh run --serve --port 8780`), which has new provenance. Existing
+review notes remain in the existing review database.
 
 To verify code, configuration, dependencies and raw input identities:
 
@@ -48,6 +58,28 @@ manifest, and relevant GTFS archives. It contains no large result copies.
 The launcher verifies the snapshot and re-executes its entry point; subsequent
 edits to working business modules do not silently change this release.
 
+`releases/` holds exactly one workbench release — currently
+`workbench-04c-20261021T013832-cddd406e`, re-cut on 2026-10-20 from the
+English-only sources and selected by the pointer with `release.json` SHA-256
+`1e922fa9…` — plus `pre-experiment-05-20260910/`, the hash-locked minimal
+reproducibility snapshot required by `tools/experiment05/cleanup.py` and matched
+by the git tag of the same name. `./workbench.sh verify` reports `PASS` for the
+selected release with 201 code files and 5 raw inputs; the release carries no
+CJK text, and its `static/` directory holds only `app.js`, `index.html` and
+`styles.css` because the runtime-translation assets no longer exist to be
+frozen. The six 04b/04c releases cut on 2026-09-10 were removed with `git rm` on
+2026-10-20 after the English-only source conversion; they remain in git history
+(commit `878089a`), all 207 code files of the release the pointer previously
+selected are present hash-identical inside the snapshot's `code/` directory, and
+the snapshot's `frozen_release/` directory still records the release it was
+derived from. A release cut from the current sources has new provenance; it is
+not claimed to be byte-identical to any historical release.
+
+The snapshot itself is never edited, so it still contains the pre-translation
+Chinese sources; `tools/experiment05/cleanup.py` verifies it against an exact
+file set, and `pyproject.toml` excludes `releases/` from `ruff` so that linting
+cannot write caches into a pinned directory and break that check.
+
 The dependency chain is:
 
 1. Stream the original AVL/APC CSVs into a single-day normalized input, retaining
@@ -68,7 +100,8 @@ release, inputs, scope and outcome. Direct builds label shadow reports
 Profiles `--profile 03d`, `--profile 04` and `--profile 04b` remain available with their
 saved settings. A fresh run has new provenance and is not claimed to be a
 byte-identical historical replay; historic 04/04b were score replays of earlier
-projection artifacts. The retained original result files are unchanged.
+projection artifacts. The surviving original result files — manifests,
+inventories and summaries — are unchanged.
 
 ## Single-global case storage
 
@@ -91,15 +124,25 @@ fail closed. Raw `json.load` is not a replacement for the version-aware reader.
 
 Output SHA-256 pins cover the actual compressed file, not its decoded contents.
 New build/replay provenance includes the codec; the matcher scoring fingerprint
-does not change merely because its transport changes. Existing 03d–04c artifacts
-have **not** been migrated or edited: their contents, hashes and disk usage remain
-unchanged. A historical migration must separately verify semantic equality and
-publish updated storage provenance; do not manually remove fields from pinned runs.
+does not change merely because its transport changes. Surviving 03d–04c
+artifacts have **not** been migrated or edited: their contents and hashes are
+unchanged. Their disk usage is not, because the approved 2026-09-10 cleanup
+deleted their case, overview and shadow-episode files; see
+[Retention and careful cleanup](#retention-and-careful-cleanup). A historical
+migration must separately verify semantic equality and publish updated storage
+provenance; do not manually remove fields from pinned runs.
 
 ## Retention and careful cleanup
 
-Full 03d, 04, 04b and 04c results, original CSV/GTFS data, exported CSVs, human notes,
-and their supporting day fixture are retained. The old direction-stage files
+What is retained from 03d, 04, 04b and 04c is their manifests, configurations,
+`output_sha256.json` inventories and summaries, plus the 8-file `shadow/`
+reports of 04, 04b and 04c, together with the original CSV/GTFS data, the
+exported CSVs, the human notes and their supporting day fixture. The full
+results are not: the approved cleanup of 2026-09-10 deleted 1,252 allow-listed
+case, overview and shadow-episode files from the four run roots
+(14,127,707,246 logical bytes) and recorded `historical_full_ui_available:
+false`, so full browsing of those runs now requires regeneration, which has new
+provenance and is not claimed to be byte-identical. The old direction-stage files
 still needed by retained raw-detail views are copied into a small checksummed
 shared checkpoint in `artifacts/merge-debug-20231106/retention/`.
 
